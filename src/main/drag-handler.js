@@ -76,11 +76,18 @@ class DragHandler {
       const successCount = results.filter(r => r.success).length;
       console.log(`[DragHandler] Prepared ${successCount}/${items.length} files`);
 
+      // Extract file paths for easier access
+      const filePaths = results.filter(r => r.success).map(r => r.filePath);
+      const thumbnailPaths = results.filter(r => r.success && r.thumbnailPath).map(r => r.thumbnailPath);
+
       return {
         success: true,
-        results,
+        filePaths,
+        thumbnailPaths,
+        results, // Keep for debugging
         successCount,
-        totalCount: items.length
+        totalCount: items.length,
+        errors: results.filter(r => !r.success).map(r => r.error)
       };
 
     } catch (error) {

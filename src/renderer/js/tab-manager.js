@@ -258,12 +258,20 @@ class TabManager {
     iframe.setAttribute('sandbox', 'allow-same-origin allow-scripts allow-forms allow-popups allow-modals');
 
     // Add authentication token to URL
-    const token = kolboAPI?.getToken();
+    const token = window.kolboAPI?.getToken();
     if (token) {
       const separator = tabUrl.includes('?') ? '&' : '?';
       iframe.src = `${tabUrl}${separator}embedded=true&token=${encodeURIComponent(token)}`;
+
+      if (this.DEBUG_MODE) {
+        console.log(`[TabManager] Creating iframe with authentication token`);
+        console.log(`[TabManager] Token (first 20 chars): ${token.substring(0, 20)}...`);
+        console.log(`[TabManager] Full URL: ${tabUrl}${separator}embedded=true&token=${token.substring(0, 20)}...`);
+      }
     } else {
       iframe.src = tabUrl;
+      console.warn('[TabManager] No authentication token found - iframe will load without authentication');
+      console.warn('[TabManager] User may need to login again in the web app');
     }
 
     // Create tab element
@@ -513,6 +521,37 @@ class TabManager {
         toast.classList.remove('show');
       }, 3000);
     }
+  }
+
+  // Refresh authentication token in all iframes
+  // Call this after user logs in or token changes
+  refreshAuthToken() {
+    const token = window.kolboAPI?.getToken();
+
+    if (!token) {
+      console.warn('[TabManager] Cannot refresh token - no token available');
+      return;
+    }
+
+    if (this.DEBUG_MODE) {
+      console.log('[TabManager] Refreshing authentication token in all tabs');
+      console.log('[TabManager] Token (first 20 chars): ${token.substring(0, 20)}...');
+    }
+
+    this.tabs.forEach(tab => {
+      if (tab.iframe && tab.url) {
+        const separator = tab.url.includes('?') ? '&' : '?';
+        const newUrl = `${tab.url}${separator}embedded=true&token=${encodeURIComponent(token)}`;
+
+        // Reload iframe with new token
+        tab.iframe.src = newUrl;
+        tab.loaded = false;
+
+        if (this.DEBUG_MODE) {
+          console.log(`[TabManager] Refreshed token for tab: ${tab.id}`);
+        }
+      }
+    });
   }
 
   // Cleanup

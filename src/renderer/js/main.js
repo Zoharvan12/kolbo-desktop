@@ -54,8 +54,7 @@ class KolboApp {
     this.playingVideoId = null;
 
     // Drag & Drop State
-    this.preparedDragData = null; // Downloaded files ready for drag
-    this.downloadingForDrag = false;
+    this.draggedItemId = null; // Which item is currently being dragged
 
     // View & Navigation State
     // One-time migration: Clear old 'media' default and set to 'webapp'
@@ -495,6 +494,11 @@ class KolboApp {
         await this.loadProjects();
         await this.loadMedia();
         this.showMediaScreen(false);
+
+        // Refresh authentication token in webapp iframes
+        if (this.tabManager) {
+          this.tabManager.refreshAuthToken();
+        }
       } else {
         errorEl.textContent = result.error || 'Login failed';
       }
@@ -527,6 +531,11 @@ class KolboApp {
           await this.loadProjects();
           await this.loadMedia();
           this.showMediaScreen(false);
+
+          // Refresh authentication token in webapp iframes
+          if (this.tabManager) {
+            this.tabManager.refreshAuthToken();
+          }
         }, 800);
       } else {
         errorEl.style.color = '#ef4444';
@@ -881,6 +890,7 @@ class KolboApp {
 
   async updateCachedIndicators() {
     const mediaItems = document.querySelectorAll('.media-item[data-filename]');
+    console.log('[Cache] Checking cached status for', mediaItems.length, 'items');
 
     for (const item of mediaItems) {
       const fileName = item.dataset.filename;
@@ -888,15 +898,18 @@ class KolboApp {
 
       try {
         const result = await window.electronBridge.isFileCached(fileName);
+        console.log('[Cache] File:', fileName, '- Cached:', result?.cached);
+
         if (result && result.cached) {
           const indicator = item.querySelector('.cached-indicator');
           if (indicator) {
             indicator.style.display = 'flex';
             indicator.classList.add('visible');
+            console.log('[Cache] Showing indicator for:', fileName);
           }
         }
       } catch (error) {
-        // Silently fail - not critical
+        console.error('[Cache] Error checking file:', fileName, error);
       }
     }
   }
@@ -1045,44 +1058,121 @@ class KolboApp {
     gridEl._clickHandler = clickHandler;
     gridEl.addEventListener('click', clickHandler);
 
-    // Drag events delegation
-    if (!gridEl._dragHandlersSetup) {
-      // Mousedown: Start pre-downloading files
-      gridEl.addEventListener('mousedown', (e) => {
-        // Only for media items, not buttons
-        if (e.target.closest('button, audio, video, .selection-checkbox')) {
-          return;
-        }
+    // Context menu for download & reveal
+    gridEl.addEventListener('contextmenu', (e) => {
+      const card = e.target.closest('.media-item');
+      if (!card) return;
 
-        const card = e.target.closest('.media-item');
-        if (card && card.dataset.id) {
-          // Add downloading visual state
-          card.classList.add('downloading');
+      e.preventDefault();
 
-          // Start pre-downloading files for drag (pass card element)
-          this.prepareFilesForDrag(card.dataset.id, card);
-        }
+      const itemId = card.dataset.id;
+
+      // Create context menu
+      const menu = document.createElement('div');
+      menu.className = 'context-menu';
+      menu.style.position = 'fixed';
+      menu.style.left = e.clientX + 'px';
+      menu.style.top = e.clientY + 'px';
+      menu.style.background = '#1e1e1e';
+      menu.style.border = '1px solid rgba(255,255,255,0.1)';
+      menu.style.borderRadius = '6px';
+      menu.style.padding = '4px';
+      menu.style.zIndex = '10000';
+      menu.style.boxShadow = '0 4px 12px rgba(0,0,0,0.5)';
+      menu.style.minWidth = '200px';
+
+      const option = document.createElement('div');
+      option.textContent = this.selectedItems.size > 1
+        ? `Download ${this.selectedItems.size} files to folder`
+        : 'Download to folder';
+      option.style.padding = '8px 12px';
+      option.style.cursor = 'pointer';
+      option.style.color = '#fff';
+      option.style.fontSize = '13px';
+      option.style.borderRadius = '4px';
+
+      option.addEventListener('mouseenter', () => {
+        option.style.background = 'rgba(102, 126, 234, 0.2)';
+      });
+      option.addEventListener('mouseleave', () => {
+        option.style.background = 'transparent';
       });
 
+      option.addEventListener('click', async () => {
+        menu.remove();
+
+        // Select this item if not selected
+        if (!this.selectedItems.has(itemId)) {
+          this.selectedItems.clear();
+          this.selectedItems.add(itemId);
+          this.updateBatchMenu();
+        }
+
+        card.classList.add('downloading');
+        await this.downloadAndReveal(itemId);
+        card.classList.remove('downloading');
+      });
+
+      menu.appendChild(option);
+      document.body.appendChild(menu);
+
+      // Close menu on click outside
+      const closeMenu = (e) => {
+        if (!menu.contains(e.target)) {
+          menu.remove();
+          document.removeEventListener('click', closeMenu);
+        }
+      };
+      setTimeout(() => document.addEventListener('click', closeMenu), 0);
+    });
+
+    // Drag events delegation
+    if (!gridEl._dragHandlersSetup) {
       gridEl.addEventListener('dragstart', (e) => {
-        // Prevent dragging if user clicked on buttons or interactive elements
-        if (e.target.closest('button, audio, video')) {
+        // Prevent dragging if user clicked on buttons or audio controls
+        if (e.target.closest('button, audio')) {
           e.preventDefault();
           return;
         }
 
         const card = e.target.closest('.media-item');
         if (card && card.dataset.id) {
-          // Handle drag start - uses pre-downloaded files
-          this.handleDragStart(e, card.dataset.id);
+          // Just store which item is being dragged
+          this.draggedItemId = card.dataset.id;
+
+          // Select item if not already selected
+          if (!this.selectedItems.has(card.dataset.id)) {
+            this.selectedItems.clear();
+            this.selectedItems.add(card.dataset.id);
+            this.updateBatchMenu();
+
+            // Update visual selection
+            document.querySelectorAll('.media-item').forEach(item => {
+              item.classList.remove('selected');
+              const checkbox = item.querySelector('.selection-checkbox');
+              if (checkbox) checkbox.classList.remove('checked');
+            });
+            card.classList.add('selected');
+            const checkbox = card.querySelector('.selection-checkbox');
+            if (checkbox) checkbox.classList.add('checked');
+          }
+
+          // Set a simple text data so drag is valid
+          e.dataTransfer.effectAllowed = 'copy';
+          e.dataTransfer.setData('text/plain', 'Kolbo media files');
+
+          console.log('[Drag] Drag started for:', card.dataset.id);
         }
       });
 
+      gridEl.addEventListener('drop', async (e) => {
+        // This won't fire for external drops, but we'll handle it in dragend
+        console.log('[Drag] Drop event');
+      });
+
       gridEl.addEventListener('dragend', (e) => {
-        const card = e.target.closest('.media-item');
-        if (card) {
-          this.handleDragEnd(e);
-        }
+        console.log('[Drag] Drag ended');
+        this.draggedItemId = null;
       });
 
       gridEl._dragHandlersSetup = true;
@@ -1154,6 +1244,76 @@ class KolboApp {
     this.updateBatchMenu();
   }
 
+  async downloadAndReveal(itemId) {
+    console.log('[Download] Starting download for:', itemId);
+
+    // Get all selected items (or just the one being dragged)
+    const itemsToDownload = this.selectedItems.size > 0
+      ? Array.from(this.selectedItems)
+      : [itemId];
+
+    // Build items array
+    const items = itemsToDownload.map(id => {
+      const mediaItem = this.media.find(m => m.id === id);
+      if (!mediaItem) return null;
+
+      let fileName = mediaItem.filename || `kolbo-${mediaItem.id}`;
+      if (fileName.length > 50) {
+        const ext = fileName.split('.').pop();
+        fileName = `kolbo-${mediaItem.id}.${ext}`;
+      }
+      if (!fileName.includes('.')) {
+        const ext = mediaItem.type === 'video' ? 'mp4' :
+                    mediaItem.type === 'audio' ? 'mp3' : 'png';
+        fileName = `${fileName}.${ext}`;
+      }
+
+      return {
+        id: mediaItem.id,
+        fileName,
+        url: mediaItem.url,
+        thumbnailUrl: mediaItem.thumbnailUrl
+      };
+    }).filter(item => item !== null);
+
+    if (items.length === 0) {
+      console.error('[Download] No valid items');
+      return;
+    }
+
+    try {
+      console.log('[Download] Downloading', items.length, 'file(s)...');
+
+      // Show a message to user
+      const message = items.length === 1
+        ? 'Downloading file...'
+        : `Downloading ${items.length} files...`;
+
+      // You could show a toast/notification here
+      console.log('[Download]', message);
+
+      const result = await window.electronBridge.prepareDrag(items);
+
+      console.log('[Download] Result:', JSON.stringify(result, null, 2));
+
+      if (result && result.success && result.filePaths && result.filePaths.length > 0) {
+        console.log('[Download] Downloaded', result.filePaths.length, 'files successfully');
+
+        // Open folder with first file selected
+        const firstFile = result.filePaths[0];
+        await window.electronBridge.revealFileInFolder(firstFile);
+
+        console.log('[Download] Opened folder with file selected');
+      } else {
+        console.error('[Download] Download failed:', result?.error);
+        alert('Failed to download files. Please try again.');
+      }
+    } catch (error) {
+      console.error('[Download] Error:', error);
+      alert('Failed to download files: ' + error.message);
+    }
+  }
+
   async prepareFilesForDrag(itemId, cardElement) {
     // Prevent multiple simultaneous downloads
     if (this.downloadingForDrag) {
@@ -1163,11 +1323,32 @@ class KolboApp {
 
     console.log('[Drag] prepareFilesForDrag called for:', itemId);
 
-    // Don't change selection - just use whatever is currently selected
-    // If item is not selected, it will be handled in dragstart
-    const itemsToDownload = this.selectedItems.has(itemId)
-      ? Array.from(this.selectedItems)
-      : [itemId];
+    // If item is not already selected, select it (but don't clear others if already selected)
+    if (!this.selectedItems.has(itemId)) {
+      // Clear selection and select just this item
+      this.selectedItems.clear();
+      this.selectedItems.add(itemId);
+
+      // Update visual selection state
+      document.querySelectorAll('.media-item').forEach(item => {
+        item.classList.remove('selected');
+        const checkbox = item.querySelector('.selection-checkbox');
+        if (checkbox) checkbox.classList.remove('checked');
+      });
+
+      if (cardElement) {
+        cardElement.classList.add('selected');
+        const checkbox = cardElement.querySelector('.selection-checkbox');
+        if (checkbox) checkbox.classList.add('checked');
+      }
+
+      this.updateBatchMenu();
+    }
+
+    console.log('[Drag] Selected items for download:', Array.from(this.selectedItems));
+
+    // Download all selected items
+    const itemsToDownload = Array.from(this.selectedItems);
 
     // Build items array
     const items = itemsToDownload.map(id => {
@@ -1205,22 +1386,16 @@ class KolboApp {
       console.log('[Drag] Downloading files:', items);
       const result = await window.electronBridge.prepareDrag(items);
 
-      if (result && result.success) {
-        // Extract file paths from results array
-        const filePaths = result.results
-          .filter(r => r.success)
-          .map(r => r.filePath);
-        const thumbnailPaths = result.results
-          .filter(r => r.success && r.thumbnailPath)
-          .map(r => r.thumbnailPath);
+      console.log('[Drag] Download result:', JSON.stringify(result, null, 2));
 
+      if (result && result.success && result.filePaths && result.filePaths.length > 0) {
         this.preparedDragData = {
-          filePaths,
-          thumbnailPaths
+          filePaths: result.filePaths,
+          thumbnailPaths: result.thumbnailPaths || []
         };
-        console.log('[Drag] Files prepared:', this.preparedDragData);
+        console.log('[Drag] Files prepared successfully:', result.filePaths.length, 'files');
       } else {
-        console.error('[Drag] Download failed:', result);
+        console.error('[Drag] Download failed:', result?.error || 'No files downloaded');
         this.preparedDragData = null;
       }
     } catch (error) {
@@ -1277,13 +1452,6 @@ class KolboApp {
     }
 
     console.log('[Drag] Preparing to drag', items.length, 'file(s)...');
-
-    // Calculate expected file paths (where files will be downloaded)
-    const { app } = require('electron').remote || {};
-    const cachePath = app ? app.getPath('userData') + '\\MediaCache\\' : 'C:\\Users\\Zohar\\AppData\\Roaming\\kolbo-desktop\\MediaCache\\';
-    const expectedFilePaths = items.map(item => cachePath + item.fileName);
-
-    console.log('[Drag] Expected file paths:', expectedFilePaths);
 
     // Check if files are already prepared from mousedown
     if (!this.preparedDragData) {

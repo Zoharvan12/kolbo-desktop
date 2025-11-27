@@ -348,3 +348,6 @@ class KolboAPI {
 
 // Global instance
 const kolboAPI = new KolboAPI();
+
+// Make explicitly available globally for tab-manager and other components
+window.kolboAPI = kolboAPI;
