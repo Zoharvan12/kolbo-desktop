@@ -178,7 +178,7 @@ class KolboApp {
       this.showLoadingOverlay();
       this.loadProjects().then(async () => {
         await this.loadMedia();
-        this.showMediaScreen(true);
+        this.showMediaScreen(false);
       });
     } else {
       this.showLoginScreen();
@@ -487,7 +487,7 @@ class KolboApp {
 
         await this.loadProjects();
         await this.loadMedia();
-        this.showMediaScreen(true);
+        this.showMediaScreen(false);
       } else {
         errorEl.textContent = result.error || 'Login failed';
       }
@@ -519,7 +519,7 @@ class KolboApp {
 
           await this.loadProjects();
           await this.loadMedia();
-          this.showMediaScreen(true);
+          this.showMediaScreen(false);
         }, 800);
       } else {
         errorEl.style.color = '#ef4444';
@@ -867,6 +867,31 @@ class KolboApp {
     // Setup selection listeners
     this.setupMediaItemListeners();
     this.updateBatchMenu();
+
+    // Check and update cached status for all items
+    this.updateCachedIndicators();
+  }
+
+  async updateCachedIndicators() {
+    const mediaItems = document.querySelectorAll('.media-item[data-filename]');
+
+    for (const item of mediaItems) {
+      const fileName = item.dataset.filename;
+      if (!fileName) continue;
+
+      try {
+        const result = await window.electronBridge.isFileCached(fileName);
+        if (result && result.cached) {
+          const indicator = item.querySelector('.cached-indicator');
+          if (indicator) {
+            indicator.style.display = 'flex';
+            indicator.classList.add('visible');
+          }
+        }
+      } catch (error) {
+        // Silently fail - not critical
+      }
+    }
   }
 
   renderMediaItem(item) {
@@ -888,8 +913,9 @@ class KolboApp {
     // Image cards (default)
     const isSelected = this.selectedItems.has(item.id);
     return `
-      <div class="media-item media-item-image ${isSelected ? 'selected' : ''}" data-id="${item.id}" draggable="true">
+      <div class="media-item media-item-image ${isSelected ? 'selected' : ''}" data-id="${item.id}" data-filename="${fileName}" draggable="true">
         <div class="selection-checkbox ${isSelected ? 'checked' : ''}" data-id="${item.id}"></div>
+        <div class="cached-indicator" style="display: none;"></div>
         <div class="media-preview">
           <img src="${item.thumbnail_url || item.url}" alt="${title}" loading="lazy" decoding="async" onerror="this.src='data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 width=%22160%22 height=%2290%22%3E%3Crect fill=%22%23333%22 width=%22160%22 height=%2290%22/%3E%3C/svg%3E'">
           <span class="type-badge type-badge-image">Image</span>
@@ -907,8 +933,9 @@ class KolboApp {
     const thumbnailUrl = item.thumbnail_url || item.url;
 
     return `
-      <div class="media-item media-item-video ${isSelected ? 'selected' : ''}" data-id="${item.id}" draggable="true">
+      <div class="media-item media-item-video ${isSelected ? 'selected' : ''}" data-id="${item.id}" data-filename="${fileName}" draggable="true">
         <div class="selection-checkbox ${isSelected ? 'checked' : ''}" data-id="${item.id}"></div>
+        <div class="cached-indicator" style="display: none;"></div>
         <div class="media-preview">
           <video
             id="video-${item.id}"
@@ -942,8 +969,9 @@ class KolboApp {
     const isSelected = this.selectedItems.has(item.id);
 
     return `
-      <div class="media-item media-item-audio ${isSelected ? 'selected' : ''}" data-id="${item.id}" draggable="true">
+      <div class="media-item media-item-audio ${isSelected ? 'selected' : ''}" data-id="${item.id}" data-filename="${fileName}" draggable="true">
         <div class="selection-checkbox ${isSelected ? 'checked' : ''}" data-id="${item.id}"></div>
+        <div class="cached-indicator" style="display: none;"></div>
         <div class="audio-card">
           <div class="audio-title" title="${title}">${title}</div>
           <div class="audio-player-wrapper">
@@ -1024,8 +1052,8 @@ class KolboApp {
           // Add downloading visual state
           card.classList.add('downloading');
 
-          // Start pre-downloading files for drag
-          this.prepareFilesForDrag(card.dataset.id);
+          // Start pre-downloading files for drag (pass card element)
+          this.prepareFilesForDrag(card.dataset.id, card);
         }
       });
 
@@ -1171,9 +1199,17 @@ class KolboApp {
       const result = await window.electronBridge.prepareDrag(items);
 
       if (result && result.success) {
+        // Extract file paths from results array
+        const filePaths = result.results
+          .filter(r => r.success)
+          .map(r => r.filePath);
+        const thumbnailPaths = result.results
+          .filter(r => r.success && r.thumbnailPath)
+          .map(r => r.thumbnailPath);
+
         this.preparedDragData = {
-          filePaths: result.filePaths,
-          thumbnailPaths: result.thumbnailPaths || []
+          filePaths,
+          thumbnailPaths
         };
         console.log('[Drag] Files prepared:', this.preparedDragData);
       } else {
@@ -1197,12 +1233,8 @@ class KolboApp {
     console.log('[Drag] Currently selected items:', Array.from(this.selectedItems));
     console.log('[Drag] Total media items:', this.media.length);
 
-    // Select item if not already selected
-    if (!this.selectedItems.has(itemId)) {
-      this.selectedItems.clear();
-      this.selectedItems.add(itemId);
-      this.updateBatchMenu();
-    }
+    // DON'T change selection here - it was already handled in mousedown/prepareFilesForDrag
+    // This prevents deselecting batch items during drag
 
     // Get selected media items
     const items = Array.from(this.selectedItems).map(id => {

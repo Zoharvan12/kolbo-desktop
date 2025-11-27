@@ -48,6 +48,9 @@ contextBridge.exposeInMainWorld('kolboDesktop', {
   clearCache: () =>
     ipcRenderer.invoke('cache:clear'),
 
+  isFileCached: (fileName) =>
+    ipcRenderer.invoke('cache:is-cached', { fileName }),
+
   openCacheFolder: () =>
     ipcRenderer.invoke('cache:open-folder'),
 

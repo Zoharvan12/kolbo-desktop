@@ -19,6 +19,7 @@ class FileManager {
     ipcMain.handle('file:download', this.downloadFile.bind(this));
     ipcMain.handle('cache:get-size', this.getCacheSize.bind(this));
     ipcMain.handle('cache:clear', this.clearCache.bind(this));
+    ipcMain.handle('cache:is-cached', this.isFileCached.bind(this));
     ipcMain.handle('media:get', this.getMedia.bind(this));
     ipcMain.handle('media:get-projects', this.getProjects.bind(this));
 
@@ -27,6 +28,12 @@ class FileManager {
 
     console.log('[FileManager] IPC handlers registered');
     console.log('[FileManager] Cache directory:', CACHE_DIR);
+  }
+
+  static isFileCached(event, { fileName }) {
+    const filePath = path.join(CACHE_DIR, fileName);
+    const exists = fs.existsSync(filePath);
+    return { cached: exists, filePath };
   }
 
   static ensureCacheDir() {
