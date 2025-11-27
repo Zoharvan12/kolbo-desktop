@@ -9,6 +9,10 @@
   },
   "license": "UNLICENSED",
   "private": true,
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Zoharvan12/kolbo-desktop.git"
+  },
   "scripts": {
     "start": "electron .",
     "dev": "set KOLBO_ENV=development&& electron .",
@@ -23,12 +27,15 @@
     "build:prod:mac": "set KOLBO_ENV=production&& electron-builder --mac"
   },
   "dependencies": {
-    "electron-store": "^8.1.0"
+    "electron-store": "^8.1.0",
+    "electron-updater": "^6.6.2"
   },
   "devDependencies": {
     "electron": "^28.0.0",
     "electron-builder": "^24.9.1",
-    "png2icons": "^2.0.1"
+    "jimp": "^1.6.0",
+    "png2icons": "^2.0.1",
+    "sharp": "^0.34.5"
   },
   "build": {
     "appId": "com.kolbo.desktop",
@@ -65,7 +72,9 @@
       "allowToChangeInstallationDirectory": true,
       "createDesktopShortcut": true,
       "createStartMenuShortcut": true,
-      "shortcutName": "${productName}"
+      "shortcutName": "${productName}",
+      "installerSidebar": "installerSidebar.png",
+      "uninstallerSidebar": "uninstallerSidebar.png"
     },
     "mac": {
       "target": [
@@ -87,7 +96,31 @@
     },
     "dmg": {
       "title": "${productName} ${version}",
-      "icon": "assets/icon.icns"
+      "icon": "assets/icon.icns",
+      "background": "assets/images/9x16 image.jpg",
+      "window": {
+        "width": 540,
+        "height": 380
+      },
+      "contents": [
+        {
+          "x": 140,
+          "y": 200,
+          "type": "file"
+        },
+        {
+          "x": 400,
+          "y": 200,
+          "type": "link",
+          "path": "/Applications"
+        }
+      ]
+    },
+    "publish": {
+      "provider": "github",
+      "owner": "Zoharvan12",
+      "repo": "kolbo-desktop",
+      "releaseType": "release"
     }
   }
 }
