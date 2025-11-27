@@ -221,6 +221,26 @@ function setupWindowHandlers() {
     }
   });
 
+  // Open any folder in file explorer
+  ipcMain.handle('file:open-folder', async (event, folderPath) => {
+    try {
+      console.log('[Main] Opening folder:', folderPath);
+      const result = await shell.openPath(folderPath);
+
+      if (result) {
+        // result is an error string if it failed
+        console.error('[Main] Failed to open folder:', result);
+        return { success: false, error: result };
+      }
+
+      console.log('[Main] Opened folder:', folderPath);
+      return { success: true };
+    } catch (error) {
+      console.error('[Main] Error opening folder:', error);
+      return { success: false, error: error.message };
+    }
+  });
+
   // Reveal specific file in Explorer
   ipcMain.handle('file:reveal-in-folder', async (event, filePath) => {
     try {
@@ -239,6 +259,25 @@ function setupWindowHandlers() {
       return { success: true };
     } catch (error) {
       console.error('[Main] Error revealing file:', error);
+      return { success: false, error: error.message };
+    }
+  });
+
+  // Show folder picker dialog
+  ipcMain.handle('file:pick-folder', async () => {
+    try {
+      const result = await dialog.showOpenDialog(mainWindow, {
+        properties: ['openDirectory', 'createDirectory'],
+        title: 'Select Download Folder'
+      });
+
+      if (result.canceled || !result.filePaths || result.filePaths.length === 0) {
+        return { success: false, canceled: true };
+      }
+
+      return { success: true, folderPath: result.filePaths[0] };
+    } catch (error) {
+      console.error('[Main] Error picking folder:', error);
       return { success: false, error: error.message };
     }
   });

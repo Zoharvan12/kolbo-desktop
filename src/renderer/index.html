@@ -594,7 +594,14 @@
         <span class="badge-text">selected</span>
       </div>
       <div class="batch-actions">
-        <p style="color: #888; font-size: 12px; margin: 0 10px;">Drag any selected item to export all</p>
+        <button class="batch-action-btn batch-btn-download" id="floating-batch-download-btn" title="Download Selected">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+            <polyline points="7 10 12 15 17 10"/>
+            <line x1="12" y1="15" x2="12" y2="3"/>
+          </svg>
+          <span>Download</span>
+        </button>
         <button class="batch-action-btn batch-btn-clear" id="floating-batch-clear-btn" title="Clear Selection">
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
             <path d="M18 6L6 18M6 6l12 12"/>

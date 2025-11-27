@@ -54,8 +54,17 @@ contextBridge.exposeInMainWorld('kolboDesktop', {
   openCacheFolder: () =>
     ipcRenderer.invoke('cache:open-folder'),
 
+  openFolder: (folderPath) =>
+    ipcRenderer.invoke('file:open-folder', folderPath),
+
   revealFileInFolder: (filePath) =>
     ipcRenderer.invoke('file:reveal-in-folder', filePath),
+
+  pickFolder: () =>
+    ipcRenderer.invoke('file:pick-folder'),
+
+  batchDownload: (items, targetFolder) =>
+    ipcRenderer.invoke('file:batch-download', { items, targetFolder }),
 
   // App
   getVersion: () =>

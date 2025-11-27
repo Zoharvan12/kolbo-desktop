@@ -17,6 +17,7 @@ const CACHE_DIR = path.join(app.getPath('userData'), 'MediaCache');
 class FileManager {
   static setupHandlers() {
     ipcMain.handle('file:download', this.downloadFile.bind(this));
+    ipcMain.handle('file:batch-download', this.batchDownload.bind(this));
     ipcMain.handle('cache:get-size', this.getCacheSize.bind(this));
     ipcMain.handle('cache:clear', this.clearCache.bind(this));
     ipcMain.handle('cache:is-cached', this.isFileCached.bind(this));
@@ -102,6 +103,103 @@ class FileManager {
         reject(new Error('Download timeout'));
       });
     });
+  }
+
+  static async batchDownload(event, { items, targetFolder }) {
+    console.log(`[FileManager] Batch downloading ${items.length} files to:`, targetFolder);
+
+    const results = [];
+
+    for (const item of items) {
+      try {
+        const filePath = path.join(targetFolder, item.fileName);
+
+        // Check if file already exists
+        if (fs.existsSync(filePath)) {
+          console.log('[FileManager] File already exists, skipping:', item.fileName);
+          results.push({
+            success: true,
+            fileName: item.fileName,
+            filePath,
+            skipped: true
+          });
+          continue;
+        }
+
+        // Download file
+        await new Promise((resolve, reject) => {
+          const file = fs.createWriteStream(filePath);
+          const protocol = item.url.startsWith('https') ? https : http;
+
+          console.log('[FileManager] Downloading:', item.fileName);
+
+          const request = protocol.get(item.url, (response) => {
+            // Handle redirects
+            if (response.statusCode === 301 || response.statusCode === 302) {
+              console.log('[FileManager] Redirect to:', response.headers.location);
+              file.close();
+              fs.unlinkSync(filePath);
+
+              // Update URL and retry
+              item.url = response.headers.location;
+              return this.batchDownload(event, {
+                items: [item],
+                targetFolder
+              }).then(resolve).catch(reject);
+            }
+
+            if (response.statusCode !== 200) {
+              file.close();
+              if (fs.existsSync(filePath)) fs.unlinkSync(filePath);
+              return reject(new Error(`HTTP ${response.statusCode}`));
+            }
+
+            response.pipe(file);
+
+            file.on('finish', () => {
+              file.close();
+              console.log('[FileManager] Downloaded:', item.fileName);
+              resolve();
+            });
+          });
+
+          request.on('error', (err) => {
+            file.close();
+            if (fs.existsSync(filePath)) fs.unlinkSync(filePath);
+            reject(err);
+          });
+
+          request.setTimeout(300000, () => {
+            request.destroy();
+            reject(new Error('Download timeout'));
+          });
+        });
+
+        results.push({
+          success: true,
+          fileName: item.fileName,
+          filePath
+        });
+
+      } catch (error) {
+        console.error('[FileManager] Download failed:', item.fileName, error);
+        results.push({
+          success: false,
+          fileName: item.fileName,
+          error: error.message
+        });
+      }
+    }
+
+    const successCount = results.filter(r => r.success).length;
+    console.log(`[FileManager] Batch download complete: ${successCount}/${items.length} successful`);
+
+    return {
+      success: true,
+      results,
+      successCount,
+      totalCount: items.length
+    };
   }
 
   static getCacheSizeSync() {

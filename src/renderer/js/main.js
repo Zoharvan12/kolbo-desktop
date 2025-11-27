@@ -284,6 +284,11 @@ class KolboApp {
     }
 
     // Floating batch menu
+    const floatingBatchDownloadBtn = document.getElementById('floating-batch-download-btn');
+    if (floatingBatchDownloadBtn) {
+      floatingBatchDownloadBtn.addEventListener('click', () => this.handleBatchDownload());
+    }
+
     const floatingBatchClearBtn = document.getElementById('floating-batch-clear-btn');
     if (floatingBatchClearBtn) {
       floatingBatchClearBtn.addEventListener('click', () => this.handleBatchClear());
@@ -999,16 +1004,32 @@ class KolboApp {
 
     // Create new click handler
     const clickHandler = (e) => {
-      const target = e.target.closest('.selection-checkbox, .video-play-btn, .media-item');
-      if (!target) return;
+      // Check if click is on a play button first (priority)
+      const playBtn = e.target.closest('.video-play-btn, .audio-play-btn');
+      if (playBtn) {
+        e.stopPropagation();
+        if (playBtn.classList.contains('video-play-btn')) {
+          this.handleVideoPlayPause(playBtn.dataset.id);
+        }
+        // Audio play button handling can be added here if needed
+        return;
+      }
 
-      e.stopPropagation();
-
-      if (target.classList.contains('selection-checkbox')) {
-        const itemId = target.closest('.media-item').dataset.id;
+      // Check if click is on the checkbox
+      const checkbox = e.target.closest('.selection-checkbox');
+      if (checkbox) {
+        e.stopPropagation();
+        const itemId = checkbox.closest('.media-item').dataset.id;
         this.toggleSelection(itemId);
-      } else if (target.classList.contains('video-play-btn')) {
-        this.handleVideoPlayPause(target.dataset.id);
+        return;
+      }
+
+      // Direct click on media item (anywhere except play buttons)
+      const mediaItem = e.target.closest('.media-item');
+      if (mediaItem) {
+        e.stopPropagation();
+        const itemId = mediaItem.dataset.id;
+        this.toggleSelection(itemId);
       }
     };
 
@@ -1091,6 +1112,109 @@ class KolboApp {
       if (count) count.textContent = this.selectedItems.size;
     } else {
       menu?.classList.add('hidden');
+    }
+  }
+
+  async handleBatchDownload() {
+    if (this.selectedItems.size === 0) {
+      alert('No items selected');
+      return;
+    }
+
+    console.log('[Batch Download] Starting download for', this.selectedItems.size, 'items');
+
+    try {
+      // Show folder picker
+      const folderResult = await window.kolboDesktop.pickFolder();
+
+      if (!folderResult.success) {
+        if (!folderResult.canceled) {
+          console.error('[Batch Download] Folder picker failed:', folderResult.error);
+          alert('Failed to select folder: ' + (folderResult.error || 'Unknown error'));
+        }
+        return;
+      }
+
+      const targetFolder = folderResult.folderPath;
+      console.log('[Batch Download] Target folder:', targetFolder);
+
+      // Build items array
+      const items = Array.from(this.selectedItems).map(id => {
+        const mediaItem = this.media.find(m => m.id === id);
+        if (!mediaItem) return null;
+
+        let fileName = mediaItem.filename || `kolbo-${mediaItem.id}`;
+        if (fileName.length > 50) {
+          const ext = fileName.split('.').pop();
+          fileName = `kolbo-${mediaItem.id}.${ext}`;
+        }
+        if (!fileName.includes('.')) {
+          const ext = mediaItem.type === 'video' ? 'mp4' :
+                      mediaItem.type === 'audio' ? 'mp3' : 'png';
+          fileName = `${fileName}.${ext}`;
+        }
+
+        return {
+          id: mediaItem.id,
+          fileName,
+          url: mediaItem.url
+        };
+      }).filter(item => item !== null);
+
+      if (items.length === 0) {
+        alert('No valid items to download');
+        return;
+      }
+
+      // Show downloading message
+      const downloadBtn = document.getElementById('floating-batch-download-btn');
+      const originalText = downloadBtn ? downloadBtn.innerHTML : '';
+      if (downloadBtn) {
+        downloadBtn.disabled = true;
+        downloadBtn.innerHTML = `
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="animation: spin 1s linear infinite;">
+            <circle cx="12" cy="12" r="10"/>
+          </svg>
+          <span>Downloading...</span>
+        `;
+      }
+
+      console.log('[Batch Download] Downloading', items.length, 'files...');
+
+      // Start download
+      const result = await window.kolboDesktop.batchDownload(items, targetFolder);
+
+      console.log('[Batch Download] Result:', result);
+
+      if (result.success) {
+        console.log(`[Batch Download] Successfully downloaded ${result.successCount}/${items.length} files`);
+
+        // Open the folder where files were downloaded
+        await window.kolboDesktop.openFolder(targetFolder);
+
+        // Clear selection after successful download
+        this.handleBatchClear();
+      } else {
+        alert('Download failed. Please try again.');
+      }
+
+    } catch (error) {
+      console.error('[Batch Download] Error:', error);
+      alert('Failed to download files: ' + error.message);
+    } finally {
+      // Restore button
+      const downloadBtn = document.getElementById('floating-batch-download-btn');
+      if (downloadBtn) {
+        downloadBtn.disabled = false;
+        downloadBtn.innerHTML = `
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+            <polyline points="7 10 12 15 17 10"/>
+            <line x1="12" y1="15" x2="12" y2="3"/>
+          </svg>
+          <span>Download</span>
+        `;
+      }
     }
   }
 

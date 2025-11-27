@@ -8,7 +8,12 @@
       "Bash(gh:*)",
       "Read(//g/Projects/Kolbo.AI/github/kolbo-adobe-plugin/**)",
       "Bash(npm run build:prod:win:*)",
-      "Bash(npm run build:prod:win:x64:*)"
+      "Bash(npm run build:prod:win:x64:*)",
+      "Bash(npm start)",
+      "Bash(taskkill:*)",
+      "Read(//g/Projects/Kolbo.AI/github/kolbo-map/src/**)",
+      "Read(//g/Projects/Kolbo.AI/github/kolbo-map/**)",
+      "Bash(timeout:*)"
     ],
     "deny": [],
     "ask": []
