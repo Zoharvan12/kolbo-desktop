@@ -58,7 +58,14 @@ class KolboApp {
     this.downloadingForDrag = false;
 
     // View & Navigation State
-    this.currentView = localStorage.getItem('kolbo_current_view') || 'webapp';
+    // One-time migration: Clear old 'media' default and set to 'webapp'
+    const savedView = localStorage.getItem('kolbo_current_view');
+    if (!savedView || savedView === 'media') {
+      localStorage.setItem('kolbo_current_view', 'webapp');
+      this.currentView = 'webapp';
+    } else {
+      this.currentView = savedView;
+    }
     this.tabManager = null; // Will be initialized when webapp view is shown
 
     // Debug & Performance
