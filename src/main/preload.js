@@ -35,8 +35,11 @@ contextBridge.exposeInMainWorld('kolboDesktop', {
   prepareForDrag: (items) =>
     ipcRenderer.invoke('drag:prepare', items),
 
-  startDrag: (filePaths, thumbnailPaths) =>
-    ipcRenderer.invoke('drag:start', { filePaths, thumbnailPaths }),
+  startDrag: (filePaths, thumbnailPaths) => {
+    // Use sendSync for immediate execution during dragstart event
+    console.log('[Preload] startDrag called with:', filePaths.length, 'files');
+    return ipcRenderer.invoke('drag:start', { filePaths, thumbnailPaths });
+  },
 
   // Cache Management
   getCacheSize: () =>
@@ -47,6 +50,9 @@ contextBridge.exposeInMainWorld('kolboDesktop', {
 
   openCacheFolder: () =>
     ipcRenderer.invoke('cache:open-folder'),
+
+  revealFileInFolder: (filePath) =>
+    ipcRenderer.invoke('file:reveal-in-folder', filePath),
 
   // App
   getVersion: () =>
@@ -88,7 +94,36 @@ contextBridge.exposeInMainWorld('kolboDesktop', {
     ipcRenderer.invoke('autoLaunch:get'),
 
   setAutoLaunch: (enabled) =>
-    ipcRenderer.invoke('autoLaunch:set', enabled)
+    ipcRenderer.invoke('autoLaunch:set', enabled),
+
+  // Update System
+  checkForUpdates: () =>
+    ipcRenderer.invoke('updater:check'),
+
+  getUpdateInfo: () =>
+    ipcRenderer.invoke('updater:get-info'),
+
+  downloadUpdate: () =>
+    ipcRenderer.invoke('updater:download'),
+
+  installUpdate: () =>
+    ipcRenderer.invoke('updater:install'),
+
+  // Update events
+  onUpdateAvailable: (callback) =>
+    ipcRenderer.on('updater:available', (event, info) => callback(info)),
+
+  onUpdateNotAvailable: (callback) =>
+    ipcRenderer.on('updater:not-available', () => callback()),
+
+  onDownloadProgress: (callback) =>
+    ipcRenderer.on('updater:progress', (event, progress) => callback(progress)),
+
+  onUpdateDownloaded: (callback) =>
+    ipcRenderer.on('updater:downloaded', (event, info) => callback(info)),
+
+  onUpdateError: (callback) =>
+    ipcRenderer.on('updater:error', (event, error) => callback(error))
 });
 
 console.log('[Preload] Context bridge established');

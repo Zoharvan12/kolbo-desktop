@@ -1004,22 +1004,6 @@ class KolboApp {
 
     // Drag events delegation
     if (!gridEl._dragHandlersSetup) {
-      // Use mousedown to prepare files BEFORE dragstart
-      gridEl.addEventListener('mousedown', (e) => {
-        // Only prepare on left mouse button
-        if (e.button !== 0) return;
-
-        // Prevent dragging if user clicked on buttons or interactive elements
-        if (e.target.closest('button, audio, video, .selection-checkbox')) {
-          return;
-        }
-
-        const card = e.target.closest('.media-item');
-        if (card && card.dataset.id) {
-          this.prepareFilesForDrag(card.dataset.id);
-        }
-      });
-
       gridEl.addEventListener('dragstart', (e) => {
         // Prevent dragging if user clicked on buttons or interactive elements
         if (e.target.closest('button, audio, video')) {
@@ -1029,6 +1013,10 @@ class KolboApp {
 
         const card = e.target.closest('.media-item');
         if (card && card.dataset.id) {
+          // Add downloading visual state
+          card.classList.add('downloading');
+
+          // Handle drag start - downloads happen async
           this.handleDragStart(e, card.dataset.id);
         }
       });
@@ -1132,9 +1120,27 @@ class KolboApp {
         console.error('[Drag] Media item not found for id:', id);
         return null;
       }
+      // Use shorter filename for compatibility with video editors
+      let fileName = mediaItem.filename || `kolbo-${mediaItem.id}`;
+
+      // Simplify filename if it's too long or has special characters
+      if (fileName.length > 50) {
+        // Keep file extension
+        const ext = fileName.split('.').pop();
+        // Use just the ID for the filename
+        fileName = `kolbo-${mediaItem.id}.${ext}`;
+      }
+
+      // If no extension, add one based on type
+      if (!fileName.includes('.')) {
+        const ext = mediaItem.type === 'video' ? 'mp4' :
+                    mediaItem.type === 'audio' ? 'mp3' : 'png';
+        fileName = `${fileName}.${ext}`;
+      }
+
       return {
         id: mediaItem.id,
-        fileName: mediaItem.filename || `kolbo-${mediaItem.id}.${mediaItem.type === 'video' ? 'mp4' : 'png'}`,
+        fileName: fileName,
         url: mediaItem.url,
         thumbnailUrl: mediaItem.thumbnailUrl
       };
@@ -1184,45 +1190,172 @@ class KolboApp {
     console.log('[Drag] handleDragStart called with itemId:', itemId);
     console.log('[Drag] Currently selected items:', Array.from(this.selectedItems));
     console.log('[Drag] Total media items:', this.media.length);
-    console.log('[Drag] Prepared files available:', this.preparedFiles);
 
-    // Check if files are prepared
-    if (!this.preparedFiles || !this.preparedFiles.filePaths || this.preparedFiles.filePaths.length === 0) {
-      console.error('[Drag] No prepared files available - files must be prepared before drag');
-      e.preventDefault();
+    // Select item if not already selected
+    if (!this.selectedItems.has(itemId)) {
+      this.selectedItems.clear();
+      this.selectedItems.add(itemId);
+      this.updateBatchMenu();
+    }
+
+    // Get selected media items
+    const items = Array.from(this.selectedItems).map(id => {
+      const mediaItem = this.media.find(m => m.id === id);
+      if (!mediaItem) {
+        console.error('[Drag] Media item not found for id:', id);
+        return null;
+      }
+
+      // Use shorter filename for compatibility
+      let fileName = mediaItem.filename || `kolbo-${mediaItem.id}`;
+      if (fileName.length > 50) {
+        const ext = fileName.split('.').pop();
+        fileName = `kolbo-${mediaItem.id}.${ext}`;
+      }
+      if (!fileName.includes('.')) {
+        const ext = mediaItem.type === 'video' ? 'mp4' :
+                    mediaItem.type === 'audio' ? 'mp3' : 'png';
+        fileName = `${fileName}.${ext}`;
+      }
+
+      return {
+        id: mediaItem.id,
+        fileName: fileName,
+        url: mediaItem.url,
+        thumbnailUrl: mediaItem.thumbnailUrl
+      };
+    }).filter(item => item !== null);
+
+    if (items.length === 0) {
+      console.error('[Drag] No valid items to drag');
       return;
     }
 
-    // Start drag with prepared files (synchronous!)
+    console.log('[Drag] Preparing to drag', items.length, 'file(s)...');
+
+    // Calculate expected file paths (where files will be downloaded)
+    const { app } = require('electron').remote || {};
+    const cachePath = app ? app.getPath('userData') + '\\MediaCache\\' : 'C:\\Users\\Zohar\\AppData\\Roaming\\kolbo-desktop\\MediaCache\\';
+    const expectedFilePaths = items.map(item => cachePath + item.fileName);
+
+    console.log('[Drag] Expected file paths:', expectedFilePaths);
+    console.log('[Drag] Starting download (async, non-blocking)...');
+
+    // Use HTML5 DataTransfer API for better compatibility with Adobe apps
     try {
-      if (!window.electronBridge || !window.electronBridge.startDrag) {
-        console.error('[Drag] electronBridge.startDrag not available');
-        e.preventDefault();
+      // Set drag data with file URIs
+      const filePaths = this.preparedFiles.filePaths;
+
+      // Set the drag data to include file paths
+      // Use text/uri-list format for maximum compatibility
+      const uriList = filePaths.map(fp => {
+        // Convert Windows path to file:// URI
+        const normalized = fp.replace(/\\/g, '/');
+        return `file:///${normalized}`;
+      }).join('\n');
+
+      e.dataTransfer.effectAllowed = 'copyMove';
+      e.dataTransfer.dropEffect = 'copy';
+
+      // Set multiple data formats for maximum compatibility
+      e.dataTransfer.setData('text/uri-list', uriList);
+      e.dataTransfer.setData('text/plain', filePaths.join('\n'));
+
+      // Try setting additional formats that Adobe apps might need
+      try {
+        e.dataTransfer.setData('application/x-qt-windows-mime;value="FileName"', filePaths[0]);
+      } catch (err) {
+        console.log('[Drag] Could not set FileName format (expected)');
+      }
+
+      console.log('[Drag] Set drag data with', filePaths.length, 'file(s)');
+      console.log('[Drag] URI list:', uriList);
+      console.log('[Drag] Effect allowed:', e.dataTransfer.effectAllowed);
+
+      // IMPORTANT: Electron's startDrag() has issues with Adobe apps
+      // Calling it here, but it may not work with Premiere Pro
+      // Users can use "Reveal in Folder" feature as workaround
+      if (window.electronBridge && window.electronBridge.startDrag) {
+        window.electronBridge.startDrag(
+          this.preparedFiles.filePaths,
+          this.preparedFiles.thumbnailPaths
+        ).then(result => {
+          console.log('[Drag] Electron startDrag result:', result);
+        }).catch(error => {
+          console.log('[Drag] Electron startDrag error (ignored):', error);
+        });
+      }
+
+      console.log('[Drag] HTML5 drag data set successfully');
+      console.log('[Drag] Note: If drag fails in Premiere, right-click and use "Reveal in Folder"');
+    } catch (error) {
+      console.error('[Drag] Error setting drag data:', error);
+    }
+  }
+
+  // Reveal file in Windows Explorer
+  async revealFileInExplorer(itemId) {
+    console.log('[Reveal] Revealing file for item:', itemId);
+
+    try {
+      // Find the media item
+      const mediaItem = this.media.find(m => m.id === itemId);
+      if (!mediaItem) {
+        console.error('[Reveal] Media item not found');
         return;
       }
 
-      console.log('[Drag] Starting drag with prepared files...');
+      // Get filename
+      let fileName = mediaItem.filename || `kolbo-${mediaItem.id}`;
+      if (fileName.length > 50) {
+        const ext = fileName.split('.').pop();
+        fileName = `kolbo-${mediaItem.id}.${ext}`;
+      }
+      if (!fileName.includes('.')) {
+        const ext = mediaItem.type === 'video' ? 'mp4' :
+                   mediaItem.type === 'audio' ? 'mp3' : 'png';
+        fileName = `${fileName}.${ext}`;
+      }
 
-      const result = await window.electronBridge.startDrag(
-        this.preparedFiles.filePaths,
-        this.preparedFiles.thumbnailPaths
-      );
+      // First, ensure file is downloaded
+      const items = [{
+        id: mediaItem.id,
+        fileName: fileName,
+        url: mediaItem.url,
+        thumbnailUrl: mediaItem.thumbnailUrl
+      }];
 
-      console.log('[Drag] Start drag result:', result);
+      const prepareResult = await window.electronBridge.prepareDrag(items);
 
-      if (!result.success) {
-        console.error('[Drag] Start drag failed:', result.error);
+      if (prepareResult.success && prepareResult.results[0]?.filePath) {
+        const filePath = prepareResult.results[0].filePath;
+
+        // Open file in Explorer (shell.showItemInFolder)
+        if (window.kolboDesktop && window.kolboDesktop.revealFileInFolder) {
+          await window.kolboDesktop.revealFileInFolder(filePath);
+        } else {
+          alert(`File location:\n${filePath}\n\nOpen this folder manually in File Explorer.`);
+        }
+      } else {
+        alert('Failed to prepare file. Please try again.');
       }
     } catch (error) {
-      console.error('[Drag] Error starting drag:', error);
+      console.error('[Reveal] Error:', error);
+      alert('Failed to reveal file: ' + error.message);
     }
   }
 
   handleDragEnd(e) {
+    console.log('[Drag] handleDragEnd called');
+
     // Cleanup drag state
     document.querySelectorAll('.media-item.dragging').forEach(item => {
       item.classList.remove('dragging');
     });
+
+    // Clear prepared files
+    this.preparedFiles = null;
+    console.log('[Drag] Cleared prepared files');
   }
 
   updateBatchMenu() {
@@ -1291,30 +1424,280 @@ class KolboApp {
           const isEnabled = await window.kolboDesktop.getAutoLaunch();
           autoLaunchToggle.checked = isEnabled;
 
-          // Add event listener for toggle changes
-          autoLaunchToggle.addEventListener('change', async (e) => {
-            try {
-              const result = await window.kolboDesktop.setAutoLaunch(e.target.checked);
-              if (!result.success) {
-                console.error('[Settings] Failed to set auto-launch:', result.error);
-                // Revert the toggle on error
-                e.target.checked = !e.target.checked;
-                alert(`Failed to ${e.target.checked ? 'enable' : 'disable'} auto-launch: ${result.error}`);
-              } else {
-                if (this.DEBUG_MODE) {
-                  console.log(`[Settings] Auto-launch ${result.enabled ? 'enabled' : 'disabled'}`);
+          // Add event listener for toggle changes (only once)
+          if (!autoLaunchToggle.hasAttribute('data-listener-attached')) {
+            autoLaunchToggle.setAttribute('data-listener-attached', 'true');
+            autoLaunchToggle.addEventListener('change', async (e) => {
+              try {
+                const result = await window.kolboDesktop.setAutoLaunch(e.target.checked);
+                if (!result.success) {
+                  console.error('[Settings] Failed to set auto-launch:', result.error);
+                  // Revert the toggle on error
+                  e.target.checked = !e.target.checked;
+                  alert(`Failed to ${e.target.checked ? 'enable' : 'disable'} auto-launch: ${result.error}`);
+                } else {
+                  if (this.DEBUG_MODE) {
+                    console.log(`[Settings] Auto-launch ${result.enabled ? 'enabled' : 'disabled'}`);
+                  }
                 }
+              } catch (error) {
+                console.error('[Settings] Auto-launch toggle error:', error);
+                e.target.checked = !e.target.checked;
+                alert(`Failed to ${e.target.checked ? 'enable' : 'disable'} auto-launch`);
               }
-            } catch (error) {
-              console.error('[Settings] Auto-launch toggle error:', error);
-              e.target.checked = !e.target.checked;
-              alert(`Failed to ${e.target.checked ? 'enable' : 'disable'} auto-launch`);
-            }
-          });
+            });
+          }
         }
+
+        // Load update settings
+        await this.loadUpdateSettings();
       }
     } catch (error) {
       console.error('[Settings] Failed to load settings data:', error);
+    }
+  }
+
+  async loadUpdateSettings() {
+    if (!window.kolboDesktop) return;
+
+    try {
+      // Display current version
+      const currentVersionEl = document.getElementById('current-version');
+      if (currentVersionEl) {
+        const version = await window.kolboDesktop.getVersion();
+        currentVersionEl.textContent = `Version ${version}`;
+      }
+
+      // Setup update check button (only once)
+      const checkUpdatesBtn = document.getElementById('check-updates-btn');
+      if (checkUpdatesBtn && !checkUpdatesBtn.hasAttribute('data-listener-attached')) {
+        checkUpdatesBtn.setAttribute('data-listener-attached', 'true');
+        checkUpdatesBtn.addEventListener('click', () => this.handleCheckForUpdates());
+      }
+
+      // Setup download button (only once)
+      const downloadBtn = document.getElementById('download-update-btn');
+      if (downloadBtn && !downloadBtn.hasAttribute('data-listener-attached')) {
+        downloadBtn.setAttribute('data-listener-attached', 'true');
+        downloadBtn.addEventListener('click', () => this.handleDownloadUpdate());
+      }
+
+      // Setup install button (only once)
+      const installBtn = document.getElementById('install-update-btn');
+      if (installBtn && !installBtn.hasAttribute('data-listener-attached')) {
+        installBtn.setAttribute('data-listener-attached', 'true');
+        installBtn.addEventListener('click', () => this.handleInstallUpdate());
+      }
+
+      // Setup update event listeners (only once)
+      if (!window.kolboDesktop._updateListenersSetup) {
+        window.kolboDesktop._updateListenersSetup = true;
+
+        window.kolboDesktop.onUpdateAvailable((info) => {
+          console.log('[Update] Update available:', info);
+          this.showUpdateAvailable(info);
+        });
+
+        window.kolboDesktop.onUpdateNotAvailable(() => {
+          console.log('[Update] App is up to date');
+          this.showUpdateStatus('Your app is up to date', 'uptodate');
+        });
+
+        window.kolboDesktop.onDownloadProgress((progress) => {
+          console.log('[Update] Download progress:', progress.percent);
+          this.updateDownloadProgress(progress);
+        });
+
+        window.kolboDesktop.onUpdateDownloaded((info) => {
+          console.log('[Update] Update downloaded:', info);
+          this.showUpdateDownloaded(info);
+        });
+
+        window.kolboDesktop.onUpdateError((error) => {
+          console.error('[Update] Error:', error);
+          this.showUpdateStatus(`Error checking for updates: ${error}`, 'error');
+        });
+      }
+
+      // Check if there's already an update available
+      const updateInfo = await window.kolboDesktop.getUpdateInfo();
+      if (updateInfo && updateInfo.available) {
+        this.showUpdateAvailable(updateInfo);
+      } else {
+        this.showUpdateStatus('Checking for updates...', 'checking');
+      }
+    } catch (error) {
+      console.error('[Update] Error loading update settings:', error);
+    }
+  }
+
+  async handleCheckForUpdates() {
+    const checkBtn = document.getElementById('check-updates-btn');
+    const statusEl = document.getElementById('update-status');
+
+    try {
+      // Disable button and show checking status
+      if (checkBtn) {
+        checkBtn.disabled = true;
+        checkBtn.innerHTML = `
+          <div class="spinner" style="width: 14px; height: 14px; border: 2px solid rgba(102, 126, 234, 0.3); border-top-color: #667eea;"></div>
+          Checking...
+        `;
+      }
+
+      if (statusEl) {
+        statusEl.textContent = 'Checking for updates...';
+        statusEl.className = 'settings-sublabel checking';
+      }
+
+      console.log('[Update] Manual check requested');
+      const result = await window.kolboDesktop.checkForUpdates();
+
+      console.log('[Update] Check result:', result);
+
+      // Button will be re-enabled by event handlers
+      setTimeout(() => {
+        if (checkBtn) {
+          checkBtn.disabled = false;
+          checkBtn.innerHTML = `
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M21.5 2v6h-6M2.5 22v-6h6M2 11.5a10 10 0 0 1 18.8-4.3M22 12.5a10 10 0 0 1-18.8 4.2"/>
+            </svg>
+            Check Now
+          `;
+        }
+      }, 2000);
+    } catch (error) {
+      console.error('[Update] Check failed:', error);
+      this.showUpdateStatus(`Error: ${error.message}`, 'error');
+
+      // Re-enable button
+      if (checkBtn) {
+        checkBtn.disabled = false;
+        checkBtn.innerHTML = `
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M21.5 2v6h-6M2.5 22v-6h6M2 11.5a10 10 0 0 1 18.8-4.3M22 12.5a10 10 0 0 1-18.8 4.2"/>
+          </svg>
+          Check Now
+        `;
+      }
+    }
+  }
+
+  showUpdateAvailable(info) {
+    const updateCard = document.getElementById('update-available-card');
+    const versionText = document.getElementById('update-version-text');
+    const changelog = document.getElementById('update-changelog');
+    const statusEl = document.getElementById('update-status');
+
+    if (updateCard) updateCard.classList.remove('hidden');
+    if (versionText) versionText.textContent = `Version ${info.version} is ready to download`;
+
+    if (changelog && info.releaseNotes) {
+      changelog.textContent = info.releaseNotes;
+    }
+
+    if (statusEl) {
+      statusEl.textContent = `Update available: ${info.version}`;
+      statusEl.className = 'settings-sublabel available';
+    }
+  }
+
+  showUpdateStatus(message, className = '') {
+    const statusEl = document.getElementById('update-status');
+    if (statusEl) {
+      statusEl.textContent = message;
+      statusEl.className = `settings-sublabel ${className}`;
+    }
+  }
+
+  async handleDownloadUpdate() {
+    const downloadBtn = document.getElementById('download-update-btn');
+    const progressContainer = document.getElementById('update-progress-container');
+
+    try {
+      // Show progress bar
+      if (progressContainer) progressContainer.classList.remove('hidden');
+
+      // Disable button
+      if (downloadBtn) {
+        downloadBtn.disabled = true;
+        downloadBtn.innerHTML = `
+          <div class="spinner" style="width: 14px; height: 14px; border: 2px solid white; border-top-color: transparent;"></div>
+          Downloading...
+        `;
+      }
+
+      console.log('[Update] Starting download');
+      await window.kolboDesktop.downloadUpdate();
+    } catch (error) {
+      console.error('[Update] Download failed:', error);
+      alert(`Failed to download update: ${error.message}`);
+
+      // Re-enable button
+      if (downloadBtn) {
+        downloadBtn.disabled = false;
+        downloadBtn.innerHTML = `
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+            <polyline points="7 10 12 15 17 10"/>
+            <line x1="12" y1="15" x2="12" y2="3"/>
+          </svg>
+          Download Update
+        `;
+      }
+
+      if (progressContainer) progressContainer.classList.add('hidden');
+    }
+  }
+
+  updateDownloadProgress(progress) {
+    const progressFill = document.getElementById('update-progress-fill');
+    const progressText = document.getElementById('update-progress-text');
+
+    const percent = Math.round(progress.percent);
+
+    if (progressFill) {
+      progressFill.style.width = `${percent}%`;
+    }
+
+    if (progressText) {
+      const mbTransferred = (progress.transferred / 1024 / 1024).toFixed(1);
+      const mbTotal = (progress.total / 1024 / 1024).toFixed(1);
+      progressText.textContent = `Downloading... ${percent}% (${mbTransferred} MB / ${mbTotal} MB)`;
+    }
+  }
+
+  showUpdateDownloaded(info) {
+    const downloadBtn = document.getElementById('download-update-btn');
+    const installBtn = document.getElementById('install-update-btn');
+    const progressText = document.getElementById('update-progress-text');
+    const statusEl = document.getElementById('update-status');
+
+    // Hide download button, show install button
+    if (downloadBtn) downloadBtn.classList.add('hidden');
+    if (installBtn) installBtn.classList.remove('hidden');
+
+    if (progressText) {
+      progressText.textContent = 'Download complete! Ready to install.';
+    }
+
+    if (statusEl) {
+      statusEl.textContent = `Update ready to install: ${info.version}`;
+      statusEl.className = 'settings-sublabel available';
+    }
+  }
+
+  async handleInstallUpdate() {
+    const confirmed = confirm(
+      'The app will close and install the update.\n\n' +
+      'Your work will be saved. Continue?'
+    );
+
+    if (confirmed) {
+      console.log('[Update] Installing update');
+      await window.kolboDesktop.installUpdate();
+      // App will quit and install
     }
   }
 

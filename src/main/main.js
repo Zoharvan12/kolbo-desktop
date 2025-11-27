@@ -221,6 +221,28 @@ function setupWindowHandlers() {
     }
   });
 
+  // Reveal specific file in Explorer
+  ipcMain.handle('file:reveal-in-folder', async (event, filePath) => {
+    try {
+      console.log('[Main] Revealing file in folder:', filePath);
+
+      const fs = require('fs');
+      if (!fs.existsSync(filePath)) {
+        console.error('[Main] File does not exist:', filePath);
+        return { success: false, error: 'File does not exist' };
+      }
+
+      // Use shell.showItemInFolder to open Explorer with file selected
+      shell.showItemInFolder(filePath);
+
+      console.log('[Main] File revealed in folder:', filePath);
+      return { success: true };
+    } catch (error) {
+      console.error('[Main] Error revealing file:', error);
+      return { success: false, error: error.message };
+    }
+  });
+
   ipcMain.handle('window:create-new', (event, url) => {
     // Create a new window with the specified URL
     const newWindow = new BrowserWindow({
@@ -289,9 +311,11 @@ function setupWindowHandlers() {
 }
 
 // Auto-updater configuration
+let updateInfo = null; // Store update info for renderer access
+
 function setupAutoUpdater() {
   // Configure auto-updater
-  autoUpdater.autoDownload = false; // Ask user before downloading
+  autoUpdater.autoDownload = false; // Manual download via UI
   autoUpdater.autoInstallOnAppQuit = true; // Install when app quits
 
   // Log all updater events
@@ -302,63 +326,70 @@ function setupAutoUpdater() {
   autoUpdater.on('update-available', (info) => {
     console.log('[Updater] Update available:', info.version);
 
-    // Show notification to user
-    dialog.showMessageBox(mainWindow, {
-      type: 'info',
-      title: 'Update Available',
-      message: `A new version (${info.version}) is available!`,
-      detail: 'Would you like to download and install it?',
-      buttons: ['Download & Install', 'Later'],
-      defaultId: 0,
-      cancelId: 1
-    }).then(result => {
-      if (result.response === 0) {
-        // User clicked "Download & Install"
-        autoUpdater.downloadUpdate();
+    // Store update info
+    updateInfo = {
+      version: info.version,
+      releaseDate: info.releaseDate,
+      releaseNotes: info.releaseNotes,
+      available: true,
+      downloaded: false
+    };
 
-        // Show download progress
-        dialog.showMessageBox(mainWindow, {
-          type: 'info',
-          title: 'Downloading Update',
-          message: 'Downloading update in background...',
-          detail: 'You\'ll be notified when it\'s ready to install.',
-          buttons: ['OK']
-        });
-      }
-    });
+    // Send to renderer for UI display
+    if (mainWindow && mainWindow.webContents) {
+      mainWindow.webContents.send('updater:available', updateInfo);
+    }
   });
 
   autoUpdater.on('update-not-available', () => {
     console.log('[Updater] App is up to date');
+    updateInfo = null;
+
+    // Notify renderer
+    if (mainWindow && mainWindow.webContents) {
+      mainWindow.webContents.send('updater:not-available');
+    }
   });
 
   autoUpdater.on('error', (err) => {
     console.error('[Updater] Error:', err);
+
+    // Send error to renderer
+    if (mainWindow && mainWindow.webContents) {
+      mainWindow.webContents.send('updater:error', err.message);
+    }
   });
 
   autoUpdater.on('download-progress', (progressObj) => {
     const percent = Math.round(progressObj.percent);
     console.log(`[Updater] Download progress: ${percent}%`);
+
+    // Send progress to renderer for progress bar
+    if (mainWindow && mainWindow.webContents) {
+      mainWindow.webContents.send('updater:progress', {
+        percent: progressObj.percent,
+        transferred: progressObj.transferred,
+        total: progressObj.total,
+        bytesPerSecond: progressObj.bytesPerSecond
+      });
+    }
   });
 
   autoUpdater.on('update-downloaded', (info) => {
     console.log('[Updater] Update downloaded:', info.version);
 
-    // Show restart dialog
-    dialog.showMessageBox(mainWindow, {
-      type: 'info',
-      title: 'Update Ready',
-      message: `Version ${info.version} has been downloaded.`,
-      detail: 'Restart now to install the update?',
-      buttons: ['Restart Now', 'Later'],
-      defaultId: 0,
-      cancelId: 1
-    }).then(result => {
-      if (result.response === 0) {
-        // Quit and install
-        setImmediate(() => autoUpdater.quitAndInstall());
-      }
-    });
+    // Update stored info
+    if (updateInfo) {
+      updateInfo.downloaded = true;
+    }
+
+    // Notify renderer that update is ready to install
+    if (mainWindow && mainWindow.webContents) {
+      mainWindow.webContents.send('updater:downloaded', {
+        version: info.version,
+        releaseNotes: info.releaseNotes
+      });
+    }
   });
 
   // Check for updates on startup (after 3 seconds)
@@ -378,6 +409,49 @@ function setupAutoUpdater() {
   }, 4 * 60 * 60 * 1000); // 4 hours
 }
 
+// IPC handlers for updater
+function setupUpdaterHandlers() {
+  const { ipcMain } = require('electron');
+
+  // Manual update check (triggered by user)
+  ipcMain.handle('updater:check', async () => {
+    try {
+      console.log('[Updater] Manual update check requested');
+      const result = await autoUpdater.checkForUpdates();
+      return { success: true, updateInfo: result ? result.updateInfo : null };
+    } catch (error) {
+      console.error('[Updater] Manual check failed:', error);
+      return { success: false, error: error.message };
+    }
+  });
+
+  // Get current update info
+  ipcMain.handle('updater:get-info', () => {
+    return updateInfo;
+  });
+
+  // Start download
+  ipcMain.handle('updater:download', async () => {
+    try {
+      console.log('[Updater] Download requested');
+      await autoUpdater.downloadUpdate();
+      return { success: true };
+    } catch (error) {
+      console.error('[Updater] Download failed:', error);
+      return { success: false, error: error.message };
+    }
+  });
+
+  // Quit and install
+  ipcMain.handle('updater:install', () => {
+    console.log('[Updater] Install requested, quitting and installing...');
+    setImmediate(() => autoUpdater.quitAndInstall());
+    return { success: true };
+  });
+
+  console.log('[Updater] IPC handlers registered');
+}
+
 // App ready
 app.whenReady().then(() => {
   console.log('[Main] App ready, creating window and tray');
@@ -394,10 +468,16 @@ app.whenReady().then(() => {
   console.log('[Main] IPC handlers registered');
 
   // Setup auto-updater (only in production)
-  if (process.env.NODE_ENV !== 'development') {
+  // TEMPORARY: Enable in development for testing
+  const ENABLE_UPDATER_IN_DEV = true; // Set to false after testing
+
+  if (process.env.NODE_ENV !== 'development' || ENABLE_UPDATER_IN_DEV) {
     setupAutoUpdater();
+    setupUpdaterHandlers();
     console.log('[Main] Auto-updater enabled');
   } else {
+    // In development, still setup handlers but don't check for updates
+    setupUpdaterHandlers();
     console.log('[Main] Auto-updater disabled (development mode)');
   }
 });

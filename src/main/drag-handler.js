@@ -91,7 +91,15 @@ class DragHandler {
 
   static startDrag(event, { filePaths, thumbnailPaths }) {
     try {
-      console.log(`[DragHandler] Starting drag with ${filePaths.length} file(s)`);
+      console.log(`[DragHandler] startDrag called with ${filePaths.length} file(s)`);
+      console.log('[DragHandler] File paths:', filePaths);
+      console.log('[DragHandler] Checking if files exist...');
+
+      const fs = require('fs');
+      filePaths.forEach((fp, i) => {
+        const exists = fs.existsSync(fp);
+        console.log(`[DragHandler] File ${i + 1}: ${fp} - Exists: ${exists}`);
+      });
 
       // Create drag icon from thumbnail
       let icon = nativeImage.createEmpty();
@@ -112,6 +120,8 @@ class DragHandler {
       }
 
       // Start OS-level drag
+      console.log('[DragHandler] Calling event.sender.startDrag()...');
+
       if (filePaths.length === 1) {
         // Single file drag
         console.log('[DragHandler] Starting single file drag:', path.basename(filePaths[0]));
@@ -128,11 +138,12 @@ class DragHandler {
         });
       }
 
-      console.log('[DragHandler] Drag started successfully');
+      console.log('[DragHandler] event.sender.startDrag() completed');
       return { success: true };
 
     } catch (error) {
       console.error('[DragHandler] Start drag failed:', error);
+      console.error('[DragHandler] Error stack:', error.stack);
       return { success: false, error: error.message };
     }
   }
