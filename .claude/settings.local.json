@@ -6,7 +6,8 @@
       "Bash(git commit:*)",
       "Bash(git push:*)",
       "Bash(gh:*)",
-      "Read(//g/Projects/Kolbo.AI/github/kolbo-adobe-plugin/**)"
+      "Read(//g/Projects/Kolbo.AI/github/kolbo-adobe-plugin/**)",
+      "Bash(npm run build:prod:win:*)"
     ],
     "deny": [],
     "ask": []
