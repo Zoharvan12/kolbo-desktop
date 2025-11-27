@@ -1,0 +1,367 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Kolbo Desktop</title>
+  <!-- Google Fonts - Poppins -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <!-- CSS Variables (Design System) -->
+  <link rel="stylesheet" href="css/variables.css">
+  <!-- Main Styles -->
+  <link rel="stylesheet" href="css/styles.css">
+</head>
+<body>
+  <div id="app">
+    <!-- Login Screen -->
+    <div id="login-screen" class="screen auth-screen">
+      <!-- Background Video -->
+      <div class="auth-background">
+        <video 
+          class="auth-video" 
+          autoplay 
+          loop 
+          muted 
+          playsinline 
+          preload="auto"
+          webkit-playsinline
+          x5-playsinline
+        >
+          <source src="assets/auth-background-video.mp4" type="video/mp4">
+          Your browser does not support the video tag.
+        </video>
+        <div class="auth-overlay"></div>
+      </div>
+
+      <!-- Auth Container -->
+      <div class="auth-container">
+        <div class="auth-card">
+          <!-- Logo -->
+          <div class="auth-logo">
+            <svg class="logo-icon" viewBox="0 0 389.03 469.15" xmlns="http://www.w3.org/2000/svg">
+              <path d="M66.58.17c.92-.08,1.85-.13,2.77-.15,31.93-.72,58.76,17.64,69.26,47.85,4.38,12.59,3.67,24.74,3.71,37.81l.17,35.22c20.47-12.42,41.02-24.71,61.64-36.87l52.28-31.06c26.66-15.74,49.05-33.69,81.84-25.36,16.47,4.08,30.6,14.65,39.18,29.29,8.95,15.13,11.55,33.18,7.26,50.22-3.09,12.25-9.76,23.3-19.16,31.73-7.98,7.23-19.59,13.47-29.03,18.93l-29.54,17.11-116.52,67.76c-27.02,14.92-43.25,35.29-47.26,66.69-1.09,8.52-.71,19.49-.72,28.26v43.96c.04,23.37.04,40.52-15.36,59.79-40.68,50.89-119.72,26.02-126.46-37.91-.88-8.36-.57-16.61-.56-24.98l.03-36.6v-121.05s0-104.63,0-104.63l-.02-31.62c0-7.35-.24-15.44.7-22.64,1.61-12.74,6.71-24.78,14.75-34.79C29.14,10.22,45.35,2.35,66.58.17Z"/>
+              <path d="M230.46,247.18l.71-.07c18.22-1.57,40.46,5.25,54.11,17.39,7.12,6.33,13.67,12.77,20.47,19.47l33.35,33.18,20.89,20.64c5.43,5.34,12.95,12.32,17.02,18.53,6.45,9.85,10.79,22.69,11.77,34.4,1.59,19.48-4.58,38.81-17.16,53.77-12.15,14.11-29.34,22.9-47.89,24.47-20.18,1.26-40.14-3.82-55.82-16.78-5.28-4.38-10.61-9.88-15.53-14.76l-24.18-23.99-29.91-29.52c-18.52-18.33-32.12-30.07-34.93-57.93-1.96-18.77,3.66-37.55,15.62-52.15,13.28-16.18,30.92-24.52,51.49-26.64Z"/>
+            </svg>
+          </div>
+
+          <!-- Welcome Text -->
+          <div class="auth-welcome">
+            <h2>Welcome Back</h2>
+            <p>Sign in to access your media library</p>
+          </div>
+
+          <!-- Google Auth Button -->
+          <button id="google-login-btn" class="google-btn">
+            <svg class="google-icon" viewBox="0 0 24 24">
+              <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4" />
+              <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853" />
+              <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" fill="#FBBC05" />
+              <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335" />
+            </svg>
+            Continue with Google
+          </button>
+
+          <!-- Divider -->
+          <div class="auth-divider">
+            <span>or continue with email</span>
+          </div>
+
+          <!-- Email/Password Form -->
+          <div class="auth-form">
+            <input type="email" id="email" placeholder="Email" autocomplete="email">
+            <div class="password-field">
+              <input type="password" id="password" placeholder="Password" autocomplete="current-password">
+              <button type="button" id="toggle-password" class="toggle-password" aria-label="Toggle password visibility">
+                <svg class="eye-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path>
+                  <circle cx="12" cy="12" r="3"></circle>
+                </svg>
+              </button>
+            </div>
+            <button id="login-btn" class="auth-btn">Sign In</button>
+            <p id="login-error" class="error-message"></p>
+          </div>
+
+          <!-- Footer -->
+          <div class="auth-footer">
+            <p>By signing in, you agree to our <a href="https://kolbo.ai/terms-of-service" target="_blank">Terms of Service</a> and <a href="https://kolbo.ai/privacy-policy" target="_blank">Privacy Policy</a></p>
+          </div>
+        </div>
+
+        <!-- Copyright -->
+        <div class="auth-copyright">
+          © 2025 Kolbo.AI
+        </div>
+      </div>
+    </div>
+
+    <!-- Loading Overlay (shown after login) -->
+    <div id="loading-overlay" class="loading-overlay hidden">
+      <div class="loading-overlay-content">
+        <svg class="logo-icon-large" viewBox="0 0 389.03 469.15" xmlns="http://www.w3.org/2000/svg">
+          <path d="M66.58.17c.92-.08,1.85-.13,2.77-.15,31.93-.72,58.76,17.64,69.26,47.85,4.38,12.59,3.67,24.74,3.71,37.81l.17,35.22c20.47-12.42,41.02-24.71,61.64-36.87l52.28-31.06c26.66-15.74,49.05-33.69,81.84-25.36,16.47,4.08,30.6,14.65,39.18,29.29,8.95,15.13,11.55,33.18,7.26,50.22-3.09,12.25-9.76,23.3-19.16,31.73-7.98,7.23-19.59,13.47-29.03,18.93l-29.54,17.11-116.52,67.76c-27.02,14.92-43.25,35.29-47.26,66.69-1.09,8.52-.71,19.49-.72,28.26v43.96c.04,23.37.04,40.52-15.36,59.79-40.68,50.89-119.72,26.02-126.46-37.91-.88-8.36-.57-16.61-.56-24.98l.03-36.6v-121.05s0-104.63,0-104.63l-.02-31.62c0-7.35-.24-15.44.7-22.64,1.61-12.74,6.71-24.78,14.75-34.79C29.14,10.22,45.35,2.35,66.58.17Z"/>
+          <path d="M230.46,247.18l.71-.07c18.22-1.57,40.46,5.25,54.11,17.39,7.12,6.33,13.67,12.77,20.47,19.47l33.35,33.18,20.89,20.64c5.43,5.34,12.95,12.32,17.02,18.53,6.45,9.85,10.79,22.69,11.77,34.4,1.59,19.48-4.58,38.81-17.16,53.77-12.15,14.11-29.34,22.9-47.89,24.47-20.18,1.26-40.14-3.82-55.82-16.78-5.28-4.38-10.61-9.88-15.53-14.76l-24.18-23.99-29.91-29.52c-18.52-18.33-32.12-30.07-34.93-57.93-1.96-18.77,3.66-37.55,15.62-52.15,13.28-16.18,30.92-24.52,51.49-26.64Z"/>
+        </svg>
+        <div class="spinner-large"></div>
+        <p class="loading-text">Loading your media...</p>
+      </div>
+    </div>
+
+    <!-- Media Library Screen -->
+    <div id="media-screen" class="screen hidden">
+      <!-- Header -->
+      <div class="header">
+        <div class="header-left">
+          <!-- Tab Buttons -->
+          <div class="view-tabs">
+            <button id="media-tab" class="tab-btn active" data-view="media">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+                <path d="M4 4h16v2H4V4zm0 6h16v2H4v-2zm0 6h16v2H4v-2z"/>
+              </svg>
+              My Media
+            </button>
+            <button id="webapp-tab" class="tab-btn" data-view="webapp">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+                <path d="M20 3H4c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm0 16H4V5h16v14zM6 10h2v2H6v-2zm0 4h8v2H6v-2zm10 0h2v2h-2v-2zM16 10h2v2h-2v-2zM6 6h2v2H6V6zm4 0h8v2h-8V6z"/>
+              </svg>
+              Web App
+            </button>
+          </div>
+          <span id="media-count" class="media-count">0 items</span>
+        </div>
+        <div class="header-actions">
+          <button id="debug-btn" class="icon-btn" title="Debug Console (Ctrl+Shift+D)" onclick="document.getElementById('debug-panel').style.display='block'">
+            <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
+              <path d="M8 1L2 5v6l6 4 6-4V5L8 1zm0 2.3L12 6v4.3l-4 2.7-4-2.7V6l4-2.7z"/>
+            </svg>
+          </button>
+          <button id="refresh-btn" class="icon-btn" title="Refresh">
+            <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
+              <path d="M13.65 2.35C12.2 0.9 10.21 0 8 0 3.58 0 0 3.58 0 8s3.58 8 8 8c3.73 0 6.84-2.55 7.73-6h-2.08c-.82 2.33-3.04 4-5.65 4-3.31 0-6-2.69-6-6s2.69-6 6-6c1.66 0 3.14.69 4.22 1.78L9 7h7V0l-2.35 2.35z"/>
+            </svg>
+          </button>
+          <button id="logout-btn" class="icon-btn" title="Logout">
+            <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
+              <path d="M12 10V8H7V6h5V4l3 3-3 3zm-1-1v4H6v3l-6-3V0h11v5h-1V1H2l4 2v9h4V9h1z"/>
+            </svg>
+          </button>
+        </div>
+      </div>
+
+      <!-- Media Library View -->
+      <div id="media-library-view" class="view-content active">
+      <!-- Project Selector -->
+      <div class="project-selector">
+        <select id="project-select" class="project-dropdown">
+          <option value="all">All Projects</option>
+          <!-- Projects will be populated here -->
+        </select>
+      </div>
+
+      <!-- Filters -->
+      <div class="filters">
+        <div class="filters-left">
+          <button class="filter-btn active" data-type="all">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <rect x="3" y="3" width="7" height="7" rx="1"></rect>
+              <rect x="14" y="3" width="7" height="7" rx="1"></rect>
+              <rect x="14" y="14" width="7" height="7" rx="1"></rect>
+              <rect x="3" y="14" width="7" height="7" rx="1"></rect>
+            </svg>
+            All
+          </button>
+          <button class="filter-btn" data-type="video">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="m22 8-6 4 6 4V8Z"></path>
+              <rect width="14" height="12" x="2" y="6" rx="2" ry="2"></rect>
+            </svg>
+            Videos
+          </button>
+          <button class="filter-btn" data-type="image">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <rect width="18" height="18" x="3" y="3" rx="2" ry="2"></rect>
+              <circle cx="9" cy="9" r="2"></circle>
+              <path d="m21 15-3.086-3.086a2 2 0 0 0-2.828 0L6 21"></path>
+            </svg>
+            Images
+          </button>
+          <button class="filter-btn" data-type="audio">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M9 18V5l12-2v13"></path>
+              <circle cx="6" cy="18" r="3"></circle>
+              <circle cx="18" cy="16" r="3"></circle>
+            </svg>
+            Audio
+          </button>
+          <button class="filter-btn" data-type="favorites">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"></polygon>
+            </svg>
+            Favorites
+          </button>
+        </div>
+        <div class="filters-right">
+          <div class="grid-size-control">
+            <svg class="grid-icon-left" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <rect width="18" height="18" x="3" y="3" rx="2"></rect>
+              <path d="M3 9h18"></path>
+              <path d="M3 15h18"></path>
+              <path d="M9 3v18"></path>
+              <path d="M15 3v18"></path>
+            </svg>
+            <div class="slider-container">
+              <input type="range" min="1" max="8" value="4" class="grid-size-slider" id="grid-size-slider">
+            </div>
+            <svg class="grid-icon-right" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M12 3v18"></path>
+              <path d="M3 12h18"></path>
+              <rect x="3" y="3" width="18" height="18" rx="2"></rect>
+            </svg>
+            <span class="grid-size-value" id="grid-size-value">4</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Subcategories -->
+      <div id="subcategories" class="subcategories hidden">
+        <div id="image-subcategories" class="subcategory-group hidden">
+          <button class="subcategory-btn active" data-subcategory="all">All</button>
+          <button class="subcategory-btn" data-subcategory="ai">AI Generated</button>
+          <button class="subcategory-btn" data-subcategory="training-lab">Training Lab</button>
+          <button class="subcategory-btn" data-subcategory="edited">Edited</button>
+        </div>
+        <div id="video-subcategories" class="subcategory-group hidden">
+          <button class="subcategory-btn active" data-subcategory="all">All</button>
+          <button class="subcategory-btn" data-subcategory="text-to-video">Text to Video</button>
+          <button class="subcategory-btn" data-subcategory="image-to-video">Image to Video</button>
+          <button class="subcategory-btn" data-subcategory="lipsync-videos">Lipsync</button>
+          <button class="subcategory-btn" data-subcategory="video-to-video">Video to Video</button>
+        </div>
+        <div id="audio-subcategories" class="subcategory-group hidden">
+          <button class="subcategory-btn active" data-subcategory="all">All</button>
+          <button class="subcategory-btn" data-subcategory="text-to-speech">Text to Speech</button>
+          <button class="subcategory-btn" data-subcategory="music">Music</button>
+          <button class="subcategory-btn" data-subcategory="text-to-sound">Text to Sound</button>
+        </div>
+      </div>
+
+      <!-- Media Grid -->
+      <div id="media-container" class="media-container">
+        <div id="media-grid" class="media-grid">
+          <!-- Media items will be inserted here -->
+        </div>
+
+        <div id="loading" class="loading-state hidden">
+          <div class="spinner"></div>
+          <p>Loading media...</p>
+        </div>
+
+        <div id="empty-state" class="empty-state hidden">
+          <svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+            <rect x="3" y="3" width="18" height="18" rx="2"/>
+            <circle cx="8.5" cy="8.5" r="1.5"/>
+            <path d="M21 15l-5-5L5 21"/>
+          </svg>
+          <h3>No media found</h3>
+          <p>Your Kolbo.AI generated media will appear here</p>
+        </div>
+
+        <div id="error-state" class="error-state hidden">
+          <svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+            <circle cx="12" cy="12" r="10"/>
+            <line x1="12" y1="8" x2="12" y2="12"/>
+            <line x1="12" y1="16" x2="12.01" y2="16"/>
+          </svg>
+          <h3>Failed to load media</h3>
+          <p id="error-message">Please try again</p>
+          <button id="retry-btn" class="primary-btn">Retry</button>
+        </div>
+
+        <div id="loading-more" class="loading-state hidden" style="padding: 20px 0;">
+          <div class="spinner"></div>
+          <p>Loading more...</p>
+        </div>
+
+        <div id="load-more-trigger" style="height: 1px; visibility: hidden;"></div>
+      </div>
+      </div>
+
+      <!-- Web App View -->
+      <div id="webapp-view" class="view-content hidden">
+        <div id="webapp-loading" class="loading-state">
+          <div class="spinner"></div>
+          <p>Loading Kolbo Web App...</p>
+        </div>
+        <iframe
+          id="kolbo-iframe"
+          style="width: 100%; height: calc(100vh - 48px); border: none; background: #1a1a1a; display: none;"
+        ></iframe>
+      </div>
+    </div>
+  </div>
+
+  <!-- Debug Panel -->
+  <div id="debug-panel" style="position: fixed; bottom: 0; left: 0; right: 0; max-height: 250px; background: #1a1a1a; border-top: 2px solid #667eea; overflow-y: auto; font-family: monospace; font-size: 10px; color: #00ff00; padding: 8px; display: none; z-index: 10000;">
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; border-bottom: 1px solid #333; padding-bottom: 4px;">
+      <strong style="color: #667eea;">DEBUG CONSOLE</strong>
+      <div style="display: flex; gap: 4px;">
+        <button onclick="localStorage.clear(); alert('Cache cleared! Reloading...'); location.reload();" style="background: #ef4444; color: white; border: none; padding: 2px 8px; cursor: pointer; border-radius: 3px; font-size: 10px;">Clear Cache</button>
+        <button onclick="localStorage.setItem('API_BASE_URL', 'http://localhost:5050/api'); alert('Switched to localhost! Reloading...'); location.reload();" style="background: #10b981; color: white; border: none; padding: 2px 8px; cursor: pointer; border-radius: 3px; font-size: 10px;">→ Localhost</button>
+        <button onclick="localStorage.setItem('API_BASE_URL', 'https://stagingapi.kolbo.ai/api'); alert('Switched to staging! Reloading...'); location.reload();" style="background: #f59e0b; color: white; border: none; padding: 2px 8px; cursor: pointer; border-radius: 3px; font-size: 10px;">→ Staging</button>
+        <button onclick="document.getElementById('debug-panel').style.display='none'" style="background: #333; color: white; border: none; padding: 2px 8px; cursor: pointer; border-radius: 3px; font-size: 10px;">Close</button>
+      </div>
+    </div>
+    <div style="margin-bottom: 8px; padding: 4px; background: #0a0a0a; border-radius: 3px; border: 1px solid #333;">
+      <div style="color: #888; font-size: 9px;">Current API: <span style="color: #667eea;" id="debug-api-url">Loading...</span></div>
+      <div style="color: #888; font-size: 9px;">Cache Size: <span style="color: #667eea;" id="debug-cache-size">Loading...</span></div>
+    </div>
+    <div id="debug-logs"></div>
+  </div>
+  <script>
+    // Update debug panel info
+    if (document.getElementById('debug-api-url')) {
+      document.getElementById('debug-api-url').textContent = localStorage.getItem('API_BASE_URL') || 'https://stagingapi.kolbo.ai/api';
+      if (window.kolboDesktop) {
+        window.kolboDesktop.getCacheSize().then(size => {
+          document.getElementById('debug-cache-size').textContent = size.formatted;
+        });
+      }
+    }
+  </script>
+
+  <!-- Floating Batch Menu (Simplified for Electron - drag only) -->
+  <div id="floating-batch-menu" class="floating-batch-menu hidden">
+    <div class="batch-menu-content">
+      <div class="batch-count-badge">
+        <span class="badge-number" id="floating-batch-count">0</span>
+        <span class="badge-text">selected</span>
+      </div>
+      <div class="batch-actions">
+        <p style="color: #888; font-size: 12px; margin: 0 10px;">Drag any selected item to export all</p>
+        <button class="batch-action-btn batch-btn-clear" id="floating-batch-clear-btn" title="Clear Selection">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M18 6L6 18M6 6l12 12"/>
+          </svg>
+          <span>Clear</span>
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Toast Notification -->
+  <div id="toast-notification" class="toast-notification">
+    <svg class="toast-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
+    </svg>
+    <span class="toast-message">Notification message</span>
+  </div>
+
+  <!-- Electron Scripts -->
+  <script src="../config.js"></script> <!-- Load config first -->
+  <script src="js/electron-bridge.js"></script>
+  <script src="js/api.js"></script>
+  <script src="js/main.js"></script>
+</body>
+</html>

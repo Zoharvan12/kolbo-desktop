@@ -1,0 +1,93 @@
+{
+  "name": "kolbo-desktop",
+  "version": "1.0.0",
+  "description": "Kolbo.AI Media Library for Video Editors",
+  "main": "src/main/main.js",
+  "author": {
+    "name": "Kolbo.AI",
+    "email": "support@kolbo.ai"
+  },
+  "license": "UNLICENSED",
+  "private": true,
+  "scripts": {
+    "start": "electron .",
+    "dev": "set KOLBO_ENV=development&& electron .",
+    "build": "electron-builder",
+    "build:win": "electron-builder --win",
+    "build:mac": "electron-builder --mac",
+    "build:dev:win": "set KOLBO_ENV=development&& electron-builder --win --config.productName=\"Kolbo Desktop Dev\"",
+    "build:dev:mac": "set KOLBO_ENV=development&& electron-builder --mac --config.productName=\"Kolbo Desktop Dev\"",
+    "build:staging:win": "set KOLBO_ENV=staging&& electron-builder --win --config.productName=\"Kolbo Desktop Staging\"",
+    "build:staging:mac": "set KOLBO_ENV=staging&& electron-builder --mac --config.productName=\"Kolbo Desktop Staging\"",
+    "build:prod:win": "set KOLBO_ENV=production&& electron-builder --win",
+    "build:prod:mac": "set KOLBO_ENV=production&& electron-builder --mac"
+  },
+  "dependencies": {
+    "electron-store": "^8.1.0"
+  },
+  "devDependencies": {
+    "electron": "^28.0.0",
+    "electron-builder": "^24.9.1",
+    "png2icons": "^2.0.1"
+  },
+  "build": {
+    "appId": "com.kolbo.desktop",
+    "productName": "Kolbo Desktop",
+    "copyright": "Copyright © 2025 Kolbo.AI",
+    "directories": {
+      "output": "dist",
+      "buildResources": "assets"
+    },
+    "files": [
+      "src/**/*",
+      "assets/**/*",
+      "!**/*.md",
+      "!**/.DS_Store"
+    ],
+    "extraMetadata": {
+      "main": "src/main/main.js"
+    },
+    "win": {
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        }
+      ],
+      "icon": "assets/icon.ico",
+      "publisherName": "Kolbo.AI",
+      "artifactName": "${productName}-Setup-${version}.${ext}"
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "${productName}"
+    },
+    "mac": {
+      "target": [
+        {
+          "target": "dmg",
+          "arch": [
+            "x64",
+            "arm64"
+          ]
+        }
+      ],
+      "icon": "assets/icon.icns",
+      "category": "public.app-category.video",
+      "hardenedRuntime": true,
+      "gatekeeperAssess": false,
+      "entitlements": null,
+      "entitlementsInherit": null,
+      "artifactName": "${productName}-${version}.${ext}"
+    },
+    "dmg": {
+      "title": "${productName} ${version}",
+      "icon": "assets/icon.icns"
+    }
+  }
+}

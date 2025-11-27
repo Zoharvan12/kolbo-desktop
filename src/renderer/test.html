@@ -1,0 +1,38 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>Kolbo Desktop - Test</title>
+  <style>
+    body {
+      margin: 0;
+      padding: 20px;
+      font-family: Arial, sans-serif;
+      background: #1e1e1e;
+      color: white;
+    }
+    h1 {
+      color: #667eea;
+    }
+  </style>
+</head>
+<body>
+  <h1>Kolbo Desktop - Window Test</h1>
+  <p>If you can see this, the Electron window is working!</p>
+  <p>Testing preload script...</p>
+  <div id="test-result"></div>
+
+  <script>
+    console.log('[Test] Script loaded');
+    console.log('[Test] window.kolboDesktop exists:', !!window.kolboDesktop);
+
+    const resultDiv = document.getElementById('test-result');
+    if (window.kolboDesktop) {
+      resultDiv.innerHTML = '<p style="color: green;">✓ Preload script working! kolboDesktop API available.</p>';
+      console.log('[Test] kolboDesktop API:', Object.keys(window.kolboDesktop));
+    } else {
+      resultDiv.innerHTML = '<p style="color: red;">✗ Preload script NOT working. kolboDesktop API missing.</p>';
+    }
+  </script>
+</body>
+</html>

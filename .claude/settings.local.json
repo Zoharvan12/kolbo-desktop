@@ -1,0 +1,20 @@
+{
+  "permissions": {
+    "allow": [
+      "Read(//g/Projects/Kolbo.AI/github/kolbo-adobe-plugin/**)",
+      "Bash(npm install:*)",
+      "Bash(png2icons:*)",
+      "Bash(npm run build:prod:win:*)",
+      "Bash(npx png2icons:*)",
+      "Bash(npm run build:staging:win:*)",
+      "Bash(npm run build:dev:win:*)",
+      "Bash(chmod:*)",
+      "Bash(test:*)",
+      "Bash(cat:*)",
+      "Bash(git init:*)",
+      "Bash(git add:*)"
+    ],
+    "deny": [],
+    "ask": []
+  }
+}
