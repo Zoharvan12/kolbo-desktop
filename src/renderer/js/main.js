@@ -58,7 +58,7 @@ class KolboApp {
     this.downloadingForDrag = false;
 
     // View & Navigation State
-    this.currentView = localStorage.getItem('kolbo_current_view') || 'media';
+    this.currentView = localStorage.getItem('kolbo_current_view') || 'webapp';
     this.tabManager = null; // Will be initialized when webapp view is shown
 
     // Debug & Performance
@@ -355,6 +355,12 @@ class KolboApp {
     document.querySelectorAll('.tab-btn').forEach(btn => {
       btn.classList.toggle('active', btn.dataset.view === view);
     });
+
+    // Update settings button
+    const settingsBtn = document.getElementById('settings-btn');
+    if (settingsBtn) {
+      settingsBtn.classList.toggle('active', view === 'settings');
+    }
 
     // Show/hide views
     const mediaView = document.getElementById('media-library-view');
@@ -1113,7 +1119,7 @@ class KolboApp {
     this.updateBatchMenu();
   }
 
-  async prepareFilesForDrag(itemId) {
+  async prepareFilesForDrag(itemId, cardElement) {
     // Prevent multiple simultaneous downloads
     if (this.downloadingForDrag) {
       console.log('[Drag] Already downloading, skipping...');
@@ -1122,15 +1128,14 @@ class KolboApp {
 
     console.log('[Drag] prepareFilesForDrag called for:', itemId);
 
-    // Select item if not selected
-    if (!this.selectedItems.has(itemId)) {
-      this.selectedItems.clear();
-      this.selectedItems.add(itemId);
-      this.updateBatchMenu();
-    }
+    // Don't change selection - just use whatever is currently selected
+    // If item is not selected, it will be handled in dragstart
+    const itemsToDownload = this.selectedItems.has(itemId)
+      ? Array.from(this.selectedItems)
+      : [itemId];
 
     // Build items array
-    const items = Array.from(this.selectedItems).map(id => {
+    const items = itemsToDownload.map(id => {
       const mediaItem = this.media.find(m => m.id === id);
       if (!mediaItem) return null;
 
@@ -1155,6 +1160,7 @@ class KolboApp {
 
     if (items.length === 0) {
       console.error('[Drag] No valid items');
+      if (cardElement) cardElement.classList.remove('downloading');
       return;
     }
 
@@ -1179,6 +1185,10 @@ class KolboApp {
       this.preparedDragData = null;
     } finally {
       this.downloadingForDrag = false;
+      // Remove downloading state after download completes
+      if (cardElement) {
+        cardElement.classList.remove('downloading');
+      }
     }
   }
 

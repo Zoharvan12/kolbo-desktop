@@ -466,6 +466,17 @@ html, body {
   transform: translateY(0);
 }
 
+.settings-btn.active {
+  background: rgb(var(--primary));
+  color: rgb(var(--primary-foreground));
+  border-color: transparent;
+  box-shadow: 0 0 15px rgba(102, 126, 234, 0.4), var(--shadow-md);
+}
+
+.settings-btn.active:hover {
+  box-shadow: 0 0 20px rgba(102, 126, 234, 0.5), var(--shadow-lg);
+}
+
 /* Window Controls */
 .window-controls {
   display: flex;
