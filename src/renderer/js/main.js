@@ -54,8 +54,7 @@ class KolboApp {
     this.playingVideoId = null;
 
     // Drag & Drop State
-    this.preparedFiles = null;
-    this.preparingFiles = false;
+    // Files are now downloaded on-demand during drag operation
 
     // View & Navigation State
     this.currentView = localStorage.getItem('kolbo_current_view') || 'media';
@@ -228,15 +227,17 @@ class KolboApp {
     // Tab Switching
     const mediaTab = document.getElementById('media-tab');
     const webappTab = document.getElementById('webapp-tab');
-    const settingsTab = document.getElementById('settings-tab');
     if (mediaTab) {
       mediaTab.addEventListener('click', () => this.switchView('media'));
     }
     if (webappTab) {
       webappTab.addEventListener('click', () => this.switchView('webapp'));
     }
-    if (settingsTab) {
-      settingsTab.addEventListener('click', () => this.switchView('settings'));
+
+    // Settings Button (icon button in header-actions)
+    const settingsBtn = document.getElementById('settings-btn');
+    if (settingsBtn) {
+      settingsBtn.addEventListener('click', () => this.switchView('settings'));
     }
 
     // Window Controls
@@ -1097,94 +1098,7 @@ class KolboApp {
     this.updateBatchMenu();
   }
 
-  async prepareFilesForDrag(itemId) {
-    // Don't prepare if already preparing
-    if (this.preparingFiles) {
-      console.log('[Drag] Already preparing files, skipping...');
-      return;
-    }
-
-    console.log('[Drag] prepareFilesForDrag called with itemId:', itemId);
-
-    // Select item if not already selected
-    if (!this.selectedItems.has(itemId)) {
-      this.selectedItems.clear();
-      this.selectedItems.add(itemId);
-      this.updateBatchMenu();
-    }
-
-    // Get selected media items
-    const items = Array.from(this.selectedItems).map(id => {
-      const mediaItem = this.media.find(m => m.id === id);
-      if (!mediaItem) {
-        console.error('[Drag] Media item not found for id:', id);
-        return null;
-      }
-      // Use shorter filename for compatibility with video editors
-      let fileName = mediaItem.filename || `kolbo-${mediaItem.id}`;
-
-      // Simplify filename if it's too long or has special characters
-      if (fileName.length > 50) {
-        // Keep file extension
-        const ext = fileName.split('.').pop();
-        // Use just the ID for the filename
-        fileName = `kolbo-${mediaItem.id}.${ext}`;
-      }
-
-      // If no extension, add one based on type
-      if (!fileName.includes('.')) {
-        const ext = mediaItem.type === 'video' ? 'mp4' :
-                    mediaItem.type === 'audio' ? 'mp3' : 'png';
-        fileName = `${fileName}.${ext}`;
-      }
-
-      return {
-        id: mediaItem.id,
-        fileName: fileName,
-        url: mediaItem.url,
-        thumbnailUrl: mediaItem.thumbnailUrl
-      };
-    }).filter(item => item !== null);
-
-    if (items.length === 0) {
-      console.error('[Drag] No valid items to prepare');
-      return;
-    }
-
-    console.log('[Drag] Preparing files for items:', items);
-
-    try {
-      this.preparingFiles = true;
-
-      if (!window.electronBridge || !window.electronBridge.prepareDrag) {
-        console.error('[Drag] electronBridge.prepareDrag not available');
-        this.preparingFiles = false;
-        return;
-      }
-
-      // Prepare files (download to cache)
-      const result = await window.electronBridge.prepareDrag(items);
-
-      console.log('[Drag] Prepare result:', result);
-
-      if (result.success) {
-        // Store prepared file paths for dragstart
-        this.preparedFiles = {
-          filePaths: result.filePaths,
-          thumbnailPaths: result.thumbnailPaths
-        };
-        console.log('[Drag] Files prepared and ready:', this.preparedFiles);
-      } else {
-        console.error('[Drag] Failed to prepare files:', result.error);
-        this.preparedFiles = null;
-      }
-    } catch (error) {
-      console.error('[Drag] Error preparing files:', error);
-      this.preparedFiles = null;
-    } finally {
-      this.preparingFiles = false;
-    }
-  }
+  // Old prepareFilesForDrag function removed - files are now downloaded on-demand during drag
 
   async handleDragStart(e, itemId) {
     console.log('[Drag] handleDragStart called with itemId:', itemId);
@@ -1239,15 +1153,31 @@ class KolboApp {
     const expectedFilePaths = items.map(item => cachePath + item.fileName);
 
     console.log('[Drag] Expected file paths:', expectedFilePaths);
-    console.log('[Drag] Starting download (async, non-blocking)...');
+    console.log('[Drag] Starting download...');
 
-    // Use HTML5 DataTransfer API for better compatibility with Adobe apps
+    // Download files first (this is async but fast)
+    // Files download while user sees the spinner and starts dragging
     try {
-      // Set drag data with file URIs
-      const filePaths = this.preparedFiles.filePaths;
+      const result = await window.electronBridge.prepareDrag(items);
 
-      // Set the drag data to include file paths
-      // Use text/uri-list format for maximum compatibility
+      console.log('[Drag] Files downloaded:', result);
+
+      // Remove downloading state when complete
+      const card = e.target.closest('.media-item');
+      if (card) {
+        card.classList.remove('downloading');
+      }
+
+      if (!result.success) {
+        console.error('[Drag] Download failed:', result.error);
+        return;
+      }
+
+      // Now files exist - use the actual file paths from the result
+      const filePaths = result.filePaths;
+      console.log('[Drag] Using file paths:', filePaths);
+
+      // Set drag data with actual file URIs
       const uriList = filePaths.map(fp => {
         // Convert Windows path to file:// URI
         const normalized = fp.replace(/\\/g, '/');
@@ -1261,36 +1191,25 @@ class KolboApp {
       e.dataTransfer.setData('text/uri-list', uriList);
       e.dataTransfer.setData('text/plain', filePaths.join('\n'));
 
-      // Try setting additional formats that Adobe apps might need
-      try {
-        e.dataTransfer.setData('application/x-qt-windows-mime;value="FileName"', filePaths[0]);
-      } catch (err) {
-        console.log('[Drag] Could not set FileName format (expected)');
-      }
-
       console.log('[Drag] Set drag data with', filePaths.length, 'file(s)');
       console.log('[Drag] URI list:', uriList);
-      console.log('[Drag] Effect allowed:', e.dataTransfer.effectAllowed);
 
-      // IMPORTANT: Electron's startDrag() has issues with Adobe apps
-      // Calling it here, but it may not work with Premiere Pro
-      // Users can use "Reveal in Folder" feature as workaround
+      // Call Electron's startDrag() with actual downloaded file paths
       if (window.electronBridge && window.electronBridge.startDrag) {
-        window.electronBridge.startDrag(
-          this.preparedFiles.filePaths,
-          this.preparedFiles.thumbnailPaths
-        ).then(result => {
-          console.log('[Drag] Electron startDrag result:', result);
-        }).catch(error => {
-          console.log('[Drag] Electron startDrag error (ignored):', error);
-        });
+        await window.electronBridge.startDrag(filePaths, []);
+        console.log('[Drag] Electron startDrag called');
       }
-
-      console.log('[Drag] HTML5 drag data set successfully');
-      console.log('[Drag] Note: If drag fails in Premiere, right-click and use "Reveal in Folder"');
     } catch (error) {
-      console.error('[Drag] Error setting drag data:', error);
+      console.error('[Drag] Error during drag preparation:', error);
+      // Remove downloading state on error
+      const card = e.target.closest('.media-item');
+      if (card) {
+        card.classList.remove('downloading');
+      }
+      return;
     }
+
+    console.log('[Drag] Drag setup complete');
   }
 
   // Reveal file in Windows Explorer
@@ -1348,14 +1267,13 @@ class KolboApp {
   handleDragEnd(e) {
     console.log('[Drag] handleDragEnd called');
 
-    // Cleanup drag state
-    document.querySelectorAll('.media-item.dragging').forEach(item => {
+    // Cleanup drag state - remove visual states
+    document.querySelectorAll('.media-item.dragging, .media-item.downloading').forEach(item => {
       item.classList.remove('dragging');
+      item.classList.remove('downloading');
     });
 
-    // Clear prepared files
-    this.preparedFiles = null;
-    console.log('[Drag] Cleared prepared files');
+    console.log('[Drag] Drag operation complete');
   }
 
   updateBatchMenu() {
@@ -1490,8 +1408,8 @@ class KolboApp {
       }
 
       // Setup update event listeners (only once)
-      if (!window.kolboDesktop._updateListenersSetup) {
-        window.kolboDesktop._updateListenersSetup = true;
+      if (!this._updateListenersSetup) {
+        this._updateListenersSetup = true;
 
         window.kolboDesktop.onUpdateAvailable((info) => {
           console.log('[Update] Update available:', info);

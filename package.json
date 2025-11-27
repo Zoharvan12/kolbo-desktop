@@ -1,6 +1,6 @@
 {
   "name": "kolbo-desktop",
-  "version": "1.0.1",
+  "version": "1.0.0",
   "description": "Kolbo.AI Media Library for Video Editors",
   "main": "src/main/main.js",
   "author": {
