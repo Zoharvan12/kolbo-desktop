@@ -11,7 +11,8 @@ const http = require('http');
 
 const store = new Store(); // Shared store instance
 const CACHE_DIR = path.join(app.getPath('userData'), 'MediaCache');
-const MAX_CACHE_SIZE = 5 * 1024 * 1024 * 1024; // 5GB
+// Cache limit removed - users manage cache manually via Settings page
+// This prevents NLE project corruption from automatic file deletion
 
 class FileManager {
   static setupHandlers() {
@@ -40,18 +41,14 @@ class FileManager {
 
     // Check if already cached
     if (fs.existsSync(filePath)) {
-      // Update access time for LRU
+      // Update access time for future reference
       fs.utimesSync(filePath, new Date(), new Date());
       console.log('[FileManager] File already cached:', fileName);
       return { success: true, filePath };
     }
 
-    // Check cache size before download
-    const cacheSize = this.getCacheSizeSync();
-    if (cacheSize > MAX_CACHE_SIZE) {
-      console.log('[FileManager] Cache full (' + (cacheSize / (1024 ** 3)).toFixed(2) + ' GB), evicting oldest files...');
-      await this.evictOldestFiles();
-    }
+    // No automatic cache size check - users manage cache manually
+    // This prevents automatic deletion which could corrupt NLE projects
 
     // Download file
     return new Promise((resolve, reject) => {
@@ -122,16 +119,22 @@ class FileManager {
   static getCacheSize() {
     const bytes = this.getCacheSizeSync();
     const gb = (bytes / (1024 ** 3)).toFixed(2);
+    const mb = (bytes / (1024 ** 2)).toFixed(2);
     return {
       bytes,
-      formatted: `${gb} GB`,
-      maxSize: MAX_CACHE_SIZE,
-      maxFormatted: '5.00 GB'
+      mb: parseFloat(mb),
+      gb: parseFloat(gb),
+      formatted: bytes > 1024 ** 3 ? `${gb} GB` : `${mb} MB`
     };
   }
 
-  static async evictOldestFiles() {
+  // Note: This function is no longer called automatically
+  // It's kept for potential future "Clear Old Files" feature
+  static async evictOldestFiles(daysOld = 30) {
     try {
+      const cutoffDate = new Date();
+      cutoffDate.setDate(cutoffDate.getDate() - daysOld);
+
       // Get all files with access times
       const files = fs.readdirSync(CACHE_DIR).map(file => {
         const filePath = path.join(CACHE_DIR, file);
@@ -147,29 +150,27 @@ class FileManager {
         }
       }).filter(f => f !== null);
 
-      // Sort by access time (oldest first)
-      files.sort((a, b) => a.atime - b.atime);
-
-      // Delete oldest files until cache is under 4GB (80% of max)
-      let currentSize = this.getCacheSizeSync();
-      const targetSize = MAX_CACHE_SIZE * 0.8;
-
+      // Delete files older than cutoff date
       let deletedCount = 0;
-      for (const file of files) {
-        if (currentSize <= targetSize) break;
+      let deletedSize = 0;
 
-        try {
-          fs.unlinkSync(file.path);
-          currentSize -= file.size;
-          deletedCount++;
-        } catch (error) {
-          console.error('[FileManager] Failed to delete:', file.path, error);
+      for (const file of files) {
+        if (file.atime < cutoffDate) {
+          try {
+            fs.unlinkSync(file.path);
+            deletedSize += file.size;
+            deletedCount++;
+          } catch (error) {
+            console.error('[FileManager] Failed to delete:', file.path, error);
+          }
         }
       }
 
-      console.log(`[FileManager] Evicted ${deletedCount} files, cache now ${(currentSize / (1024 ** 3)).toFixed(2)} GB`);
+      console.log(`[FileManager] Evicted ${deletedCount} files older than ${daysOld} days, freed ${(deletedSize / (1024 ** 3)).toFixed(2)} GB`);
+      return { success: true, deletedCount, deletedSize };
     } catch (error) {
       console.error('[FileManager] Eviction error:', error);
+      return { success: false, error: error.message };
     }
   }
 

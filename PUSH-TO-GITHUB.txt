@@ -1,0 +1,78 @@
+=============================================================================
+QUICK COMMANDS TO PUSH TO GITHUB
+=============================================================================
+
+STEP 1: Create Repository on GitHub
+------------------------------------
+1. Go to: https://github.com/new
+2. Repository name: kolbo-desktop
+3. Description: Kolbo.AI Desktop App - Media Library for Video Editors
+4. Private/Public: Choose based on your needs
+5. DO NOT initialize with README, .gitignore, or license
+6. Click "Create repository"
+
+
+STEP 2: Connect and Push (Choose your organization/username)
+-------------------------------------------------------------
+
+Option A: If using personal account
+------------------------------------
+cd "G:\Projects\Kolbo.AI\github\kolbo-desktop"
+git remote add origin https://github.com/YOUR_USERNAME/kolbo-desktop.git
+git push -u origin master
+
+
+Option B: If using Kolbo.AI organization
+-----------------------------------------
+cd "G:\Projects\Kolbo.AI\github\kolbo-desktop"
+git remote add origin https://github.com/Kolbo-AI/kolbo-desktop.git
+git push -u origin master
+
+
+Option C: If using SSH
+----------------------
+cd "G:\Projects\Kolbo.AI\github\kolbo-desktop"
+git remote add origin git@github.com:YOUR_USERNAME/kolbo-desktop.git
+git push -u origin master
+
+
+STEP 3: Verify
+--------------
+Visit: https://github.com/YOUR_USERNAME/kolbo-desktop
+You should see 44 files committed
+
+
+AUTHENTICATION
+--------------
+If using HTTPS, you'll need a Personal Access Token:
+1. Go to: https://github.com/settings/tokens
+2. Generate new token (classic)
+3. Give it "repo" scope
+4. Use token as password when prompted
+
+
+CURRENT STATUS
+--------------
+✅ Git initialized
+✅ Initial commit created (44 files)
+✅ .gitignore configured
+✅ Ready to push
+
+⏳ Waiting for GitHub repository URL
+
+
+WHAT'S INCLUDED
+---------------
+✅ Source code (src/)
+✅ Build scripts (build-mac.sh, build-all-mac.sh)
+✅ Icons (icon.ico, icon.icns)
+✅ Documentation (README.md, BUILD-GUIDE.md, etc.)
+✅ Package configuration (package.json)
+
+❌ Build outputs (dist/ - ignored, 234MB)
+❌ Dependencies (node_modules/ - ignored, ~150MB)
+
+
+REPOSITORY SIZE: ~5-7 MB (very manageable!)
+
+=============================================================================

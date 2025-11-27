@@ -12,7 +12,18 @@
       "Bash(test:*)",
       "Bash(cat:*)",
       "Bash(git init:*)",
-      "Bash(git add:*)"
+      "Bash(git add:*)",
+      "Bash(git commit:*)",
+      "Bash(npm start)",
+      "Bash(git count-objects:*)",
+      "Bash(git remote add:*)",
+      "Bash(git push:*)",
+      "Bash(node:*)",
+      "Bash(find:*)",
+      "Read(//c/Users/Zohar/Pictures/Screenshots/**)",
+      "Bash(awk:*)",
+      "Bash(stat:*)",
+      "Read(//g/Projects/Kolbo.AI/github/kolbo-landing-page/src/pages/**)"
     ],
     "deny": [],
     "ask": []

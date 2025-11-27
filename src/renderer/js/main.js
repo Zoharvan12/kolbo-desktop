@@ -53,10 +53,13 @@ class KolboApp {
     this.selectedItems = new Set();
     this.playingVideoId = null;
 
+    // Drag & Drop State
+    this.preparedFiles = null;
+    this.preparingFiles = false;
+
     // View & Navigation State
     this.currentView = localStorage.getItem('kolbo_current_view') || 'media';
-    this.iframeLoaded = false;
-    this.iframeListenerSetup = false;
+    this.tabManager = null; // Will be initialized when webapp view is shown
 
     // Debug & Performance
     this.DEBUG_MODE = window.KOLBO_CONFIG ? window.KOLBO_CONFIG.debug : (localStorage.getItem('KOLBO_DEBUG') === 'true');
@@ -72,7 +75,6 @@ class KolboApp {
     this.activeTimeouts = new Set();
     this.activeIntervals = new Set();
     this.googleAuthPollInterval = null;
-    this.iframeLoadTimeout = null;
 
     this.init();
   }
@@ -161,12 +163,16 @@ class KolboApp {
     }
   }
 
-  init() {
+  async init() {
     if (this.DEBUG_MODE) {
       console.log('Initializing Kolbo Desktop App...');
     }
 
     this.setGridSize(this.gridSize);
+
+    // Sync token from main process (electron-store) to renderer (localStorage)
+    // This ensures users stay logged in across app restarts
+    await kolboAPI.syncTokenFromMainProcess();
 
     if (kolboAPI.isAuthenticated()) {
       this.showLoadingOverlay();
@@ -222,12 +228,19 @@ class KolboApp {
     // Tab Switching
     const mediaTab = document.getElementById('media-tab');
     const webappTab = document.getElementById('webapp-tab');
+    const settingsTab = document.getElementById('settings-tab');
     if (mediaTab) {
       mediaTab.addEventListener('click', () => this.switchView('media'));
     }
     if (webappTab) {
       webappTab.addEventListener('click', () => this.switchView('webapp'));
     }
+    if (settingsTab) {
+      settingsTab.addEventListener('click', () => this.switchView('settings'));
+    }
+
+    // Window Controls
+    this.setupWindowControls();
 
     // Refresh
     const refreshBtn = document.getElementById('refresh-btn');
@@ -267,6 +280,16 @@ class KolboApp {
     const floatingBatchClearBtn = document.getElementById('floating-batch-clear-btn');
     if (floatingBatchClearBtn) {
       floatingBatchClearBtn.addEventListener('click', () => this.handleBatchClear());
+    }
+
+    // Settings page buttons
+    const clearCacheBtn = document.getElementById('clear-cache-btn');
+    const revealCacheBtn = document.getElementById('reveal-cache-btn');
+    if (clearCacheBtn) {
+      clearCacheBtn.addEventListener('click', () => this.handleClearCache());
+    }
+    if (revealCacheBtn) {
+      revealCacheBtn.addEventListener('click', () => this.handleRevealCache());
     }
   }
 
@@ -334,280 +357,98 @@ class KolboApp {
     // Show/hide views
     const mediaView = document.getElementById('media-library-view');
     const webappView = document.getElementById('webapp-view');
+    const settingsView = document.getElementById('settings-view');
     const mediaCount = document.getElementById('media-count');
+
+    // Hide all views first
+    mediaView?.classList.add('hidden');
+    mediaView?.classList.remove('active');
+    webappView?.classList.add('hidden');
+    webappView?.classList.remove('active');
+    settingsView?.classList.add('hidden');
+    settingsView?.classList.remove('active');
 
     if (view === 'media') {
       mediaView?.classList.remove('hidden');
       mediaView?.classList.add('active');
-      webappView?.classList.add('hidden');
-      webappView?.classList.remove('active');
-
       if (mediaCount) mediaCount.style.display = '';
     } else if (view === 'webapp') {
-      mediaView?.classList.add('hidden');
-      mediaView?.classList.remove('active');
       webappView?.classList.remove('hidden');
       webappView?.classList.add('active');
-
       if (mediaCount) mediaCount.style.display = 'none';
 
-      if (!this.iframeLoaded) {
-        this.loadWebApp();
+      // Initialize TabManager if not already initialized
+      if (!this.tabManager) {
+        this.tabManager = new TabManager();
+        if (this.DEBUG_MODE) {
+          console.log('[View] TabManager initialized');
+        }
       }
+    } else if (view === 'settings') {
+      settingsView?.classList.remove('hidden');
+      settingsView?.classList.add('active');
+      if (mediaCount) mediaCount.style.display = 'none';
+
+      // Load settings data
+      this.loadSettingsData();
     }
   }
 
-  loadWebApp() {
-    const iframe = document.getElementById('kolbo-iframe');
-    const loadingEl = document.getElementById('webapp-loading');
+  // Old webapp loading methods removed - now handled by TabManager
 
-    if ((this.iframeLoaded && !this.forceRefresh) || !iframe) {
-      if (this.DEBUG_MODE) {
-        console.log('[WebApp] Already loaded or iframe not found');
-      }
-      return;
+  setupWindowControls() {
+    // Only setup if Electron API is available
+    if (!window.kolboDesktop) return;
+
+    const minimizeBtn = document.getElementById('minimize-btn');
+    const maximizeBtn = document.getElementById('maximize-btn');
+    const closeBtn = document.getElementById('close-btn');
+
+    if (minimizeBtn) {
+      minimizeBtn.addEventListener('click', () => {
+        window.kolboDesktop.minimizeWindow();
+      });
     }
 
-    if (this.DEBUG_MODE) {
-      console.log('[WebApp] Loading Kolbo web app...');
+    if (maximizeBtn) {
+      maximizeBtn.addEventListener('click', async () => {
+        await window.kolboDesktop.maximizeWindow();
+        // Update button icon
+        const isMaximized = await window.kolboDesktop.isMaximized();
+        maximizeBtn.classList.toggle('is-maximized', isMaximized);
+      });
     }
 
-    const token = kolboAPI.getToken();
-    if (!token) {
-      console.error('[WebApp] No authentication token found!');
-      if (loadingEl) {
-        loadingEl.innerHTML = `
-          <div class="error-state">
-            <h3>Authentication Required</h3>
-            <p>Please log in to access the web app.</p>
-            <button onclick="window.location.reload()" class="primary-btn">Reload</button>
-          </div>
-        `;
-      }
-      return;
+    if (closeBtn) {
+      closeBtn.addEventListener('click', () => {
+        window.kolboDesktop.closeWindow();
+      });
     }
 
-    // Determine webapp URL from centralized config
-    let webappUrl;
-    if (typeof window.KOLBO_CONFIG !== 'undefined') {
-      webappUrl = window.KOLBO_CONFIG.webappUrl;
-    } else {
-      // Fallback to auto-detect
-      const apiUrl = localStorage.getItem('API_BASE_URL') || 'http://localhost:5050/api';
-      if (apiUrl.includes('localhost')) {
-        webappUrl = 'http://localhost:8080';
-      } else if (apiUrl.includes('api.kolbo.ai')) {
-        webappUrl = 'https://app.kolbo.ai';
-      } else {
-        webappUrl = 'https://staging.kolbo.ai';
-      }
-    }
+    // Listen for maximize state changes
+    window.kolboDesktop.onWindowMaximized(() => {
+      if (maximizeBtn) maximizeBtn.classList.add('is-maximized');
+    });
 
-    const iframeUrl = `${webappUrl}?embedded=true&token=${encodeURIComponent(token)}`;
+    window.kolboDesktop.onWindowUnmaximized(() => {
+      if (maximizeBtn) maximizeBtn.classList.remove('is-maximized');
+    });
 
-    if (this.DEBUG_MODE) {
-      console.log(`[WebApp] Loading from: ${webappUrl}`);
-      console.log(`[WebApp] Iframe URL: ${webappUrl}?embedded=true&token=${token.substring(0, 20)}...`);
-    }
-
-    iframe.src = iframeUrl;
-
-    if (loadingEl) loadingEl.style.display = 'flex';
-
-    // Clear any existing timeout
-    if (this.iframeLoadTimeout) {
-      clearTimeout(this.iframeLoadTimeout);
-    }
-
-    // Set timeout for iframe load (15 seconds)
-    this.iframeLoadTimeout = setTimeout(() => {
-      if (!this.iframeLoaded && loadingEl) {
-        console.error('[WebApp] Iframe load timeout after 15 seconds');
-        loadingEl.innerHTML = `
-          <div class="error-state">
-            <h3>Connection Timeout</h3>
-            <p>Failed to load Kolbo Web App. Check your internet connection.</p>
-            <p style="font-size: 12px; opacity: 0.7;">Trying to connect to: ${webappUrl}</p>
-            <button onclick="window.app.retryWebAppLoad()" class="primary-btn">Retry</button>
-          </div>
-        `;
-      }
-      this.iframeLoadTimeout = null;
-    }, 15000);
-
-    // Handle iframe load - rely on WEBAPP_READY postMessage, but fallback to showing after load
-    const handleLoad = () => {
-      if (this.DEBUG_MODE) {
-        console.log('[WebApp] Iframe HTML loaded, waiting for app to be ready...');
-      }
-
-      // Fallback: if we don't receive WEBAPP_READY within 3 seconds of load, show the iframe anyway
-      setTimeout(() => {
-        if (!this.iframeLoaded) {
-          if (this.DEBUG_MODE) {
-            console.log('[WebApp] ⚠️ No WEBAPP_READY message received, showing iframe anyway');
-          }
-
-          // Clear timeout
-          if (this.iframeLoadTimeout) {
-            clearTimeout(this.iframeLoadTimeout);
-            this.iframeLoadTimeout = null;
-          }
-
-          this.iframeLoaded = true;
-
-          const iframe = document.getElementById('kolbo-iframe');
-          const loadingEl = document.getElementById('webapp-loading');
-
-          if (loadingEl) {
-            loadingEl.style.display = 'none';
-          }
-
-          if (iframe) {
-            iframe.style.display = 'block';
-            iframe.classList.add('loaded');
-          }
-
-          if (this.DEBUG_MODE) {
-            console.log('[WebApp] ✅ Iframe displayed (fallback mode)');
-          }
-        }
-      }, 3000); // 3 second fallback delay
-    };
-
-    const handleError = (e) => {
-      if (this.iframeLoadTimeout) {
-        clearTimeout(this.iframeLoadTimeout);
-        this.iframeLoadTimeout = null;
-      }
-      console.error('[WebApp] Iframe load error:', e);
-      if (loadingEl) {
-        loadingEl.innerHTML = `
-          <div class="error-state">
-            <h3>Failed to Load</h3>
-            <p>Could not connect to Kolbo Web App. Please try again.</p>
-            <p style="font-size: 12px; opacity: 0.7;">Error: ${e.message || 'Network error'}</p>
-            <button onclick="window.app.retryWebAppLoad()" class="primary-btn">Retry</button>
-          </div>
-        `;
-      }
-    };
-
-    // Store event listeners for cleanup
-    if (!this.iframeEventListeners) {
-      this.iframeEventListeners = {};
-    }
-
-    // Remove old listeners if they exist
-    if (this.iframeEventListeners.load) {
-      iframe.removeEventListener('load', this.iframeEventListeners.load);
-    }
-    if (this.iframeEventListeners.error) {
-      iframe.removeEventListener('error', this.iframeEventListeners.error);
-    }
-
-    this.iframeEventListeners.load = handleLoad;
-    this.iframeEventListeners.error = handleError;
-
-    iframe.addEventListener('load', handleLoad);
-    iframe.addEventListener('error', handleError);
-
-    // Setup message listener
-    if (!this.iframeListenerSetup) {
-      this.setupIframeListener();
-      this.iframeListenerSetup = true;
-    }
-  }
-
-  retryWebAppLoad() {
-    this.forceRefresh = true;
-    this.iframeLoaded = false;
-    const iframe = document.getElementById('kolbo-iframe');
-    if (iframe) {
-      iframe.src = '';
-      this.loadWebApp();
-    }
-    this.forceRefresh = false;
-  }
-
-  setupIframeListener() {
-    const allowedOrigins = [
-      'https://app.kolbo.ai',
-      'https://staging.kolbo.ai',
-      'http://localhost:8080',
-      'http://localhost:5173'
-    ];
-
-    // Global message listener for debugging
-    window.addEventListener('message', (event) => {
-      if (this.DEBUG_MODE) {
-        console.log('[WebApp] 📨 Received postMessage:', {
-          origin: event.origin,
-          data: event.data,
-          currentView: this.currentView
-        });
-      }
-
-      if (this.currentView !== 'webapp') {
-        if (this.DEBUG_MODE) {
-          console.log('[WebApp] ⚠️ Message ignored - current view is not webapp');
-        }
-        return;
-      }
-
-      // Check if message is from allowed origin
-      const isAllowed = allowedOrigins.some(origin => event.origin.startsWith(origin));
-      if (!isAllowed) {
-        if (this.DEBUG_MODE) {
-          console.warn('[WebApp] ❌ Blocked message from unauthorized origin:', event.origin);
-        }
-        return;
-      }
-
-      if (this.DEBUG_MODE) {
-        console.log('[WebApp] ✅ Message from allowed origin:', event.origin);
-      }
-
-      // Handle webapp ready message
-      if (event.data.type === 'WEBAPP_READY') {
-        if (this.DEBUG_MODE) {
-          console.log('[WebApp] 🎉 Webapp is ready! Showing iframe...');
-        }
-
-        // Clear timeout
-        if (this.iframeLoadTimeout) {
-          clearTimeout(this.iframeLoadTimeout);
-          this.iframeLoadTimeout = null;
-        }
-
-        this.iframeLoaded = true;
-
-        const iframe = document.getElementById('kolbo-iframe');
-        const loadingEl = document.getElementById('webapp-loading');
-
-        if (loadingEl) {
-          loadingEl.style.display = 'none';
-        }
-
-        if (iframe) {
-          iframe.style.display = 'block';
-          iframe.classList.add('loaded');
-        }
-
-        if (this.DEBUG_MODE) {
-          console.log('[WebApp] ✅ Iframe displayed successfully');
-        }
-      } else if (this.DEBUG_MODE) {
-        console.log('[WebApp] ⚠️ Unknown message type:', event.data.type);
-      }
+    // Set initial state
+    window.kolboDesktop.isMaximized().then(isMaximized => {
+      if (maximizeBtn) maximizeBtn.classList.toggle('is-maximized', isMaximized);
     });
   }
 
   handleRefresh() {
     if (this.currentView === 'media') {
       this.loadMedia(true);
-    } else if (this.currentView === 'webapp') {
-      this.retryWebAppLoad();
+    } else if (this.currentView === 'webapp' && this.tabManager) {
+      // Reload active tab
+      const activeTab = this.tabManager.getActiveTab();
+      if (activeTab && activeTab.iframe) {
+        activeTab.iframe.src = activeTab.iframe.src; // Force reload
+      }
     }
   }
 
@@ -1163,6 +1004,22 @@ class KolboApp {
 
     // Drag events delegation
     if (!gridEl._dragHandlersSetup) {
+      // Use mousedown to prepare files BEFORE dragstart
+      gridEl.addEventListener('mousedown', (e) => {
+        // Only prepare on left mouse button
+        if (e.button !== 0) return;
+
+        // Prevent dragging if user clicked on buttons or interactive elements
+        if (e.target.closest('button, audio, video, .selection-checkbox')) {
+          return;
+        }
+
+        const card = e.target.closest('.media-item');
+        if (card && card.dataset.id) {
+          this.prepareFilesForDrag(card.dataset.id);
+        }
+      });
+
       gridEl.addEventListener('dragstart', (e) => {
         // Prevent dragging if user clicked on buttons or interactive elements
         if (e.target.closest('button, audio, video')) {
@@ -1252,8 +1109,16 @@ class KolboApp {
     this.updateBatchMenu();
   }
 
-  async handleDragStart(e, itemId) {
-    // If item not selected, select only this item
+  async prepareFilesForDrag(itemId) {
+    // Don't prepare if already preparing
+    if (this.preparingFiles) {
+      console.log('[Drag] Already preparing files, skipping...');
+      return;
+    }
+
+    console.log('[Drag] prepareFilesForDrag called with itemId:', itemId);
+
+    // Select item if not already selected
     if (!this.selectedItems.has(itemId)) {
       this.selectedItems.clear();
       this.selectedItems.add(itemId);
@@ -1263,27 +1128,93 @@ class KolboApp {
     // Get selected media items
     const items = Array.from(this.selectedItems).map(id => {
       const mediaItem = this.media.find(m => m.id === id);
+      if (!mediaItem) {
+        console.error('[Drag] Media item not found for id:', id);
+        return null;
+      }
       return {
         id: mediaItem.id,
         fileName: mediaItem.filename || `kolbo-${mediaItem.id}.${mediaItem.type === 'video' ? 'mp4' : 'png'}`,
         url: mediaItem.url,
         thumbnailUrl: mediaItem.thumbnailUrl
       };
-    });
+    }).filter(item => item !== null);
 
-    // Prepare files for drag
+    if (items.length === 0) {
+      console.error('[Drag] No valid items to prepare');
+      return;
+    }
+
+    console.log('[Drag] Preparing files for items:', items);
+
     try {
-      const result = await window.electronBridge.prepareAndStartDrag(items, (progress) => {
-        console.log('[Drag] Progress:', progress);
-      });
+      this.preparingFiles = true;
 
-      if (!result.success) {
-        console.error('[Drag] Failed:', result.error);
-        this.showToast(result.error || 'Failed to prepare files', 'error');
+      if (!window.electronBridge || !window.electronBridge.prepareDrag) {
+        console.error('[Drag] electronBridge.prepareDrag not available');
+        this.preparingFiles = false;
+        return;
+      }
+
+      // Prepare files (download to cache)
+      const result = await window.electronBridge.prepareDrag(items);
+
+      console.log('[Drag] Prepare result:', result);
+
+      if (result.success) {
+        // Store prepared file paths for dragstart
+        this.preparedFiles = {
+          filePaths: result.filePaths,
+          thumbnailPaths: result.thumbnailPaths
+        };
+        console.log('[Drag] Files prepared and ready:', this.preparedFiles);
+      } else {
+        console.error('[Drag] Failed to prepare files:', result.error);
+        this.preparedFiles = null;
       }
     } catch (error) {
-      console.error('[Drag] Error:', error);
-      this.showToast('Drag failed: ' + error.message, 'error');
+      console.error('[Drag] Error preparing files:', error);
+      this.preparedFiles = null;
+    } finally {
+      this.preparingFiles = false;
+    }
+  }
+
+  async handleDragStart(e, itemId) {
+    console.log('[Drag] handleDragStart called with itemId:', itemId);
+    console.log('[Drag] Currently selected items:', Array.from(this.selectedItems));
+    console.log('[Drag] Total media items:', this.media.length);
+    console.log('[Drag] Prepared files available:', this.preparedFiles);
+
+    // Check if files are prepared
+    if (!this.preparedFiles || !this.preparedFiles.filePaths || this.preparedFiles.filePaths.length === 0) {
+      console.error('[Drag] No prepared files available - files must be prepared before drag');
+      e.preventDefault();
+      return;
+    }
+
+    // Start drag with prepared files (synchronous!)
+    try {
+      if (!window.electronBridge || !window.electronBridge.startDrag) {
+        console.error('[Drag] electronBridge.startDrag not available');
+        e.preventDefault();
+        return;
+      }
+
+      console.log('[Drag] Starting drag with prepared files...');
+
+      const result = await window.electronBridge.startDrag(
+        this.preparedFiles.filePaths,
+        this.preparedFiles.thumbnailPaths
+      );
+
+      console.log('[Drag] Start drag result:', result);
+
+      if (!result.success) {
+        console.error('[Drag] Start drag failed:', result.error);
+      }
+    } catch (error) {
+      console.error('[Drag] Error starting drag:', error);
     }
   }
 
@@ -1296,13 +1227,13 @@ class KolboApp {
 
   updateBatchMenu() {
     const menu = document.getElementById('floating-batch-menu');
-    const count = document.getElementById('batch-count');
+    const count = document.getElementById('floating-batch-count');
 
     if (this.selectedItems.size > 0) {
-      menu.classList.remove('hidden');
-      count.textContent = this.selectedItems.size;
+      menu?.classList.remove('hidden');
+      if (count) count.textContent = this.selectedItems.size;
     } else {
-      menu.classList.add('hidden');
+      menu?.classList.add('hidden');
     }
   }
 
@@ -1319,6 +1250,193 @@ class KolboApp {
   showToast(message, type = 'info') {
     console.log(`[Toast ${type}] ${message}`);
     // TODO: Implement toast notifications
+  }
+
+  // ============================================================================
+  // SETTINGS PAGE METHODS
+  // ============================================================================
+
+  async loadSettingsData() {
+    if (this.DEBUG_MODE) {
+      console.log('[Settings] Loading settings data...');
+    }
+
+    try {
+      // Load cache size
+      if (window.kolboDesktop) {
+        const cacheInfo = await window.kolboDesktop.getCacheSize();
+        const cacheSizeDisplay = document.getElementById('cache-size-display');
+        if (cacheSizeDisplay) {
+          cacheSizeDisplay.textContent = cacheInfo.formatted;
+        }
+
+        // Show cache location
+        const cacheLocationPath = document.getElementById('cache-location-path');
+        if (cacheLocationPath) {
+          // Get user data path from Electron
+          const userDataPath = await this.getUserDataPath();
+          cacheLocationPath.textContent = `${userDataPath}\\MediaCache`;
+        }
+
+        // Load app version
+        const appVersionEl = document.getElementById('app-version');
+        if (appVersionEl && window.electronBridge) {
+          const version = await window.electronBridge.getAppVersion();
+          appVersionEl.textContent = `Version ${version}`;
+        }
+
+        // Load auto-launch setting
+        const autoLaunchToggle = document.getElementById('auto-launch-toggle');
+        if (autoLaunchToggle && window.kolboDesktop.getAutoLaunch) {
+          const isEnabled = await window.kolboDesktop.getAutoLaunch();
+          autoLaunchToggle.checked = isEnabled;
+
+          // Add event listener for toggle changes
+          autoLaunchToggle.addEventListener('change', async (e) => {
+            try {
+              const result = await window.kolboDesktop.setAutoLaunch(e.target.checked);
+              if (!result.success) {
+                console.error('[Settings] Failed to set auto-launch:', result.error);
+                // Revert the toggle on error
+                e.target.checked = !e.target.checked;
+                alert(`Failed to ${e.target.checked ? 'enable' : 'disable'} auto-launch: ${result.error}`);
+              } else {
+                if (this.DEBUG_MODE) {
+                  console.log(`[Settings] Auto-launch ${result.enabled ? 'enabled' : 'disabled'}`);
+                }
+              }
+            } catch (error) {
+              console.error('[Settings] Auto-launch toggle error:', error);
+              e.target.checked = !e.target.checked;
+              alert(`Failed to ${e.target.checked ? 'enable' : 'disable'} auto-launch`);
+            }
+          });
+        }
+      }
+    } catch (error) {
+      console.error('[Settings] Failed to load settings data:', error);
+    }
+  }
+
+  async getUserDataPath() {
+    // Get from Electron's app.getPath('userData')
+    // This is typically: C:\Users\{username}\AppData\Roaming\kolbo-desktop
+    try {
+      // We can infer this from the environment or ask main process
+      // For now, use a reasonable default
+      if (navigator.platform.includes('Win')) {
+        const username = await this.getUsername();
+        return `C:\\Users\\${username}\\AppData\\Roaming\\kolbo-desktop`;
+      } else if (navigator.platform.includes('Mac')) {
+        return '~/Library/Application Support/kolbo-desktop';
+      } else {
+        return '~/.config/kolbo-desktop';
+      }
+    } catch (error) {
+      return 'AppData/kolbo-desktop';
+    }
+  }
+
+  async getUsername() {
+    // Get username from environment
+    try {
+      // In Electron, we can use process.env, but it's in main process
+      // For now, return a placeholder
+      return 'User';
+    } catch (error) {
+      return 'User';
+    }
+  }
+
+  async handleClearCache() {
+    if (this.DEBUG_MODE) {
+      console.log('[Settings] Clear cache clicked');
+    }
+
+    // Show confirmation dialog
+    const confirmed = confirm(
+      '⚠️ Clear All Cache?\n\n' +
+      'This will delete all downloaded media files from your computer.\n\n' +
+      'Warning: Video editing projects (Premiere Pro, After Effects, DaVinci Resolve) ' +
+      'that are using these files will show "Media Offline" errors.\n\n' +
+      'Are you sure you want to continue?'
+    );
+
+    if (!confirmed) {
+      return;
+    }
+
+    try {
+      if (window.kolboDesktop) {
+        const clearCacheBtn = document.getElementById('clear-cache-btn');
+        if (clearCacheBtn) {
+          clearCacheBtn.disabled = true;
+          clearCacheBtn.innerHTML = `
+            <div class="spinner" style="width: 14px; height: 14px; border: 2px solid rgba(239, 68, 68, 0.3); border-top-color: #ef4444;"></div>
+            Clearing...
+          `;
+        }
+
+        const result = await window.kolboDesktop.clearCache();
+
+        if (result.success) {
+          alert(
+            `✅ Cache Cleared Successfully!\n\n` +
+            `Deleted ${result.deletedFiles} file(s).\n\n` +
+            `New files will be downloaded when you drag them to video editors.`
+          );
+
+          // Reload cache size
+          this.loadSettingsData();
+        } else {
+          alert(`❌ Failed to clear cache: ${result.error}`);
+        }
+
+        // Restore button
+        if (clearCacheBtn) {
+          clearCacheBtn.disabled = false;
+          clearCacheBtn.innerHTML = `
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <polyline points="3 6 5 6 21 6"></polyline>
+              <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+            </svg>
+            Clear All Cache
+          `;
+        }
+      }
+    } catch (error) {
+      console.error('[Settings] Clear cache error:', error);
+      alert(`❌ Failed to clear cache: ${error.message}`);
+    }
+  }
+
+  async handleRevealCache() {
+    if (this.DEBUG_MODE) {
+      console.log('[Settings] Reveal cache clicked');
+    }
+
+    try {
+      if (window.kolboDesktop && window.kolboDesktop.openCacheFolder) {
+        const result = await window.kolboDesktop.openCacheFolder();
+
+        if (result.success) {
+          console.log('[Settings] Cache folder opened:', result.path);
+        } else {
+          alert(`Failed to open cache folder: ${result.error}`);
+        }
+      } else {
+        // Fallback for non-Electron environments
+        alert(
+          'Cache Location:\n\n' +
+          'Windows: C:\\Users\\{YourUsername}\\AppData\\Roaming\\kolbo-desktop\\MediaCache\n\n' +
+          'Mac: ~/Library/Application Support/kolbo-desktop/MediaCache\n\n' +
+          'You can navigate to this folder using File Explorer or Finder.'
+        );
+      }
+    } catch (error) {
+      console.error('[Settings] Reveal cache error:', error);
+      alert(`Failed to open cache folder: ${error.message}`);
+    }
   }
 }
 

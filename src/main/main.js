@@ -29,21 +29,16 @@ app.commandLine.appendSwitch('disable-dev-shm-usage');
 // app.commandLine.appendSwitch('disable-gpu-compositing');
 // app.commandLine.appendSwitch('disable-gpu-sandbox');
 
-// Ignore certificate errors for local development
-app.commandLine.appendSwitch('ignore-certificate-errors');
+// Ignore certificate errors ONLY in development
+if (process.env.NODE_ENV === 'development') {
+  app.commandLine.appendSwitch('ignore-certificate-errors');
+  console.log('[Main] Certificate validation disabled (development mode)');
+}
 
-// Aggressively disable ALL caching to avoid permission issues
-app.commandLine.appendSwitch('disable-http-cache');
-app.commandLine.appendSwitch('disable-gpu-shader-disk-cache');
-app.commandLine.appendSwitch('disable-application-cache');
-app.commandLine.appendSwitch('disk-cache-size', '0');
-app.commandLine.appendSwitch('media-cache-size', '0');
-
-// Set custom user data path to avoid Windows permission issues
-// Use a fresh path each time to avoid cache conflicts
-const tempDataPath = path.join(require('os').tmpdir(), 'kolbo-desktop-' + Date.now());
-app.setPath('userData', tempDataPath);
-console.log('[Main] Custom userData path:', tempDataPath);
+// Set permanent user data path for persistent settings
+const userDataPath = path.join(app.getPath('appData'), 'kolbo-desktop');
+app.setPath('userData', userDataPath);
+console.log('[Main] User data path:', userDataPath);
 
 // Allow multiple instances - users can open as many windows as they want
 // No single instance lock needed
@@ -76,7 +71,7 @@ function createWindow() {
       nodeIntegration: false,      // Security: no Node.js in renderer
       contextIsolation: true,       // Security: isolate contexts
       preload: path.join(__dirname, 'preload.js'),
-      webSecurity: false           // Disable for debugging
+      webSecurity: process.env.NODE_ENV === 'development' ? false : true  // Enabled in production
     },
     show: true // Show immediately for debugging
   });
@@ -175,7 +170,7 @@ function createTray() {
 
 // Window control handlers
 function setupWindowHandlers() {
-  const { ipcMain } = require('electron');
+  const { ipcMain, shell } = require('electron');
 
   ipcMain.handle('window:minimize', () => {
     if (mainWindow) mainWindow.minimize();
@@ -199,6 +194,33 @@ function setupWindowHandlers() {
     return mainWindow ? mainWindow.isMaximized() : false;
   });
 
+  // Open cache folder in file explorer
+  ipcMain.handle('cache:open-folder', async () => {
+    try {
+      const cachePath = path.join(app.getPath('userData'), 'MediaCache');
+
+      // Ensure directory exists before opening
+      const fs = require('fs');
+      if (!fs.existsSync(cachePath)) {
+        fs.mkdirSync(cachePath, { recursive: true });
+      }
+
+      const result = await shell.openPath(cachePath);
+
+      if (result) {
+        // result is an error string if it failed
+        console.error('[Main] Failed to open cache folder:', result);
+        return { success: false, error: result };
+      }
+
+      console.log('[Main] Opened cache folder:', cachePath);
+      return { success: true, path: cachePath };
+    } catch (error) {
+      console.error('[Main] Error opening cache folder:', error);
+      return { success: false, error: error.message };
+    }
+  });
+
   ipcMain.handle('window:create-new', (event, url) => {
     // Create a new window with the specified URL
     const newWindow = new BrowserWindow({
@@ -214,7 +236,7 @@ function setupWindowHandlers() {
         nodeIntegration: false,
         contextIsolation: true,
         preload: path.join(__dirname, 'preload.js'),
-        webSecurity: false,
+        webSecurity: process.env.NODE_ENV === 'development' ? false : true,
         additionalArguments: url ? [`--tab-url=${url}`] : []
       }
     });
@@ -231,6 +253,27 @@ function setupWindowHandlers() {
     newWindow.loadFile(htmlPath);
 
     return true;
+  });
+
+  // Auto-launch on startup handlers
+  ipcMain.handle('autoLaunch:get', () => {
+    const loginSettings = app.getLoginItemSettings();
+    return loginSettings.openAtLogin;
+  });
+
+  ipcMain.handle('autoLaunch:set', (event, enabled) => {
+    try {
+      app.setLoginItemSettings({
+        openAtLogin: enabled,
+        openAsHidden: false,
+        args: []
+      });
+      console.log(`[Main] Auto-launch ${enabled ? 'enabled' : 'disabled'}`);
+      return { success: true, enabled };
+    } catch (error) {
+      console.error('[Main] Failed to set auto-launch:', error);
+      return { success: false, error: error.message };
+    }
   });
 
   // Send maximize/unmaximize events to renderer

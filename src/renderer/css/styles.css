@@ -42,6 +42,7 @@ html, body {
   position: relative;
   overflow: hidden;
   background: #000000; /* Ensure black background as fallback */
+  -webkit-app-region: drag; /* Make auth screen draggable */
 }
 
 /* Background Video */
@@ -114,6 +115,7 @@ html, body {
   border-radius: 16px;
   padding: 32px;
   box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3); /* Add shadow for depth instead */
+  -webkit-app-region: no-drag; /* Make card and its interactive elements clickable */
 }
 
 /* Logo */
@@ -366,12 +368,15 @@ html, body {
   background: rgb(var(--background));
   border-bottom: 1px solid rgb(var(--border) / 0.5);
   flex-shrink: 0;
+  -webkit-app-region: drag; /* Make header draggable */
+  user-select: none; /* Prevent text selection while dragging */
 }
 
 .header-left {
   display: flex;
   align-items: center;
   gap: 12px;
+  -webkit-app-region: no-drag; /* Make interactive elements clickable */
 }
 
 .header-title {
@@ -391,6 +396,8 @@ html, body {
 .header-actions {
   display: flex;
   gap: 8px;
+  align-items: center;
+  -webkit-app-region: no-drag; /* Make buttons clickable */
 }
 
 .icon-btn {
@@ -417,6 +424,251 @@ html, body {
 
 .icon-btn:active {
   transform: scale(1);
+}
+
+/* Window Controls */
+.window-controls {
+  display: flex;
+  gap: 0;
+  align-items: center;
+  margin-left: 12px;
+  padding-left: 12px;
+  border-left: 1px solid rgb(var(--border) / 0.3);
+  -webkit-app-region: no-drag;
+}
+
+.window-btn {
+  width: 46px;
+  height: 48px;
+  padding: 0;
+  border: none;
+  background: transparent;
+  color: rgba(255, 255, 255, 0.6);
+  cursor: pointer;
+  transition: all 0.15s ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  -webkit-app-region: no-drag;
+  position: relative;
+}
+
+.window-btn:hover {
+  background: rgba(255, 255, 255, 0.08);
+  color: rgba(255, 255, 255, 0.9);
+}
+
+.window-btn:active {
+  background: rgba(255, 255, 255, 0.12);
+  color: rgba(255, 255, 255, 1);
+}
+
+.window-btn.close-btn:hover {
+  background: #e81123;
+  color: white;
+}
+
+.window-btn.close-btn:active {
+  background: #c50f1f;
+  color: white;
+}
+
+.window-btn svg {
+  pointer-events: none;
+  width: 10px;
+  height: 10px;
+}
+
+/* Maximize button: show restore icon when maximized */
+.window-btn.is-maximized svg {
+  display: none;
+}
+
+.window-btn.is-maximized::after {
+  content: '';
+  display: block;
+  width: 10px;
+  height: 10px;
+  border: 1px solid currentColor;
+  border-radius: 1px;
+  position: relative;
+  box-sizing: border-box;
+}
+
+.window-btn.is-maximized::before {
+  content: '';
+  display: block;
+  width: 10px;
+  height: 10px;
+  border: 1px solid currentColor;
+  border-radius: 1px;
+  position: absolute;
+  top: 17px;
+  left: 16px;
+  background: rgb(var(--background));
+  box-sizing: border-box;
+  z-index: 2;
+}
+
+/* Tab Bar */
+.tab-bar {
+  display: flex;
+  align-items: center;
+  background: rgb(var(--background));
+  border-bottom: 1px solid rgb(var(--border) / 0.5);
+  height: 40px;
+  padding: 0;
+  overflow: hidden;
+  -webkit-app-region: drag; /* Make tab bar draggable */
+  user-select: none;
+}
+
+.tab-list {
+  display: flex;
+  align-items: center;
+  flex: 1;
+  overflow-x: auto;
+  overflow-y: hidden;
+  scrollbar-width: none; /* Firefox */
+  -webkit-app-region: no-drag; /* Make tabs clickable */
+}
+
+.tab-list::-webkit-scrollbar {
+  display: none; /* Chrome/Safari */
+}
+
+.tab {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: 40px;
+  padding: 0 12px;
+  min-width: 120px;
+  max-width: 200px;
+  background: transparent;
+  border: none;
+  border-right: 1px solid rgb(var(--border) / 0.3);
+  color: rgba(255, 255, 255, 0.6);
+  font-size: 12px;
+  cursor: grab;
+  transition: all 0.15s ease;
+  position: relative;
+  -webkit-app-region: no-drag;
+}
+
+.tab:active {
+  cursor: grabbing;
+}
+
+.tab.dragging {
+  opacity: 0.5;
+  cursor: grabbing;
+}
+
+.tab:hover {
+  background: rgba(255, 255, 255, 0.05);
+  color: rgba(255, 255, 255, 0.8);
+}
+
+.tab.active {
+  background: rgba(255, 255, 255, 0.08);
+  color: rgba(255, 255, 255, 1);
+  border-bottom: 2px solid rgb(var(--primary));
+}
+
+.tab-title {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  text-align: left;
+}
+
+.tab-close {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 16px;
+  border-radius: 3px;
+  background: transparent;
+  border: none;
+  color: rgba(255, 255, 255, 0.5);
+  cursor: pointer;
+  transition: all 0.15s ease;
+  padding: 0;
+  flex-shrink: 0;
+}
+
+.tab-close:hover {
+  background: rgba(255, 255, 255, 0.15);
+  color: rgba(255, 255, 255, 0.9);
+}
+
+.tab-close svg {
+  width: 10px;
+  height: 10px;
+  pointer-events: none;
+}
+
+.new-tab-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  height: 32px;
+  padding: 0 10px;
+  background: transparent;
+  border: 1px solid rgb(var(--border) / 0.3);
+  border-radius: 6px;
+  color: rgba(255, 255, 255, 0.6);
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  flex-shrink: 0;
+  margin-left: 8px;
+  margin-right: 8px;
+  white-space: nowrap;
+  -webkit-app-region: no-drag;
+}
+
+.new-tab-btn:hover {
+  background: rgba(255, 255, 255, 0.08);
+  color: rgba(255, 255, 255, 0.9);
+  border-color: rgba(255, 255, 255, 0.3);
+}
+
+.new-tab-btn svg {
+  pointer-events: none;
+  flex-shrink: 0;
+}
+
+.new-tab-btn span {
+  pointer-events: none;
+}
+
+/* Iframe Container */
+.iframe-container {
+  position: relative;
+  width: 100%;
+  height: calc(100vh - 88px); /* header 48px + tab bar 40px */
+  background: #1a1a1a;
+}
+
+.iframe-container iframe {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  border: none;
+  background: #1a1a1a;
+  display: none;
+}
+
+.iframe-container iframe.active {
+  display: block;
 }
 
 /* Project Selector */
@@ -1902,4 +2154,236 @@ body.dragging-active * {
 
 
 /* Hide error message when empty to avoid blank red bar */
+
+/* ============================================================================
+   SETTINGS PAGE STYLES
+   ============================================================================ */
+
+.settings-container {
+  padding: 40px;
+  max-width: 900px;
+  margin: 0 auto;
+  overflow-y: auto;
+  height: 100%;
+}
+
+.settings-title {
+  font-size: 32px;
+  font-weight: 700;
+  color: #ffffff;
+  margin-bottom: 32px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.settings-section {
+  background: rgba(30, 30, 30, 0.6);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 12px;
+  padding: 24px;
+  margin-bottom: 24px;
+}
+
+.settings-section-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+.settings-section-header svg {
+  color: #667eea;
+  flex-shrink: 0;
+}
+
+.settings-section-header h2 {
+  font-size: 20px;
+  font-weight: 600;
+  color: #ffffff;
+  margin: 0;
+}
+
+.settings-description {
+  color: rgba(255, 255, 255, 0.6);
+  font-size: 13px;
+  line-height: 1.5;
+  margin-bottom: 20px;
+}
+
+.settings-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16px 0;
+  border-top: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.settings-item:first-child {
+  border-top: none;
+  padding-top: 0;
+}
+
+.settings-item-info {
+  flex: 1;
+  margin-right: 20px;
+}
+
+.settings-label {
+  font-size: 14px;
+  font-weight: 500;
+  color: #ffffff;
+  margin-bottom: 4px;
+  display: block;
+}
+
+.settings-sublabel {
+  font-size: 12px;
+  color: rgba(255, 255, 255, 0.5);
+  line-height: 1.4;
+  margin: 4px 0 0 0;
+}
+
+.settings-value {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.cache-size-value {
+  font-size: 18px;
+  font-weight: 600;
+  color: #667eea;
+  font-family: monospace;
+}
+
+/* Button Styles */
+.secondary-btn,
+.danger-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 16px;
+  border-radius: 6px;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  border: none;
+  outline: none;
+  white-space: nowrap;
+}
+
+.secondary-btn {
+  background: rgba(102, 126, 234, 0.1);
+  color: #667eea;
+  border: 1px solid rgba(102, 126, 234, 0.3);
+}
+
+.secondary-btn:hover {
+  background: rgba(102, 126, 234, 0.2);
+  border-color: rgba(102, 126, 234, 0.5);
+  transform: translateY(-1px);
+}
+
+.secondary-btn:active {
+  transform: translateY(0);
+}
+
+.danger-btn {
+  background: rgba(239, 68, 68, 0.1);
+  color: #ef4444;
+  border: 1px solid rgba(239, 68, 68, 0.3);
+}
+
+.danger-btn:hover {
+  background: rgba(239, 68, 68, 0.2);
+  border-color: rgba(239, 68, 68, 0.5);
+  transform: translateY(-1px);
+}
+
+.danger-btn:active {
+  transform: translateY(0);
+}
+
+.secondary-btn svg,
+.danger-btn svg {
+  width: 14px;
+  height: 14px;
+}
+
+/* Toggle Switch */
+.toggle-switch {
+  position: relative;
+  display: inline-block;
+  width: 48px;
+  height: 26px;
+  cursor: pointer;
+}
+
+.toggle-switch input {
+  opacity: 0;
+  width: 0;
+  height: 0;
+}
+
+.toggle-slider {
+  position: absolute;
+  cursor: pointer;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: rgba(255, 255, 255, 0.1);
+  transition: 0.3s;
+  border-radius: 26px;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+}
+
+.toggle-slider:before {
+  position: absolute;
+  content: "";
+  height: 18px;
+  width: 18px;
+  left: 4px;
+  bottom: 3px;
+  background-color: white;
+  transition: 0.3s;
+  border-radius: 50%;
+}
+
+.toggle-switch input:checked + .toggle-slider {
+  background-color: #667eea;
+  border-color: #667eea;
+}
+
+.toggle-switch input:checked + .toggle-slider:before {
+  transform: translateX(22px);
+}
+
+.toggle-switch input:disabled + .toggle-slider {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* Responsive Design */
+@media (max-width: 768px) {
+  .settings-container {
+    padding: 20px;
+  }
+
+  .settings-item {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 12px;
+  }
+
+  .settings-item-info {
+    margin-right: 0;
+  }
+
+  .cache-size-value {
+    font-size: 16px;
+  }
+}
 

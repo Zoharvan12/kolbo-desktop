@@ -45,12 +45,50 @@ contextBridge.exposeInMainWorld('kolboDesktop', {
   clearCache: () =>
     ipcRenderer.invoke('cache:clear'),
 
+  openCacheFolder: () =>
+    ipcRenderer.invoke('cache:open-folder'),
+
   // App
   getVersion: () =>
     ipcRenderer.invoke('app:get-version'),
 
   openExternal: (url) =>
-    ipcRenderer.invoke('app:open-external', url)
+    ipcRenderer.invoke('app:open-external', url),
+
+  // Window Controls
+  minimizeWindow: () =>
+    ipcRenderer.invoke('window:minimize'),
+
+  maximizeWindow: () =>
+    ipcRenderer.invoke('window:maximize'),
+
+  closeWindow: () =>
+    ipcRenderer.invoke('window:close'),
+
+  isMaximized: () =>
+    ipcRenderer.invoke('window:is-maximized'),
+
+  // Window events
+  onWindowMaximized: (callback) =>
+    ipcRenderer.on('window:maximized', callback),
+
+  onWindowUnmaximized: (callback) =>
+    ipcRenderer.on('window:unmaximized', callback),
+
+  // Create new window
+  createNewWindow: (url) =>
+    ipcRenderer.invoke('window:create-new', url),
+
+  // Listen for tab URL to open in new window
+  onOpenTabUrl: (callback) =>
+    ipcRenderer.on('open-tab-url', (event, url) => callback(url)),
+
+  // Auto-launch on startup
+  getAutoLaunch: () =>
+    ipcRenderer.invoke('autoLaunch:get'),
+
+  setAutoLaunch: (enabled) =>
+    ipcRenderer.invoke('autoLaunch:set', enabled)
 });
 
 console.log('[Preload] Context bridge established');

@@ -52,6 +52,42 @@ class KolboAPI {
     this.token = this.getToken();
     this.apiBaseUrl = API_BASE_URL;
     this.DEBUG_MODE = localStorage.getItem('KOLBO_DEBUG') === 'true';
+    this._syncPromise = null;
+  }
+
+  // Sync token from main process (electron-store) to renderer (localStorage)
+  // This ensures tokens persist across app restarts
+  // MUST be called before isAuthenticated() check on app startup
+  async syncTokenFromMainProcess() {
+    // Return existing promise if already syncing
+    if (this._syncPromise) {
+      return this._syncPromise;
+    }
+
+    this._syncPromise = (async () => {
+      try {
+        if (window.kolboDesktop && window.kolboDesktop.getToken) {
+          const mainProcessToken = await window.kolboDesktop.getToken();
+          if (mainProcessToken) {
+            // Sync to localStorage
+            localStorage.setItem('token', mainProcessToken);
+            localStorage.setItem('kolbo_token', mainProcessToken);
+            localStorage.setItem('kolbo_access_token', mainProcessToken);
+
+            // Update instance token
+            this.token = mainProcessToken;
+
+            if (this.DEBUG_MODE) {
+              console.log('[API] Token synced from main process to renderer');
+            }
+          }
+        }
+      } catch (error) {
+        console.error('[API] Failed to sync token from main process:', error);
+      }
+    })();
+
+    return this._syncPromise;
   }
 
   // Set API URL (for switching between staging/production)
