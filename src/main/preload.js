@@ -31,16 +31,6 @@ contextBridge.exposeInMainWorld('kolboDesktop', {
   getProjects: () =>
     ipcRenderer.invoke('media:get-projects'),
 
-  // Drag & Drop
-  prepareForDrag: (items) =>
-    ipcRenderer.invoke('drag:prepare', items),
-
-  startDrag: (filePaths, thumbnailPaths) => {
-    // Use sendSync for immediate execution during dragstart event
-    console.log('[Preload] startDrag called with:', filePaths.length, 'files');
-    return ipcRenderer.invoke('drag:start', { filePaths, thumbnailPaths });
-  },
-
   // Cache Management
   getCacheSize: () =>
     ipcRenderer.invoke('cache:get-size'),
@@ -65,6 +55,9 @@ contextBridge.exposeInMainWorld('kolboDesktop', {
 
   batchDownload: (items, targetFolder) =>
     ipcRenderer.invoke('file:batch-download', { items, targetFolder }),
+
+  importToPremiere: (items) =>
+    ipcRenderer.invoke('premiere:import', items),
 
   // App
   getVersion: () =>

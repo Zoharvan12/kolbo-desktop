@@ -13,7 +13,8 @@
       "Bash(taskkill:*)",
       "Read(//g/Projects/Kolbo.AI/github/kolbo-map/src/**)",
       "Read(//g/Projects/Kolbo.AI/github/kolbo-map/**)",
-      "Bash(timeout:*)"
+      "Bash(timeout:*)",
+      "WebFetch(domain:www.electronjs.org)"
     ],
     "deny": [],
     "ask": []

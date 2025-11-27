@@ -491,6 +491,150 @@ function setupUpdaterHandlers() {
   console.log('[Updater] IPC handlers registered');
 }
 
+// Premiere import handler
+function setupPremiereImportHandler() {
+  const { ipcMain } = require('electron');
+  const path = require('path');
+  const fs = require('fs');
+  const https = require('https');
+  const http = require('http');
+
+  ipcMain.handle('premiere:import', async (event, items) => {
+    try {
+      console.log('[Premiere Import] Received request for', items.length, 'items');
+
+      // Create ImportQueue folder
+      const importQueuePath = path.join(
+        app.getPath('appData'),
+        'Kolbo.AI',
+        'ImportQueue'
+      );
+
+      if (!fs.existsSync(importQueuePath)) {
+        fs.mkdirSync(importQueuePath, { recursive: true });
+        console.log('[Premiere Import] Created ImportQueue folder:', importQueuePath);
+      }
+
+      // Create timestamped subfolder
+      const timestamp = Date.now();
+      const batchFolder = path.join(importQueuePath, timestamp.toString());
+      fs.mkdirSync(batchFolder, { recursive: true });
+      console.log('[Premiere Import] Created batch folder:', batchFolder);
+
+      // Download all files
+      const downloadedFiles = [];
+      let successCount = 0;
+
+      for (const item of items) {
+        try {
+          const fileName = item.fileName || `media_${item.id}`;
+          const filePath = path.join(batchFolder, fileName);
+
+          console.log(`[Premiere Import] Downloading ${fileName}...`);
+
+          // Download file
+          await downloadFile(item.url, filePath);
+
+          downloadedFiles.push({
+            filePath: filePath,
+            fileName: fileName,
+            mediaType: item.type // 'video', 'image', 'audio'
+          });
+
+          successCount++;
+          console.log(`[Premiere Import] Downloaded ${successCount}/${items.length}: ${fileName}`);
+
+        } catch (downloadError) {
+          console.error(`[Premiere Import] Failed to download ${item.fileName}:`, downloadError);
+        }
+      }
+
+      if (downloadedFiles.length === 0) {
+        return {
+          success: false,
+          error: 'All downloads failed'
+        };
+      }
+
+      // Create manifest file
+      const manifest = {
+        app: 'PPRO',
+        timestamp: timestamp,
+        files: downloadedFiles
+      };
+
+      const manifestPath = path.join(importQueuePath, `import-${timestamp}.json`);
+      fs.writeFileSync(manifestPath, JSON.stringify(manifest, null, 2));
+
+      console.log(`[Premiere Import] Created manifest: ${manifestPath}`);
+      console.log(`[Premiere Import] Downloaded ${downloadedFiles.length}/${items.length} files`);
+
+      return {
+        success: true,
+        count: downloadedFiles.length,
+        manifestPath: manifestPath
+      };
+
+    } catch (error) {
+      console.error('[Premiere Import] Error:', error);
+      return {
+        success: false,
+        error: error.message
+      };
+    }
+  });
+
+  // Helper function to download file
+  function downloadFile(url, outputPath) {
+    return new Promise((resolve, reject) => {
+      const file = fs.createWriteStream(outputPath);
+      const protocol = url.startsWith('https') ? https : http;
+
+      console.log(`[Download] ${url} -> ${outputPath}`);
+
+      const request = protocol.get(url, (response) => {
+        // Handle redirects
+        if (response.statusCode === 301 || response.statusCode === 302) {
+          const redirectUrl = response.headers.location;
+          console.log(`[Download] Redirecting to ${redirectUrl}`);
+          file.close();
+          fs.unlinkSync(outputPath);
+
+          // Retry with redirect URL
+          downloadFile(redirectUrl, outputPath).then(resolve).catch(reject);
+          return;
+        }
+
+        if (response.statusCode === 200) {
+          response.pipe(file);
+          file.on('finish', () => {
+            file.close();
+            resolve();
+          });
+        } else {
+          file.close();
+          fs.unlinkSync(outputPath);
+          reject(new Error(`HTTP ${response.statusCode}`));
+        }
+      });
+
+      request.on('error', (err) => {
+        file.close();
+        fs.unlinkSync(outputPath);
+        reject(err);
+      });
+
+      file.on('error', (err) => {
+        file.close();
+        fs.unlinkSync(outputPath);
+        reject(err);
+      });
+    });
+  }
+
+  console.log('[Premiere Import] Handler registered');
+}
+
 // App ready
 app.whenReady().then(() => {
   console.log('[Main] App ready, creating window and tray');
@@ -503,6 +647,7 @@ app.whenReady().then(() => {
   FileManager.setupHandlers();
   DragHandler.setupHandlers();
   setupWindowHandlers();
+  setupPremiereImportHandler();
 
   console.log('[Main] IPC handlers registered');
 

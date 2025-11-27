@@ -1026,6 +1026,19 @@ html, body {
   transform: translateY(-2px) scale(1.02);
 }
 
+.batch-btn-premiere {
+  background: linear-gradient(135deg, #9999FF 0%, #EA77FF 100%);
+  color: white;
+  box-shadow: 0 4px 12px rgba(153, 153, 255, 0.3);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.batch-btn-premiere:hover {
+  background: linear-gradient(135deg, #7777FF 0%, #D855FF 100%);
+  box-shadow: 0 6px 16px rgba(153, 153, 255, 0.4);
+  transform: translateY(-2px) scale(1.02);
+}
+
 .batch-btn-clear {
   background: rgb(var(--muted) / 0.6);
   color: rgb(var(--muted-foreground));

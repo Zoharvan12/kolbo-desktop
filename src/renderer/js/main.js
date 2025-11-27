@@ -284,6 +284,11 @@ class KolboApp {
     }
 
     // Floating batch menu
+    const floatingBatchImportPremiereBtn = document.getElementById('floating-batch-import-premiere-btn');
+    if (floatingBatchImportPremiereBtn) {
+      floatingBatchImportPremiereBtn.addEventListener('click', () => this.handleImportToPremiere());
+    }
+
     const floatingBatchDownloadBtn = document.getElementById('floating-batch-download-btn');
     if (floatingBatchDownloadBtn) {
       floatingBatchDownloadBtn.addEventListener('click', () => this.handleBatchDownload());
@@ -1213,6 +1218,92 @@ class KolboApp {
             <line x1="12" y1="15" x2="12" y2="3"/>
           </svg>
           <span>Download</span>
+        `;
+      }
+    }
+  }
+
+  async handleImportToPremiere() {
+    if (this.selectedItems.size === 0) {
+      alert('No items selected');
+      return;
+    }
+
+    console.log('[Import to Premiere] Starting import for', this.selectedItems.size, 'items');
+
+    try {
+      // Build items array
+      const items = Array.from(this.selectedItems).map(id => {
+        const mediaItem = this.media.find(m => m.id === id);
+        if (!mediaItem) return null;
+
+        let fileName = mediaItem.filename || `kolbo-${mediaItem.id}`;
+        if (fileName.length > 50) {
+          const ext = fileName.split('.').pop();
+          fileName = `kolbo-${mediaItem.id}.${ext}`;
+        }
+        if (!fileName.includes('.')) {
+          const ext = mediaItem.type === 'video' ? 'mp4' :
+                      mediaItem.type === 'audio' ? 'mp3' : 'png';
+          fileName = `${fileName}.${ext}`;
+        }
+
+        return {
+          id: mediaItem.id,
+          fileName,
+          url: mediaItem.url,
+          type: mediaItem.type
+        };
+      }).filter(item => item !== null);
+
+      if (items.length === 0) {
+        alert('No valid items to import');
+        return;
+      }
+
+      // Show importing message
+      const importBtn = document.getElementById('floating-batch-import-premiere-btn');
+      const originalHTML = importBtn ? importBtn.innerHTML : '';
+      if (importBtn) {
+        importBtn.disabled = true;
+        importBtn.innerHTML = `
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" style="animation: spin 1s linear infinite;">
+            <circle cx="12" cy="12" r="10" fill="none" stroke="currentColor" stroke-width="2"/>
+          </svg>
+          <span>Importing...</span>
+        `;
+      }
+
+      console.log('[Import to Premiere] Sending', items.length, 'files to Premiere...');
+
+      // Send to Premiere via IPC
+      const result = await window.kolboDesktop.importToPremiere(items);
+
+      console.log('[Import to Premiere] Result:', result);
+
+      if (result.success) {
+        console.log(`[Import to Premiere] Successfully sent ${result.count} files to Premiere Pro`);
+        this.showToast(`Sent ${result.count} items to Premiere Pro. They will appear in the "Kolbo AI" bin.`, 'success');
+
+        // Clear selection after successful import
+        this.handleBatchClear();
+      } else {
+        alert('Failed to send to Premiere: ' + (result.error || 'Unknown error'));
+      }
+
+    } catch (error) {
+      console.error('[Import to Premiere] Error:', error);
+      alert('Failed to import to Premiere: ' + error.message);
+    } finally {
+      // Restore button
+      const importBtn = document.getElementById('floating-batch-import-premiere-btn');
+      if (importBtn) {
+        importBtn.disabled = false;
+        importBtn.innerHTML = `
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+            <path d="M13.5 3H7a2 2 0 00-2 2v14a2 2 0 002 2h10a2 2 0 002-2V8.5L13.5 3zM7 5h6v4h4v10H7V5zm3 8v-2h2.5c.83 0 1.5.67 1.5 1.5S13.33 14 12.5 14H10z"/>
+          </svg>
+          <span>Import to Premiere</span>
         `;
       }
     }
