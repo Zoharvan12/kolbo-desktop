@@ -53,8 +53,7 @@ class KolboApp {
     this.selectedItems = new Set();
     this.playingVideoId = null;
 
-    // Drag & Drop State
-    this.draggedItemId = null; // Which item is currently being dragged
+    // No drag-and-drop state needed
 
     // View & Navigation State
     // One-time migration: Clear old 'media' default and set to 'webapp'
@@ -494,11 +493,6 @@ class KolboApp {
         await this.loadProjects();
         await this.loadMedia();
         this.showMediaScreen(false);
-
-        // Refresh authentication token in webapp iframes
-        if (this.tabManager) {
-          this.tabManager.refreshAuthToken();
-        }
       } else {
         errorEl.textContent = result.error || 'Login failed';
       }
@@ -531,11 +525,6 @@ class KolboApp {
           await this.loadProjects();
           await this.loadMedia();
           this.showMediaScreen(false);
-
-          // Refresh authentication token in webapp iframes
-          if (this.tabManager) {
-            this.tabManager.refreshAuthToken();
-          }
         }, 800);
       } else {
         errorEl.style.color = '#ef4444';
@@ -883,35 +872,6 @@ class KolboApp {
     // Setup selection listeners
     this.setupMediaItemListeners();
     this.updateBatchMenu();
-
-    // Check and update cached status for all items
-    this.updateCachedIndicators();
-  }
-
-  async updateCachedIndicators() {
-    const mediaItems = document.querySelectorAll('.media-item[data-filename]');
-    console.log('[Cache] Checking cached status for', mediaItems.length, 'items');
-
-    for (const item of mediaItems) {
-      const fileName = item.dataset.filename;
-      if (!fileName) continue;
-
-      try {
-        const result = await window.electronBridge.isFileCached(fileName);
-        console.log('[Cache] File:', fileName, '- Cached:', result?.cached);
-
-        if (result && result.cached) {
-          const indicator = item.querySelector('.cached-indicator');
-          if (indicator) {
-            indicator.style.display = 'flex';
-            indicator.classList.add('visible');
-            console.log('[Cache] Showing indicator for:', fileName);
-          }
-        }
-      } catch (error) {
-        console.error('[Cache] Error checking file:', fileName, error);
-      }
-    }
   }
 
   renderMediaItem(item) {
@@ -933,9 +893,8 @@ class KolboApp {
     // Image cards (default)
     const isSelected = this.selectedItems.has(item.id);
     return `
-      <div class="media-item media-item-image ${isSelected ? 'selected' : ''}" data-id="${item.id}" data-filename="${fileName}" draggable="true">
+      <div class="media-item media-item-image ${isSelected ? 'selected' : ''}" data-id="${item.id}">
         <div class="selection-checkbox ${isSelected ? 'checked' : ''}" data-id="${item.id}"></div>
-        <div class="cached-indicator" style="display: none;"></div>
         <div class="media-preview">
           <img src="${item.thumbnail_url || item.url}" alt="${title}" loading="lazy" decoding="async" onerror="this.src='data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 width=%22160%22 height=%2290%22%3E%3Crect fill=%22%23333%22 width=%22160%22 height=%2290%22/%3E%3C/svg%3E'">
           <span class="type-badge type-badge-image">Image</span>
@@ -953,9 +912,8 @@ class KolboApp {
     const thumbnailUrl = item.thumbnail_url || item.url;
 
     return `
-      <div class="media-item media-item-video ${isSelected ? 'selected' : ''}" data-id="${item.id}" data-filename="${fileName}" draggable="true">
+      <div class="media-item media-item-video ${isSelected ? 'selected' : ''}" data-id="${item.id}">
         <div class="selection-checkbox ${isSelected ? 'checked' : ''}" data-id="${item.id}"></div>
-        <div class="cached-indicator" style="display: none;"></div>
         <div class="media-preview">
           <video
             id="video-${item.id}"
@@ -989,9 +947,8 @@ class KolboApp {
     const isSelected = this.selectedItems.has(item.id);
 
     return `
-      <div class="media-item media-item-audio ${isSelected ? 'selected' : ''}" data-id="${item.id}" data-filename="${fileName}" draggable="true">
+      <div class="media-item media-item-audio ${isSelected ? 'selected' : ''}" data-id="${item.id}">
         <div class="selection-checkbox ${isSelected ? 'checked' : ''}" data-id="${item.id}"></div>
-        <div class="cached-indicator" style="display: none;"></div>
         <div class="audio-card">
           <div class="audio-title" title="${title}">${title}</div>
           <div class="audio-player-wrapper">
@@ -1057,126 +1014,6 @@ class KolboApp {
 
     gridEl._clickHandler = clickHandler;
     gridEl.addEventListener('click', clickHandler);
-
-    // Context menu for download & reveal
-    gridEl.addEventListener('contextmenu', (e) => {
-      const card = e.target.closest('.media-item');
-      if (!card) return;
-
-      e.preventDefault();
-
-      const itemId = card.dataset.id;
-
-      // Create context menu
-      const menu = document.createElement('div');
-      menu.className = 'context-menu';
-      menu.style.position = 'fixed';
-      menu.style.left = e.clientX + 'px';
-      menu.style.top = e.clientY + 'px';
-      menu.style.background = '#1e1e1e';
-      menu.style.border = '1px solid rgba(255,255,255,0.1)';
-      menu.style.borderRadius = '6px';
-      menu.style.padding = '4px';
-      menu.style.zIndex = '10000';
-      menu.style.boxShadow = '0 4px 12px rgba(0,0,0,0.5)';
-      menu.style.minWidth = '200px';
-
-      const option = document.createElement('div');
-      option.textContent = this.selectedItems.size > 1
-        ? `Download ${this.selectedItems.size} files to folder`
-        : 'Download to folder';
-      option.style.padding = '8px 12px';
-      option.style.cursor = 'pointer';
-      option.style.color = '#fff';
-      option.style.fontSize = '13px';
-      option.style.borderRadius = '4px';
-
-      option.addEventListener('mouseenter', () => {
-        option.style.background = 'rgba(102, 126, 234, 0.2)';
-      });
-      option.addEventListener('mouseleave', () => {
-        option.style.background = 'transparent';
-      });
-
-      option.addEventListener('click', async () => {
-        menu.remove();
-
-        // Select this item if not selected
-        if (!this.selectedItems.has(itemId)) {
-          this.selectedItems.clear();
-          this.selectedItems.add(itemId);
-          this.updateBatchMenu();
-        }
-
-        card.classList.add('downloading');
-        await this.downloadAndReveal(itemId);
-        card.classList.remove('downloading');
-      });
-
-      menu.appendChild(option);
-      document.body.appendChild(menu);
-
-      // Close menu on click outside
-      const closeMenu = (e) => {
-        if (!menu.contains(e.target)) {
-          menu.remove();
-          document.removeEventListener('click', closeMenu);
-        }
-      };
-      setTimeout(() => document.addEventListener('click', closeMenu), 0);
-    });
-
-    // Drag events delegation
-    if (!gridEl._dragHandlersSetup) {
-      gridEl.addEventListener('dragstart', (e) => {
-        // Prevent dragging if user clicked on buttons or audio controls
-        if (e.target.closest('button, audio')) {
-          e.preventDefault();
-          return;
-        }
-
-        const card = e.target.closest('.media-item');
-        if (card && card.dataset.id) {
-          // Just store which item is being dragged
-          this.draggedItemId = card.dataset.id;
-
-          // Select item if not already selected
-          if (!this.selectedItems.has(card.dataset.id)) {
-            this.selectedItems.clear();
-            this.selectedItems.add(card.dataset.id);
-            this.updateBatchMenu();
-
-            // Update visual selection
-            document.querySelectorAll('.media-item').forEach(item => {
-              item.classList.remove('selected');
-              const checkbox = item.querySelector('.selection-checkbox');
-              if (checkbox) checkbox.classList.remove('checked');
-            });
-            card.classList.add('selected');
-            const checkbox = card.querySelector('.selection-checkbox');
-            if (checkbox) checkbox.classList.add('checked');
-          }
-
-          // Set a simple text data so drag is valid
-          e.dataTransfer.effectAllowed = 'copy';
-          e.dataTransfer.setData('text/plain', 'Kolbo media files');
-
-          console.log('[Drag] Drag started for:', card.dataset.id);
-        }
-      });
-
-      gridEl.addEventListener('drop', async (e) => {
-        // This won't fire for external drops, but we'll handle it in dragend
-        console.log('[Drag] Drop event');
-      });
-
-      gridEl.addEventListener('dragend', (e) => {
-        console.log('[Drag] Drag ended');
-        this.draggedItemId = null;
-      });
-
-      gridEl._dragHandlersSetup = true;
-    }
   }
 
   handleVideoPlayPause(videoId) {
@@ -1244,317 +1081,6 @@ class KolboApp {
     this.updateBatchMenu();
   }
 
-  async downloadAndReveal(itemId) {
-    console.log('[Download] Starting download for:', itemId);
-
-    // Get all selected items (or just the one being dragged)
-    const itemsToDownload = this.selectedItems.size > 0
-      ? Array.from(this.selectedItems)
-      : [itemId];
-
-    // Build items array
-    const items = itemsToDownload.map(id => {
-      const mediaItem = this.media.find(m => m.id === id);
-      if (!mediaItem) return null;
-
-      let fileName = mediaItem.filename || `kolbo-${mediaItem.id}`;
-      if (fileName.length > 50) {
-        const ext = fileName.split('.').pop();
-        fileName = `kolbo-${mediaItem.id}.${ext}`;
-      }
-      if (!fileName.includes('.')) {
-        const ext = mediaItem.type === 'video' ? 'mp4' :
-                    mediaItem.type === 'audio' ? 'mp3' : 'png';
-        fileName = `${fileName}.${ext}`;
-      }
-
-      return {
-        id: mediaItem.id,
-        fileName,
-        url: mediaItem.url,
-        thumbnailUrl: mediaItem.thumbnailUrl
-      };
-    }).filter(item => item !== null);
-
-    if (items.length === 0) {
-      console.error('[Download] No valid items');
-      return;
-    }
-
-    try {
-      console.log('[Download] Downloading', items.length, 'file(s)...');
-
-      // Show a message to user
-      const message = items.length === 1
-        ? 'Downloading file...'
-        : `Downloading ${items.length} files...`;
-
-      // You could show a toast/notification here
-      console.log('[Download]', message);
-
-      const result = await window.electronBridge.prepareDrag(items);
-
-      console.log('[Download] Result:', JSON.stringify(result, null, 2));
-
-      if (result && result.success && result.filePaths && result.filePaths.length > 0) {
-        console.log('[Download] Downloaded', result.filePaths.length, 'files successfully');
-
-        // Open folder with first file selected
-        const firstFile = result.filePaths[0];
-        await window.electronBridge.revealFileInFolder(firstFile);
-
-        console.log('[Download] Opened folder with file selected');
-      } else {
-        console.error('[Download] Download failed:', result?.error);
-        alert('Failed to download files. Please try again.');
-      }
-    } catch (error) {
-      console.error('[Download] Error:', error);
-      alert('Failed to download files: ' + error.message);
-    }
-  }
-
-  async prepareFilesForDrag(itemId, cardElement) {
-    // Prevent multiple simultaneous downloads
-    if (this.downloadingForDrag) {
-      console.log('[Drag] Already downloading, skipping...');
-      return;
-    }
-
-    console.log('[Drag] prepareFilesForDrag called for:', itemId);
-
-    // If item is not already selected, select it (but don't clear others if already selected)
-    if (!this.selectedItems.has(itemId)) {
-      // Clear selection and select just this item
-      this.selectedItems.clear();
-      this.selectedItems.add(itemId);
-
-      // Update visual selection state
-      document.querySelectorAll('.media-item').forEach(item => {
-        item.classList.remove('selected');
-        const checkbox = item.querySelector('.selection-checkbox');
-        if (checkbox) checkbox.classList.remove('checked');
-      });
-
-      if (cardElement) {
-        cardElement.classList.add('selected');
-        const checkbox = cardElement.querySelector('.selection-checkbox');
-        if (checkbox) checkbox.classList.add('checked');
-      }
-
-      this.updateBatchMenu();
-    }
-
-    console.log('[Drag] Selected items for download:', Array.from(this.selectedItems));
-
-    // Download all selected items
-    const itemsToDownload = Array.from(this.selectedItems);
-
-    // Build items array
-    const items = itemsToDownload.map(id => {
-      const mediaItem = this.media.find(m => m.id === id);
-      if (!mediaItem) return null;
-
-      let fileName = mediaItem.filename || `kolbo-${mediaItem.id}`;
-      if (fileName.length > 50) {
-        const ext = fileName.split('.').pop();
-        fileName = `kolbo-${mediaItem.id}.${ext}`;
-      }
-      if (!fileName.includes('.')) {
-        const ext = mediaItem.type === 'video' ? 'mp4' :
-                    mediaItem.type === 'audio' ? 'mp3' : 'png';
-        fileName = `${fileName}.${ext}`;
-      }
-
-      return {
-        id: mediaItem.id,
-        fileName,
-        url: mediaItem.url,
-        thumbnailUrl: mediaItem.thumbnailUrl
-      };
-    }).filter(item => item !== null);
-
-    if (items.length === 0) {
-      console.error('[Drag] No valid items');
-      if (cardElement) cardElement.classList.remove('downloading');
-      return;
-    }
-
-    try {
-      this.downloadingForDrag = true;
-
-      console.log('[Drag] Downloading files:', items);
-      const result = await window.electronBridge.prepareDrag(items);
-
-      console.log('[Drag] Download result:', JSON.stringify(result, null, 2));
-
-      if (result && result.success && result.filePaths && result.filePaths.length > 0) {
-        this.preparedDragData = {
-          filePaths: result.filePaths,
-          thumbnailPaths: result.thumbnailPaths || []
-        };
-        console.log('[Drag] Files prepared successfully:', result.filePaths.length, 'files');
-      } else {
-        console.error('[Drag] Download failed:', result?.error || 'No files downloaded');
-        this.preparedDragData = null;
-      }
-    } catch (error) {
-      console.error('[Drag] Error downloading:', error);
-      this.preparedDragData = null;
-    } finally {
-      this.downloadingForDrag = false;
-      // Remove downloading state after download completes
-      if (cardElement) {
-        cardElement.classList.remove('downloading');
-      }
-    }
-  }
-
-  async handleDragStart(e, itemId) {
-    console.log('[Drag] handleDragStart called with itemId:', itemId);
-    console.log('[Drag] Currently selected items:', Array.from(this.selectedItems));
-    console.log('[Drag] Total media items:', this.media.length);
-
-    // DON'T change selection here - it was already handled in mousedown/prepareFilesForDrag
-    // This prevents deselecting batch items during drag
-
-    // Get selected media items
-    const items = Array.from(this.selectedItems).map(id => {
-      const mediaItem = this.media.find(m => m.id === id);
-      if (!mediaItem) {
-        console.error('[Drag] Media item not found for id:', id);
-        return null;
-      }
-
-      // Use shorter filename for compatibility
-      let fileName = mediaItem.filename || `kolbo-${mediaItem.id}`;
-      if (fileName.length > 50) {
-        const ext = fileName.split('.').pop();
-        fileName = `kolbo-${mediaItem.id}.${ext}`;
-      }
-      if (!fileName.includes('.')) {
-        const ext = mediaItem.type === 'video' ? 'mp4' :
-                    mediaItem.type === 'audio' ? 'mp3' : 'png';
-        fileName = `${fileName}.${ext}`;
-      }
-
-      return {
-        id: mediaItem.id,
-        fileName: fileName,
-        url: mediaItem.url,
-        thumbnailUrl: mediaItem.thumbnailUrl
-      };
-    }).filter(item => item !== null);
-
-    if (items.length === 0) {
-      console.error('[Drag] No valid items to drag');
-      return;
-    }
-
-    console.log('[Drag] Preparing to drag', items.length, 'file(s)...');
-
-    // Check if files are already prepared from mousedown
-    if (!this.preparedDragData) {
-      console.error('[Drag] No prepared drag data! Files must be downloaded on mousedown before drag starts.');
-      alert('Please click and hold for a moment before dragging to allow files to download.');
-      return;
-    }
-
-    console.log('[Drag] Using prepared files:', this.preparedDragData.filePaths);
-
-    // Remove downloading state
-    const card = e.target.closest('.media-item');
-    if (card) card.classList.remove('downloading');
-
-    // Use the prepared file paths
-    const filePaths = this.preparedDragData.filePaths;
-
-    // Set drag data with file URIs
-    const uriList = filePaths.map(fp => {
-      const normalized = fp.replace(/\\/g, '/');
-      return `file:///${normalized}`;
-    }).join('\n');
-
-    e.dataTransfer.effectAllowed = 'copyMove';
-    e.dataTransfer.setData('text/uri-list', uriList);
-    e.dataTransfer.setData('text/plain', filePaths.join('\n'));
-
-    console.log('[Drag] Drag data set:', filePaths);
-
-    // Call Electron's startDrag()
-    if (window.electronBridge && window.electronBridge.startDrag) {
-      window.electronBridge.startDrag(filePaths, []).catch(err => {
-        console.error('[Drag] Electron startDrag error:', err);
-      });
-    }
-  }
-
-  // Reveal file in Windows Explorer
-  async revealFileInExplorer(itemId) {
-    console.log('[Reveal] Revealing file for item:', itemId);
-
-    try {
-      // Find the media item
-      const mediaItem = this.media.find(m => m.id === itemId);
-      if (!mediaItem) {
-        console.error('[Reveal] Media item not found');
-        return;
-      }
-
-      // Get filename
-      let fileName = mediaItem.filename || `kolbo-${mediaItem.id}`;
-      if (fileName.length > 50) {
-        const ext = fileName.split('.').pop();
-        fileName = `kolbo-${mediaItem.id}.${ext}`;
-      }
-      if (!fileName.includes('.')) {
-        const ext = mediaItem.type === 'video' ? 'mp4' :
-                   mediaItem.type === 'audio' ? 'mp3' : 'png';
-        fileName = `${fileName}.${ext}`;
-      }
-
-      // First, ensure file is downloaded
-      const items = [{
-        id: mediaItem.id,
-        fileName: fileName,
-        url: mediaItem.url,
-        thumbnailUrl: mediaItem.thumbnailUrl
-      }];
-
-      const prepareResult = await window.electronBridge.prepareDrag(items);
-
-      if (prepareResult.success && prepareResult.results[0]?.filePath) {
-        const filePath = prepareResult.results[0].filePath;
-
-        // Open file in Explorer (shell.showItemInFolder)
-        if (window.kolboDesktop && window.kolboDesktop.revealFileInFolder) {
-          await window.kolboDesktop.revealFileInFolder(filePath);
-        } else {
-          alert(`File location:\n${filePath}\n\nOpen this folder manually in File Explorer.`);
-        }
-      } else {
-        alert('Failed to prepare file. Please try again.');
-      }
-    } catch (error) {
-      console.error('[Reveal] Error:', error);
-      alert('Failed to reveal file: ' + error.message);
-    }
-  }
-
-  handleDragEnd(e) {
-    console.log('[Drag] handleDragEnd called');
-
-    // Cleanup drag state - remove visual states
-    document.querySelectorAll('.media-item.dragging, .media-item.downloading').forEach(item => {
-      item.classList.remove('dragging');
-      item.classList.remove('downloading');
-    });
-
-    // Clear prepared drag data
-    this.preparedDragData = null;
-
-    console.log('[Drag] Drag operation complete');
-  }
 
   updateBatchMenu() {
     const menu = document.getElementById('floating-batch-menu');

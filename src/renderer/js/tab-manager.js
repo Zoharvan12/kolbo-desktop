@@ -258,6 +258,11 @@ class TabManager {
     iframe.setAttribute('sandbox', 'allow-same-origin allow-scripts allow-forms allow-popups allow-modals');
 
     // Add authentication token to URL
+    // NOTE: Web app iframe has its own localStorage that persists the token,
+    // but we pass it every time to ensure:
+    // 1. First-time auto-login works
+    // 2. Token stays synchronized if user re-logs in with different account
+    // 3. Expired tokens get refreshed automatically
     const token = window.kolboAPI?.getToken();
     if (token) {
       const separator = tabUrl.includes('?') ? '&' : '?';
@@ -521,37 +526,6 @@ class TabManager {
         toast.classList.remove('show');
       }, 3000);
     }
-  }
-
-  // Refresh authentication token in all iframes
-  // Call this after user logs in or token changes
-  refreshAuthToken() {
-    const token = window.kolboAPI?.getToken();
-
-    if (!token) {
-      console.warn('[TabManager] Cannot refresh token - no token available');
-      return;
-    }
-
-    if (this.DEBUG_MODE) {
-      console.log('[TabManager] Refreshing authentication token in all tabs');
-      console.log('[TabManager] Token (first 20 chars): ${token.substring(0, 20)}...');
-    }
-
-    this.tabs.forEach(tab => {
-      if (tab.iframe && tab.url) {
-        const separator = tab.url.includes('?') ? '&' : '?';
-        const newUrl = `${tab.url}${separator}embedded=true&token=${encodeURIComponent(token)}`;
-
-        // Reload iframe with new token
-        tab.iframe.src = newUrl;
-        tab.loaded = false;
-
-        if (this.DEBUG_MODE) {
-          console.log(`[TabManager] Refreshed token for tab: ${tab.id}`);
-        }
-      }
-    });
   }
 
   // Cleanup
