@@ -59,6 +59,19 @@ contextBridge.exposeInMainWorld('kolboDesktop', {
   importToPremiere: (items) =>
     ipcRenderer.invoke('premiere:import', items),
 
+  // Media Cache
+  getCachedFilePath: (mediaId) =>
+    ipcRenderer.invoke('cache:get-file-path', mediaId),
+
+  preloadCache: (items) =>
+    ipcRenderer.invoke('cache:preload', items),
+
+  getCacheStats: () =>
+    ipcRenderer.invoke('cache:get-stats'),
+
+  startFileDrag: (filePaths) =>
+    ipcRenderer.send('file:start-drag', filePaths),
+
   // App
   getVersion: () =>
     ipcRenderer.invoke('app:get-version'),

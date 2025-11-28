@@ -491,6 +491,305 @@ function setupUpdaterHandlers() {
   console.log('[Updater] IPC handlers registered');
 }
 
+// ============================================================================
+// ADOBE PLUGIN DETECTION
+// ============================================================================
+
+/**
+ * Detect if Kolbo Adobe Plugin is installed
+ * Checks CEP extensions folder on both Windows and Mac
+ */
+function detectAdobePlugin() {
+  const fs = require('fs');
+  const path = require('path');
+  const os = require('os');
+
+  console.log('[Plugin Detection] Checking for Adobe plugin...');
+
+  // CEP extension paths
+  const pluginPaths = process.platform === 'win32'
+    ? [
+        // Windows - CEP extensions folder
+        path.join(process.env.APPDATA || '', 'Adobe', 'CEP', 'extensions', 'com.kolbo.ai.adobe'),
+        path.join(process.env.PROGRAMDATA || 'C:\\ProgramData', 'Adobe', 'CEP', 'extensions', 'com.kolbo.ai.adobe')
+      ]
+    : [
+        // macOS - CEP extensions folder
+        path.join(os.homedir(), 'Library', 'Application Support', 'Adobe', 'CEP', 'extensions', 'com.kolbo.ai.adobe'),
+        '/Library/Application Support/Adobe/CEP/extensions/com.kolbo.ai.adobe'
+      ];
+
+  // Check each possible path
+  for (const pluginPath of pluginPaths) {
+    console.log('[Plugin Detection] Checking:', pluginPath);
+
+    if (fs.existsSync(pluginPath)) {
+      // Verify it's actually the Kolbo plugin by checking for manifest
+      const manifestPath = path.join(pluginPath, 'CSXS', 'manifest.xml');
+
+      if (fs.existsSync(manifestPath)) {
+        console.log('[Plugin Detection] ✅ Plugin found at:', pluginPath);
+        return {
+          hasPlugin: true,
+          pluginPath: pluginPath,
+          manifestPath: manifestPath
+        };
+      }
+    }
+  }
+
+  console.log('[Plugin Detection] ❌ Plugin not found');
+  return {
+    hasPlugin: false,
+    pluginPath: null,
+    manifestPath: null
+  };
+}
+
+// ============================================================================
+// MEDIA CACHE SYSTEM (for drag-and-drop)
+// ============================================================================
+
+/**
+ * MediaCache - Manages local cache of media files for drag-and-drop
+ * Downloads files in background and provides local file paths
+ */
+class MediaCache {
+  constructor() {
+    const path = require('path');
+    this.cachePath = path.join(app.getPath('appData'), 'Kolbo.AI', 'MediaCache');
+    this.cacheIndex = new Map(); // id -> { filePath, lastAccessed, size, type }
+    this.maxCacheSize = 5 * 1024 * 1024 * 1024; // 5GB
+    this.maxCacheItems = 100;
+    this.downloadQueue = new Map(); // id -> Promise
+
+    this.ensureCacheFolderExists();
+    this.loadCacheIndex();
+  }
+
+  ensureCacheFolderExists() {
+    const fs = require('fs');
+    if (!fs.existsSync(this.cachePath)) {
+      fs.mkdirSync(this.cachePath, { recursive: true });
+      console.log('[MediaCache] Created cache folder:', this.cachePath);
+    }
+  }
+
+  loadCacheIndex() {
+    const fs = require('fs');
+    const path = require('path');
+
+    if (!fs.existsSync(this.cachePath)) return;
+
+    const files = fs.readdirSync(this.cachePath);
+    console.log(`[MediaCache] Found ${files.length} cached files`);
+
+    for (const fileName of files) {
+      const filePath = path.join(this.cachePath, fileName);
+      const stats = fs.statSync(filePath);
+
+      // Extract ID from filename (e.g., "kolbo-123.mp4" -> "123")
+      const id = fileName.replace(/^kolbo-/, '').replace(/\.[^.]+$/, '');
+
+      this.cacheIndex.set(id, {
+        filePath,
+        lastAccessed: stats.mtime.getTime(),
+        size: stats.size,
+        fileName
+      });
+    }
+  }
+
+  async getCachedFilePath(mediaId) {
+    // Check if already cached
+    if (this.cacheIndex.has(mediaId)) {
+      const cached = this.cacheIndex.get(mediaId);
+
+      // Update last accessed time
+      cached.lastAccessed = Date.now();
+
+      console.log(`[MediaCache] Cache HIT for ${mediaId}`);
+      return cached.filePath;
+    }
+
+    console.log(`[MediaCache] Cache MISS for ${mediaId}`);
+    return null;
+  }
+
+  async preloadMedia(items) {
+    console.log(`[MediaCache] Preloading ${items.length} items...`);
+
+    const downloadPromises = items.map(item => this.downloadToCache(item));
+    const results = await Promise.allSettled(downloadPromises);
+
+    const successful = results.filter(r => r.status === 'fulfilled').length;
+    console.log(`[MediaCache] Preloaded ${successful}/${items.length} items`);
+
+    return { successful, total: items.length };
+  }
+
+  async downloadToCache(item) {
+    const { id, fileName, url, type } = item;
+
+    // Check if already downloading
+    if (this.downloadQueue.has(id)) {
+      console.log(`[MediaCache] Already downloading ${id}`);
+      return this.downloadQueue.get(id);
+    }
+
+    // Check if already cached
+    if (this.cacheIndex.has(id)) {
+      console.log(`[MediaCache] Already cached ${id}`);
+      return this.cacheIndex.get(id).filePath;
+    }
+
+    const path = require('path');
+    const fs = require('fs');
+
+    const filePath = path.join(this.cachePath, fileName);
+
+    // Start download
+    const downloadPromise = this.downloadFile(url, filePath)
+      .then(() => {
+        const stats = fs.statSync(filePath);
+
+        // Add to cache index
+        this.cacheIndex.set(id, {
+          filePath,
+          lastAccessed: Date.now(),
+          size: stats.size,
+          fileName,
+          type
+        });
+
+        console.log(`[MediaCache] Downloaded ${fileName} (${(stats.size / 1024 / 1024).toFixed(2)} MB)`);
+
+        // Check cache size and evict if needed
+        this.evictOldItemsIfNeeded();
+
+        this.downloadQueue.delete(id);
+        return filePath;
+      })
+      .catch(err => {
+        console.error(`[MediaCache] Failed to download ${fileName}:`, err);
+        this.downloadQueue.delete(id);
+        throw err;
+      });
+
+    this.downloadQueue.set(id, downloadPromise);
+    return downloadPromise;
+  }
+
+  downloadFile(url, outputPath) {
+    return new Promise((resolve, reject) => {
+      const fs = require('fs');
+      const https = require('https');
+      const http = require('http');
+
+      const file = fs.createWriteStream(outputPath);
+      const protocol = url.startsWith('https') ? https : http;
+
+      const request = protocol.get(url, (response) => {
+        // Handle redirects
+        if (response.statusCode === 301 || response.statusCode === 302) {
+          const redirectUrl = response.headers.location;
+          file.close();
+          fs.unlinkSync(outputPath);
+          return this.downloadFile(redirectUrl, outputPath).then(resolve).catch(reject);
+        }
+
+        if (response.statusCode === 200) {
+          response.pipe(file);
+          file.on('finish', () => {
+            file.close();
+            resolve();
+          });
+        } else {
+          file.close();
+          fs.unlinkSync(outputPath);
+          reject(new Error(`HTTP ${response.statusCode}`));
+        }
+      });
+
+      request.on('error', (err) => {
+        file.close();
+        // Try to delete partial file, but don't fail if it's locked
+        try {
+          if (fs.existsSync(outputPath)) fs.unlinkSync(outputPath);
+        } catch (unlinkErr) {
+          console.warn('[Download] Could not delete partial file (may be locked):', unlinkErr.message);
+        }
+        reject(err);
+      });
+
+      file.on('error', (err) => {
+        file.close();
+        // Try to delete partial file, but don't fail if it's locked
+        try {
+          if (fs.existsSync(outputPath)) fs.unlinkSync(outputPath);
+        } catch (unlinkErr) {
+          console.warn('[Download] Could not delete partial file (may be locked):', unlinkErr.message);
+        }
+        reject(err);
+      });
+    });
+  }
+
+  evictOldItemsIfNeeded() {
+    const fs = require('fs');
+
+    // Check if we exceed max items
+    if (this.cacheIndex.size <= this.maxCacheItems) return;
+
+    console.log(`[MediaCache] Cache size ${this.cacheIndex.size} exceeds max ${this.maxCacheItems}, evicting...`);
+
+    // Sort by last accessed time (oldest first)
+    const sorted = Array.from(this.cacheIndex.entries())
+      .sort((a, b) => a[1].lastAccessed - b[1].lastAccessed);
+
+    // Evict oldest items
+    const toEvict = sorted.slice(0, sorted.length - this.maxCacheItems);
+
+    for (const [id, cached] of toEvict) {
+      try {
+        fs.unlinkSync(cached.filePath);
+        this.cacheIndex.delete(id);
+        console.log(`[MediaCache] Evicted ${cached.fileName}`);
+      } catch (err) {
+        console.error(`[MediaCache] Failed to evict ${cached.fileName}:`, err);
+      }
+    }
+  }
+
+  getCacheStats() {
+    let totalSize = 0;
+    for (const cached of this.cacheIndex.values()) {
+      totalSize += cached.size || 0;
+    }
+
+    return {
+      itemCount: this.cacheIndex.size,
+      totalSize,
+      totalSizeMB: (totalSize / 1024 / 1024).toFixed(2),
+      maxItems: this.maxCacheItems
+    };
+  }
+}
+
+// Global cache instance
+let mediaCache = null;
+
+function getMediaCache() {
+  if (!mediaCache) {
+    mediaCache = new MediaCache();
+  }
+  return mediaCache;
+}
+
+// ============================================================================
+// PREMIERE IMPORT HANDLER
+// ============================================================================
+
 // Premiere import handler
 function setupPremiereImportHandler() {
   const { ipcMain } = require('electron');
@@ -502,6 +801,20 @@ function setupPremiereImportHandler() {
   ipcMain.handle('premiere:import', async (event, items) => {
     try {
       console.log('[Premiere Import] Received request for', items.length, 'items');
+
+      // Check if Adobe plugin is installed
+      const pluginStatus = detectAdobePlugin();
+
+      if (!pluginStatus.hasPlugin) {
+        console.log('[Premiere Import] Plugin not detected - returning early');
+        return {
+          success: false,
+          hasPlugin: false,
+          error: 'Adobe plugin not installed'
+        };
+      }
+
+      console.log('[Premiere Import] Plugin detected - proceeding with import');
 
       // Create ImportQueue folder
       const importQueuePath = path.join(
@@ -571,6 +884,7 @@ function setupPremiereImportHandler() {
 
       return {
         success: true,
+        hasPlugin: true,
         count: downloadedFiles.length,
         manifestPath: manifestPath
       };
@@ -635,6 +949,105 @@ function setupPremiereImportHandler() {
   console.log('[Premiere Import] Handler registered');
 }
 
+// ============================================================================
+// MEDIA CACHE IPC HANDLERS
+// ============================================================================
+
+function setupMediaCacheHandlers() {
+  const { ipcMain } = require('electron');
+
+  // Get cached file path
+  ipcMain.handle('cache:get-file-path', async (event, mediaId) => {
+    try {
+      const cache = getMediaCache();
+      const filePath = await cache.getCachedFilePath(mediaId);
+
+      return {
+        success: true,
+        cached: filePath !== null,
+        filePath: filePath
+      };
+    } catch (error) {
+      console.error('[MediaCache] Error getting file path:', error);
+      return {
+        success: false,
+        cached: false,
+        error: error.message
+      };
+    }
+  });
+
+  // Preload media items to cache
+  ipcMain.handle('cache:preload', async (event, items) => {
+    try {
+      const cache = getMediaCache();
+      const result = await cache.preloadMedia(items);
+
+      return {
+        success: true,
+        ...result
+      };
+    } catch (error) {
+      console.error('[MediaCache] Error preloading:', error);
+      return {
+        success: false,
+        error: error.message
+      };
+    }
+  });
+
+  // Get cache stats
+  ipcMain.handle('cache:get-stats', async (event) => {
+    try {
+      const cache = getMediaCache();
+      const stats = cache.getCacheStats();
+
+      return {
+        success: true,
+        ...stats
+      };
+    } catch (error) {
+      console.error('[MediaCache] Error getting stats:', error);
+      return {
+        success: false,
+        error: error.message
+      };
+    }
+  });
+
+  // Start native file drag (supports single file or multiple files)
+  ipcMain.on('file:start-drag', (event, filePaths) => {
+    const path = require('path');
+
+    // Convert single path to array for consistent handling
+    const paths = Array.isArray(filePaths) ? filePaths : [filePaths];
+
+    console.log('[Native Drag] Starting drag for', paths.length, 'file(s):', paths);
+
+    // Icon is required by Electron - use existing icon from assets
+    const iconPath = path.join(__dirname, '../../assets/icon-source.png');
+
+    // Use 'file' for single, 'files' for multiple
+    // Note: According to Electron docs, 'files' array should work for multiple files
+    // but some apps (Premiere) may not accept it properly
+    if (paths.length === 1) {
+      event.sender.startDrag({
+        file: paths[0],
+        icon: iconPath
+      });
+      console.log('[Native Drag] Single file drag started');
+    } else {
+      event.sender.startDrag({
+        files: paths,
+        icon: iconPath
+      });
+      console.log('[Native Drag] Multi-file drag started');
+    }
+  });
+
+  console.log('[MediaCache] IPC handlers registered');
+}
+
 // App ready
 app.whenReady().then(() => {
   console.log('[Main] App ready, creating window and tray');
@@ -648,6 +1061,7 @@ app.whenReady().then(() => {
   DragHandler.setupHandlers();
   setupWindowHandlers();
   setupPremiereImportHandler();
+  setupMediaCacheHandlers();
 
   console.log('[Main] IPC handlers registered');
 

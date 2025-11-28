@@ -882,6 +882,64 @@ class KolboApp {
     // Setup selection listeners
     this.setupMediaItemListeners();
     this.updateBatchMenu();
+
+    // Preload first 20 items to cache for drag-and-drop (async, don't wait)
+    this.preloadVisibleMediaToCache(filtered.slice(0, 20));
+  }
+
+  async preloadVisibleMediaToCache(items) {
+    if (!items || items.length === 0) return;
+
+    console.log(`[Cache] Preloading ${items.length} visible items...`);
+
+    // Prepare items for cache
+    const cacheItems = items.map(item => {
+      const fileName = this.getFileName(item);
+      return {
+        id: item.id,
+        fileName,
+        url: item.url,
+        type: item.type
+      };
+    });
+
+    try {
+      // Start preloading (fire and forget)
+      window.kolboDesktop.preloadCache(cacheItems).then(result => {
+        if (result.success) {
+          console.log(`[Cache] Preloaded ${result.successful}/${result.total} items`);
+
+          // Update cache status indicators for successfully cached items
+          this.updateCacheStatusIndicators(items);
+        }
+      });
+    } catch (error) {
+      console.error('[Cache] Preload error:', error);
+    }
+  }
+
+  async updateCacheStatusIndicators(items) {
+    // Initialize dragCacheStatus map if not exists
+    this.dragCacheStatus = this.dragCacheStatus || new Map();
+
+    for (const item of items) {
+      try {
+        const result = await window.kolboDesktop.getCachedFilePath(item.id);
+
+        if (result.cached && result.filePath) {
+          // Update cache status map for drag-and-drop
+          this.dragCacheStatus.set(item.id, result.filePath);
+
+          // Show visual indicator
+          const cacheStatus = document.querySelector(`.cache-status[data-id="${item.id}"]`);
+          if (cacheStatus) {
+            cacheStatus.style.display = 'block';
+          }
+        }
+      } catch (error) {
+        // Silently ignore errors
+      }
+    }
   }
 
   renderMediaItem(item) {
@@ -903,8 +961,13 @@ class KolboApp {
     // Image cards (default)
     const isSelected = this.selectedItems.has(item.id);
     return `
-      <div class="media-item media-item-image ${isSelected ? 'selected' : ''}" data-id="${item.id}">
+      <div class="media-item media-item-image ${isSelected ? 'selected' : ''}" data-id="${item.id}" draggable="true" data-filename="${fileName}" data-url="${item.url}" data-type="${item.type}">
         <div class="selection-checkbox ${isSelected ? 'checked' : ''}" data-id="${item.id}"></div>
+        <div class="cache-status" data-id="${item.id}" style="display: none;">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="#4CAF50">
+            <path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/>
+          </svg>
+        </div>
         <div class="media-preview">
           <img src="${item.thumbnail_url || item.url}" alt="${title}" loading="lazy" decoding="async" onerror="this.src='data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 width=%22160%22 height=%2290%22%3E%3Crect fill=%22%23333%22 width=%22160%22 height=%2290%22/%3E%3C/svg%3E'">
           <span class="type-badge type-badge-image">Image</span>
@@ -922,8 +985,13 @@ class KolboApp {
     const thumbnailUrl = item.thumbnail_url || item.url;
 
     return `
-      <div class="media-item media-item-video ${isSelected ? 'selected' : ''}" data-id="${item.id}">
+      <div class="media-item media-item-video ${isSelected ? 'selected' : ''}" data-id="${item.id}" draggable="true" data-filename="${fileName}" data-url="${item.url}" data-type="${item.type}">
         <div class="selection-checkbox ${isSelected ? 'checked' : ''}" data-id="${item.id}"></div>
+        <div class="cache-status" data-id="${item.id}" style="display: none;">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="#4CAF50">
+            <path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/>
+          </svg>
+        </div>
         <div class="media-preview">
           <video
             id="video-${item.id}"
@@ -957,8 +1025,13 @@ class KolboApp {
     const isSelected = this.selectedItems.has(item.id);
 
     return `
-      <div class="media-item media-item-audio ${isSelected ? 'selected' : ''}" data-id="${item.id}">
+      <div class="media-item media-item-audio ${isSelected ? 'selected' : ''}" data-id="${item.id}" draggable="true" data-filename="${fileName}" data-url="${item.url}" data-type="${item.type}">
         <div class="selection-checkbox ${isSelected ? 'checked' : ''}" data-id="${item.id}"></div>
+        <div class="cache-status" data-id="${item.id}" style="display: none;">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="#4CAF50">
+            <path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/>
+          </svg>
+        </div>
         <div class="audio-card">
           <div class="audio-title" title="${title}">${title}</div>
           <div class="audio-player-wrapper">
@@ -1040,6 +1113,153 @@ class KolboApp {
 
     gridEl._clickHandler = clickHandler;
     gridEl.addEventListener('click', clickHandler);
+
+    // Add drag-and-drop handlers
+    this.setupDragAndDrop(gridEl);
+  }
+
+  setupDragAndDrop(gridEl) {
+    // Remove old listeners if they exist
+    if (gridEl._dragstartHandler) {
+      gridEl.removeEventListener('dragstart', gridEl._dragstartHandler);
+    }
+    if (gridEl._dragendHandler) {
+      gridEl.removeEventListener('dragend', gridEl._dragendHandler);
+    }
+    if (gridEl._dragoverHandler) {
+      gridEl.removeEventListener('dragover', gridEl._dragoverHandler);
+    }
+
+    // Cache check map - populated by mouseover events
+    this.dragCacheStatus = this.dragCacheStatus || new Map();
+
+    // Mouseover handler - preload cache status on hover
+    const mouseoverHandler = (e) => {
+      const mediaItem = e.target.closest('.media-item[draggable="true"]');
+      if (!mediaItem) return;
+
+      const mediaId = mediaItem.dataset.id;
+
+      // Check if we already know the cache status
+      if (this.dragCacheStatus.has(mediaId)) return;
+
+      // Check cache status asynchronously
+      window.kolboDesktop.getCachedFilePath(mediaId).then(result => {
+        this.dragCacheStatus.set(mediaId, result.cached ? result.filePath : null);
+      });
+    };
+
+    // Dragstart handler - MUST be synchronous
+    const dragstartHandler = (e) => {
+      const mediaItem = e.target.closest('.media-item[draggable="true"]');
+      if (!mediaItem) return;
+
+      const mediaId = mediaItem.dataset.id;
+
+      // Check if dragging a selected item - if so, drag ALL selected items
+      let filesToDrag = [];
+      let elementsBeingDragged = [];
+
+      if (this.selectedItems.has(mediaId)) {
+        // Dragging a selected item - collect ALL selected items
+        console.log('[Drag] Dragging', this.selectedItems.size, 'selected items');
+
+        const allMediaItems = e.currentTarget.querySelectorAll('.media-item[draggable="true"]');
+
+        allMediaItems.forEach(item => {
+          const id = item.dataset.id;
+          if (this.selectedItems.has(id)) {
+            const cachedPath = this.dragCacheStatus.get(id);
+            if (cachedPath) {
+              filesToDrag.push(cachedPath);
+              elementsBeingDragged.push(item);
+            } else {
+              console.log('[Drag] Selected item not cached:', id);
+            }
+          }
+        });
+      } else {
+        // Dragging a single non-selected item
+        const cachedPath = this.dragCacheStatus.get(mediaId);
+        if (cachedPath) {
+          filesToDrag.push(cachedPath);
+          elementsBeingDragged.push(mediaItem);
+        }
+      }
+
+      console.log('[Drag] Starting drag for', filesToDrag.length, 'file(s)');
+
+      if (filesToDrag.length > 0) {
+        // Files are cached - start native drag
+        e.preventDefault();
+
+        console.log('[Drag] Files cached, starting native drag:', filesToDrag);
+
+        // Start Electron native drag (will use 'file' or 'files' based on count)
+        window.kolboDesktop.startFileDrag(filesToDrag);
+
+        // Set opacity on all dragged items
+        elementsBeingDragged.forEach(item => {
+          item.style.opacity = '0.5';
+        });
+
+        console.log('[Drag] Native drag started for', filesToDrag.length, 'file(s)');
+      } else {
+        // File not cached - prevent drag and download in background
+        console.log('[Drag] File not cached - preventing drag');
+        e.preventDefault();
+        e.stopPropagation();
+
+        // Start download in background (no popup)
+        const fileName = mediaItem.dataset.filename;
+        const url = mediaItem.dataset.url;
+        const type = mediaItem.dataset.type;
+
+        window.kolboDesktop.preloadCache([{
+          id: mediaId,
+          fileName,
+          url,
+          type
+        }]).then(result => {
+          if (result.success && result.successful > 0) {
+            // Update cache status
+            window.kolboDesktop.getCachedFilePath(mediaId).then(cacheResult => {
+              if (cacheResult.cached) {
+                this.dragCacheStatus.set(mediaId, cacheResult.filePath);
+
+                // Show cache indicator
+                const cacheStatus = mediaItem.querySelector('.cache-status');
+                if (cacheStatus) {
+                  cacheStatus.style.display = 'block';
+                }
+
+                console.log('[Drag] File downloaded and ready for next drag');
+              }
+            });
+          }
+        }).catch(error => {
+          console.error('[Drag] Download error:', error);
+        });
+      }
+    };
+
+    const dragendHandler = (e) => {
+      // Reset opacity for all items (in case multiple were being dragged)
+      const allMediaItems = e.currentTarget.querySelectorAll('.media-item[draggable="true"]');
+      allMediaItems.forEach(item => {
+        item.style.opacity = '1';
+      });
+    };
+
+    gridEl._dragstartHandler = dragstartHandler;
+    gridEl._dragendHandler = dragendHandler;
+    gridEl._mouseoverHandler = mouseoverHandler;
+
+    gridEl.addEventListener('dragstart', dragstartHandler);
+    gridEl.addEventListener('dragend', dragendHandler);
+    gridEl.addEventListener('mouseover', mouseoverHandler);
+
+    console.log('[Drag] Drag-and-drop handlers initialized');
   }
 
   handleVideoPlayPause(videoId) {
@@ -1090,10 +1310,67 @@ class KolboApp {
   }
 
   toggleSelection(itemId) {
-    if (this.selectedItems.has(itemId)) {
+    const wasSelected = this.selectedItems.has(itemId);
+
+    if (wasSelected) {
       this.selectedItems.delete(itemId);
     } else {
       this.selectedItems.add(itemId);
+
+      // Pre-download file to cache when selected (for instant drag-and-drop)
+      const item = document.querySelector(`[data-id="${itemId}"]`);
+      if (item) {
+        const fileName = item.dataset.filename;
+        const url = item.dataset.url;
+        const type = item.dataset.type;
+
+        console.log('[Selection] Checking cache status for:', itemId);
+
+        // Check if file is actually cached (not just in dragCacheStatus)
+        window.kolboDesktop.getCachedFilePath(itemId).then(cacheResult => {
+          if (cacheResult.cached) {
+            // Already cached
+            this.dragCacheStatus.set(itemId, cacheResult.filePath);
+            console.log('[Selection] Item already cached:', itemId);
+
+            // Show cache indicator
+            const cacheStatus = item.querySelector('.cache-status');
+            if (cacheStatus) {
+              cacheStatus.style.display = 'block';
+            }
+          } else {
+            // Not cached - download it
+            console.log('[Selection] Pre-downloading selected item:', itemId);
+
+            // Start background download
+            window.kolboDesktop.preloadCache([{
+              id: itemId,
+              fileName,
+              url,
+              type
+            }]).then(result => {
+              if (result.success && result.successful > 0) {
+                // Update cache status
+                window.kolboDesktop.getCachedFilePath(itemId).then(cacheResult => {
+                  if (cacheResult.cached) {
+                    this.dragCacheStatus.set(itemId, cacheResult.filePath);
+
+                    // Show cache indicator
+                    const cacheStatus = item.querySelector('.cache-status');
+                    if (cacheStatus) {
+                      cacheStatus.style.display = 'block';
+                    }
+
+                    console.log('[Selection] Item cached and ready:', itemId);
+                  }
+                });
+              }
+            }).catch(error => {
+              console.error('[Selection] Download error:', error);
+            });
+          }
+        });
+      }
     }
 
     // Update UI
@@ -1281,9 +1558,33 @@ class KolboApp {
 
       console.log('[Import to Premiere] Result:', result);
 
+      // Check if plugin is installed
+      if (!result.hasPlugin) {
+        console.log('[Import to Premiere] Plugin not detected');
+
+        // Show dialog with options
+        const choice = confirm(
+          '⚠️ Kolbo Adobe Plugin Not Detected\n\n' +
+          'The Kolbo Adobe Plugin is required to automatically import files to Premiere Pro.\n\n' +
+          'Click OK to download files to a folder instead, or Cancel to install the plugin first.'
+        );
+
+        if (choice) {
+          // User chose to download - fallback to batch download
+          console.log('[Import to Premiere] Falling back to batch download');
+          this.handleBatchDownload();
+        } else {
+          // User chose to install plugin
+          const installUrl = 'https://github.com/ZoharFranco/kolbo-adobe-plugin';
+          window.kolboDesktop.openExternal(installUrl);
+        }
+
+        return;
+      }
+
       if (result.success) {
         console.log(`[Import to Premiere] Successfully sent ${result.count} files to Premiere Pro`);
-        this.showToast(`Sent ${result.count} items to Premiere Pro. They will appear in the "Kolbo AI" bin.`, 'success');
+        this.showToast(`Sent ${result.count} items to Premiere Pro. They will appear in the "Kolbo AI" bin and timeline.`, 'success');
 
         // Clear selection after successful import
         this.handleBatchClear();

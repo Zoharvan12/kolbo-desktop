@@ -14,7 +14,8 @@
       "Read(//g/Projects/Kolbo.AI/github/kolbo-map/src/**)",
       "Read(//g/Projects/Kolbo.AI/github/kolbo-map/**)",
       "Bash(timeout:*)",
-      "WebFetch(domain:www.electronjs.org)"
+      "WebFetch(domain:www.electronjs.org)",
+      "Read(//c/Users/Zohar/Pictures/Screenshots/**)"
     ],
     "deny": [],
     "ask": []

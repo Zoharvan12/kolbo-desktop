@@ -1027,6 +1027,7 @@ html, body {
 }
 
 .batch-btn-premiere {
+  display: none; /* Hidden - users can drag and drop instead */
   background: linear-gradient(135deg, #9999FF 0%, #EA77FF 100%);
   color: white;
   box-shadow: 0 4px 12px rgba(153, 153, 255, 0.3);
@@ -1287,6 +1288,35 @@ html, body {
   transform: translate(-50%, -50%);
 }
 
+/* Cache Status Indicator */
+.cache-status {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  z-index: 20;
+  /* Removed black overlay - users need to see items clearly */
+  border-radius: 50%;
+  padding: 3px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  /* Add subtle white glow for visibility */
+  filter: drop-shadow(0 0 2px rgba(255, 255, 255, 0.8));
+}
+
+.cache-status svg {
+  display: block;
+}
+
+/* Spin Animation for Downloading */
+@keyframes spin {
+  0% {
+    transform: rotate(0deg);
+  }
+  100% {
+    transform: rotate(360deg);
+  }
+}
 
 .media-item img {
   width: 100%;
@@ -1861,17 +1891,17 @@ html, body {
 }
 
 #webapp-tab.active {
-  background: linear-gradient(135deg, rgb(var(--primary)) 0%, #8b5cf6 100%);
+  background: linear-gradient(135deg, #0f1729 0%, #1e3a8a 100%);
   border-color: transparent;
-  box-shadow: 0 0 20px rgba(102, 126, 234, 0.4), var(--shadow-md);
+  box-shadow: 0 0 20px rgba(30, 58, 138, 0.5), var(--shadow-md);
 }
 
 #webapp-tab:hover {
-  box-shadow: 0 0 15px rgba(102, 126, 234, 0.3);
+  box-shadow: 0 0 15px rgba(30, 58, 138, 0.3);
 }
 
 #webapp-tab.active:hover {
-  box-shadow: 0 0 25px rgba(102, 126, 234, 0.5), var(--shadow-lg);
+  box-shadow: 0 0 25px rgba(30, 58, 138, 0.5), var(--shadow-lg);
 }
 
 /* Special styling for My Media button */
