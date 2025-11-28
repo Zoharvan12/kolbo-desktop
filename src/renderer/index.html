@@ -133,15 +133,20 @@
           <span id="media-count" class="media-count">0 items</span>
         </div>
         <div class="header-actions">
-          <button id="debug-btn" class="icon-btn" title="Debug Console (Ctrl+Shift+D)" onclick="document.getElementById('debug-panel').style.display='block'">
-            <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
-              <path d="M8 1L2 5v6l6 4 6-4V5L8 1zm0 2.3L12 6v4.3l-4 2.7-4-2.7V6l4-2.7z"/>
-            </svg>
-          </button>
           <button id="refresh-btn" class="icon-btn" title="Refresh">
             <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
               <path d="M13.65 2.35C12.2 0.9 10.21 0 8 0 3.58 0 0 3.58 0 8s3.58 8 8 8c3.73 0 6.84-2.55 7.73-6h-2.08c-.82 2.33-3.04 4-5.65 4-3.31 0-6-2.69-6-6s2.69-6 6-6c1.66 0 3.14.69 4.22 1.78L9 7h7V0l-2.35 2.35z"/>
             </svg>
+          </button>
+          <!-- Update Available Button (hidden by default) -->
+          <button id="update-available-btn" class="update-available-btn hidden" title="Update Available">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+              <polyline points="7 10 12 15 17 10"/>
+              <line x1="12" y1="15" x2="12" y2="3"/>
+            </svg>
+            <span class="update-badge">1</span>
+            <span>Update Available</span>
           </button>
           <button id="settings-btn" class="settings-btn" title="Settings">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -343,6 +348,13 @@
                 <path d="M12 5v14M5 12h14"/>
               </svg>
               <span>New Tab</span>
+            </button>
+            <button id="split-view-btn" class="split-view-btn" title="Split View (Ctrl+Shift+S)">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <rect x="3" y="3" width="7" height="18" rx="1"></rect>
+                <rect x="14" y="3" width="7" height="18" rx="1"></rect>
+              </svg>
+              <span>Split View</span>
             </button>
           </div>
         </div>

@@ -429,6 +429,67 @@ html, body {
   transform: scale(1);
 }
 
+/* Update Available Button */
+.update-available-btn {
+  position: relative;
+  height: 32px;
+  padding: 0 12px;
+  border: none;
+  border-radius: 6px;
+  background: linear-gradient(135deg, #22c55e 0%, #16a34a 100%);
+  color: white;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  font-weight: 500;
+  box-shadow: 0 2px 8px rgba(34, 197, 94, 0.3);
+  animation: pulse-update 2s ease-in-out infinite;
+  -webkit-app-region: no-drag;
+}
+
+.update-available-btn:hover {
+  background: linear-gradient(135deg, #16a34a 0%, #15803d 100%);
+  box-shadow: 0 4px 12px rgba(34, 197, 94, 0.4);
+  transform: translateY(-1px);
+}
+
+.update-available-btn:active {
+  transform: translateY(0);
+}
+
+.update-available-btn.hidden {
+  display: none;
+}
+
+.update-badge {
+  position: absolute;
+  top: -4px;
+  right: -4px;
+  background: #ef4444;
+  color: white;
+  font-size: 10px;
+  font-weight: 700;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 2px solid #1a1a1a;
+}
+
+@keyframes pulse-update {
+  0%, 100% {
+    box-shadow: 0 2px 8px rgba(34, 197, 94, 0.3);
+  }
+  50% {
+    box-shadow: 0 2px 16px rgba(34, 197, 94, 0.6);
+  }
+}
+
 /* Settings Button - with text */
 .settings-btn {
   height: 32px;
@@ -751,6 +812,60 @@ html, body {
   pointer-events: none;
 }
 
+/* Split View Button */
+.split-view-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  height: 32px;
+  padding: 0 10px;
+  background: transparent;
+  border: 1px solid rgb(var(--border) / 0.3);
+  border-radius: 6px;
+  color: rgba(255, 255, 255, 0.6);
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  flex-shrink: 0;
+  margin-left: 4px;
+  margin-right: 8px;
+  white-space: nowrap;
+  -webkit-app-region: no-drag;
+}
+
+.split-view-btn:hover {
+  background: rgba(255, 255, 255, 0.08);
+  color: rgba(255, 255, 255, 0.9);
+  border-color: rgba(255, 255, 255, 0.3);
+}
+
+.split-view-btn.active {
+  background: rgba(34, 197, 94, 0.15);
+  color: rgb(34 197 94);
+  border-color: rgba(34, 197, 94, 0.5);
+}
+
+.split-view-btn.active:hover {
+  background: rgba(34, 197, 94, 0.25);
+  border-color: rgba(34, 197, 94, 0.7);
+}
+
+.split-view-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.split-view-btn svg {
+  pointer-events: none;
+  flex-shrink: 0;
+}
+
+.split-view-btn span {
+  pointer-events: none;
+}
+
 /* Iframe Container */
 .iframe-container {
   position: relative;
@@ -772,6 +887,93 @@ html, body {
 
 .iframe-container iframe.active {
   display: block;
+}
+
+/* Split View Layout */
+.iframe-container.split-view {
+  display: flex;
+  gap: 0;
+}
+
+.split-pane {
+  position: relative;
+  height: 100%;
+  flex: 1;
+  display: none;
+  background: #1a1a1a;
+}
+
+.iframe-container.split-view .split-pane {
+  display: block;
+}
+
+.split-pane.active {
+  outline: 2px solid rgba(34, 197, 94, 0.3);
+  outline-offset: -2px;
+}
+
+.split-pane iframe {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  border: none;
+  background: #1a1a1a;
+}
+
+/* Split View Divider */
+.split-divider {
+  width: 6px;
+  background: rgba(255, 255, 255, 0.1);
+  cursor: col-resize;
+  position: relative;
+  flex-shrink: 0;
+  transition: background 0.2s ease;
+  user-select: none;
+  z-index: 100;
+}
+
+.split-divider:hover,
+.split-divider.dragging {
+  background: rgba(34, 197, 94, 0.5);
+}
+
+.split-divider::before {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 2px;
+  height: 40px;
+  background: rgba(255, 255, 255, 0.3);
+  border-radius: 1px;
+}
+
+/* Hide regular iframe display in split view */
+.iframe-container.split-view > iframe {
+  display: none !important;
+}
+
+/* Tab indicators for split view */
+.tab.in-split-left::after,
+.tab.in-split-right::after {
+  content: '';
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 2px;
+  transition: background 0.2s ease;
+}
+
+.tab.in-split-left::after {
+  background: linear-gradient(to right, rgba(34, 197, 94, 0.8), transparent);
+}
+
+.tab.in-split-right::after {
+  background: linear-gradient(to left, rgba(59, 130, 246, 0.8), transparent);
 }
 
 /* Project Selector */

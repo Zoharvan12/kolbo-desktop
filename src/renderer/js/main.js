@@ -2018,6 +2018,25 @@ class KolboApp {
   }
 
   showUpdateAvailable(info) {
+    console.log('[Updater] Update available:', info.version);
+
+    // Show header update button
+    const updateBtn = document.getElementById('update-available-btn');
+    if (updateBtn) {
+      updateBtn.classList.remove('hidden');
+      updateBtn.onclick = () => {
+        // Switch to settings view and scroll to updates section
+        this.showView('settings');
+        setTimeout(() => {
+          const updatesSection = document.querySelector('.settings-section:has(#update-available-card)');
+          if (updatesSection) {
+            updatesSection.scrollIntoView({ behavior: 'smooth', block: 'start' });
+          }
+        }, 100);
+      };
+    }
+
+    // Show settings page update card
     const updateCard = document.getElementById('update-available-card');
     const versionText = document.getElementById('update-version-text');
     const changelog = document.getElementById('update-changelog');
