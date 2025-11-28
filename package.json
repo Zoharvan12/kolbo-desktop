@@ -25,6 +25,8 @@
     "build:staging:mac": "cross-env KOLBO_ENV=staging electron-builder --mac --config.productName=\"Kolbo Studio Staging\"",
     "build:prod:win": "cross-env KOLBO_ENV=production electron-builder --win",
     "build:prod:mac": "cross-env KOLBO_ENV=production electron-builder --mac",
+    "build:all:win": "npm run build:dev:win && npm run build:staging:win && npm run build:prod:win",
+    "build:all:mac": "npm run build:dev:mac && npm run build:staging:mac && npm run build:prod:mac",
     "version:patch": "npm version patch -m \"Release v%s\" && git push && git push --tags",
     "version:minor": "npm version minor -m \"Release v%s\" && git push && git push --tags",
     "version:major": "npm version major -m \"Release v%s\" && git push && git push --tags"

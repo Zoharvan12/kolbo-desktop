@@ -12,14 +12,22 @@ npm run dev                    # Run locally with development config
 
 ### Building Installers
 
-#### Windows
+#### Build All 3 Versions at Once
+```bash
+npm run build:all:win         # Windows: dev, staging, production (~10-15 mins)
+npm run build:all:mac         # macOS: dev, staging, production (~10-15 mins)
+```
+
+#### Build Individual Versions
+
+**Windows:**
 ```bash
 npm run build:dev:win         # Development build (localhost:5050)
 npm run build:staging:win     # Staging build (stagingapi.kolbo.ai)
 npm run build:prod:win        # Production build (api.kolbo.ai)
 ```
 
-#### macOS
+**macOS:**
 ```bash
 npm run build:dev:mac         # Development build
 npm run build:staging:mac     # Staging build

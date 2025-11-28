@@ -39,38 +39,37 @@ npm start
 npm run dev
 ```
 
-### Build Development Installers
+### Build ALL 3 Versions at Once
 ```bash
-# Windows (connects to localhost:5050)
-npm run build:dev:win
+# Windows - Builds dev, staging, and production
+npm run build:all:win
 
-# macOS (connects to localhost:5050)
-npm run build:dev:mac
+# macOS - Builds dev, staging, and production
+npm run build:all:mac
 ```
 
-**Output:** `dist/Kolbo Studio Dev-Setup-1.0.0.exe` or `.dmg`
+**Time:** ~10-15 minutes for all 3 versions
+**Output:** All 3 installers in `dist/` folder
 
-### Build Staging Installers
+### Build Individual Versions
+
+**Development Installers:**
 ```bash
-# Windows (connects to staging.kolbo.ai)
-npm run build:staging:win
-
-# macOS (connects to staging.kolbo.ai)
-npm run build:staging:mac
+npm run build:dev:win    # Windows (localhost:5050)
+npm run build:dev:mac    # macOS (localhost:5050)
 ```
 
-**Output:** `dist/Kolbo Studio Staging-Setup-1.0.0.exe` or `.dmg`
-
-### Build Production Installers (Manual)
+**Staging Installers:**
 ```bash
-# Windows (connects to app.kolbo.ai)
-npm run build:prod:win
-
-# macOS (connects to app.kolbo.ai)
-npm run build:prod:mac
+npm run build:staging:win    # Windows (staging.kolbo.ai)
+npm run build:staging:mac    # macOS (staging.kolbo.ai)
 ```
 
-**Output:** `dist/Kolbo Studio-Setup-1.0.0.exe` or `.dmg`
+**Production Installers:**
+```bash
+npm run build:prod:win    # Windows (app.kolbo.ai)
+npm run build:prod:mac    # macOS (app.kolbo.ai)
+```
 
 ---
 
