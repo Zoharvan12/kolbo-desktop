@@ -15,7 +15,19 @@
       "Read(//g/Projects/Kolbo.AI/github/kolbo-map/**)",
       "Bash(timeout:*)",
       "WebFetch(domain:www.electronjs.org)",
-      "Read(//c/Users/Zohar/Pictures/Screenshots/**)"
+      "Read(//c/Users/Zohar/Pictures/Screenshots/**)",
+      "Bash(npm run build:prod:mac:*)",
+      "Bash(npm run build:dev:win:*)",
+      "Bash(npm run build:staging:win:*)",
+      "Bash(identify:*)",
+      "Bash(node:*)",
+      "Bash(awk:*)",
+      "Bash(tee:*)",
+      "WebFetch(domain:www.electron.build)",
+      "Bash(magick:*)",
+      "Bash(powershell.exe:*)",
+      "Bash(npm install:*)",
+      "Bash(cat:*)"
     ],
     "deny": [],
     "ask": []

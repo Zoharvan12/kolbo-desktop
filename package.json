@@ -15,22 +15,23 @@
   },
   "scripts": {
     "start": "electron .",
-    "dev": "set KOLBO_ENV=development&& electron .",
+    "dev": "cross-env KOLBO_ENV=development electron .",
     "build": "electron-builder",
     "build:win": "electron-builder --win",
     "build:mac": "electron-builder --mac",
-    "build:dev:win": "set KOLBO_ENV=development&& electron-builder --win --config.productName=\"Kolbo Desktop Dev\"",
-    "build:dev:mac": "set KOLBO_ENV=development&& electron-builder --mac --config.productName=\"Kolbo Desktop Dev\"",
-    "build:staging:win": "set KOLBO_ENV=staging&& electron-builder --win --config.productName=\"Kolbo Desktop Staging\"",
-    "build:staging:mac": "set KOLBO_ENV=staging&& electron-builder --mac --config.productName=\"Kolbo Desktop Staging\"",
-    "build:prod:win": "set KOLBO_ENV=production&& electron-builder --win",
-    "build:prod:mac": "set KOLBO_ENV=production&& electron-builder --mac"
+    "build:dev:win": "cross-env KOLBO_ENV=development electron-builder --win --config.productName=\"Kolbo Desktop Dev\"",
+    "build:dev:mac": "cross-env KOLBO_ENV=development electron-builder --mac --config.productName=\"Kolbo Desktop Dev\"",
+    "build:staging:win": "cross-env KOLBO_ENV=staging electron-builder --win --config.productName=\"Kolbo Desktop Staging\"",
+    "build:staging:mac": "cross-env KOLBO_ENV=staging electron-builder --mac --config.productName=\"Kolbo Desktop Staging\"",
+    "build:prod:win": "cross-env KOLBO_ENV=production electron-builder --win",
+    "build:prod:mac": "cross-env KOLBO_ENV=production electron-builder --mac"
   },
   "dependencies": {
     "electron-store": "^8.1.0",
     "electron-updater": "^6.6.2"
   },
   "devDependencies": {
+    "cross-env": "^10.1.0",
     "electron": "^28.0.0",
     "electron-builder": "^24.9.1",
     "jimp": "^1.6.0",
@@ -72,9 +73,7 @@
       "allowToChangeInstallationDirectory": true,
       "createDesktopShortcut": true,
       "createStartMenuShortcut": true,
-      "shortcutName": "${productName}",
-      "installerSidebar": "installerSidebar.png",
-      "uninstallerSidebar": "uninstallerSidebar.png"
+      "shortcutName": "${productName}"
     },
     "mac": {
       "target": [
