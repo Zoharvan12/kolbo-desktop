@@ -1,4 +1,4 @@
-// Kolbo Desktop - Drag Handler
+// Kolbo Studio - Drag Handler
 // Handles OS-level drag-and-drop using Electron's startDrag() API
 
 const { ipcMain, nativeImage } = require('electron');

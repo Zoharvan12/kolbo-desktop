@@ -1,4 +1,4 @@
-// Kolbo Desktop - Main Process Entry Point
+// Kolbo Studio - Main Process Entry Point
 // Handles window creation, system tray, and IPC setup
 
 const { app, BrowserWindow, Tray, Menu, nativeImage, screen, dialog } = require('electron');
@@ -63,7 +63,7 @@ function createWindow() {
     y: y,
     minWidth: 350,
     minHeight: 500,
-    title: 'Kolbo Desktop',
+    title: 'Kolbo Studio',
     backgroundColor: '#1e1e1e',
     frame: false,                   // Remove default frame for custom title bar
     titleBarStyle: 'hidden',        // Hide default title bar
@@ -138,7 +138,7 @@ function createTray() {
 
   const contextMenu = Menu.buildFromTemplate([
     {
-      label: 'Show Kolbo Desktop',
+      label: 'Show Kolbo Studio',
       click: () => {
         if (mainWindow) {
           mainWindow.show();
@@ -155,7 +155,7 @@ function createTray() {
     }
   ]);
 
-  tray.setToolTip('Kolbo Desktop');
+  tray.setToolTip('Kolbo Studio');
   tray.setContextMenu(contextMenu);
 
   // Click tray icon to show window
@@ -289,7 +289,7 @@ function setupWindowHandlers() {
       height: Math.floor(screen.getPrimaryDisplay().workAreaSize.height * 0.75),
       minWidth: 350,
       minHeight: 500,
-      title: 'Kolbo Desktop',
+      title: 'Kolbo Studio',
       backgroundColor: '#1e1e1e',
       frame: false,
       titleBarStyle: 'hidden',
@@ -1291,7 +1291,7 @@ app.on('before-quit', () => {
   app.isQuitting = true;
 });
 
-console.log('[Main] Kolbo Desktop starting...');
+console.log('[Main] Kolbo Studio starting...');
 console.log('[Main] App version:', app.getVersion());
 console.log('[Main] Electron version:', process.versions.electron);
 console.log('[Main] Node version:', process.versions.node);

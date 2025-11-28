@@ -1,4 +1,4 @@
-// Kolbo Desktop - File Manager
+// Kolbo Studio - File Manager
 // Handles file downloads to cache with 5GB limit and LRU eviction
 
 const { ipcMain, app } = require('electron');

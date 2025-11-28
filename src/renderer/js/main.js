@@ -170,7 +170,7 @@ class KolboApp {
 
   async init() {
     if (this.DEBUG_MODE) {
-      console.log('Initializing Kolbo Desktop App...');
+      console.log('Initializing Kolbo Studio App...');
     }
 
     this.setGridSize(this.gridSize);
@@ -1716,6 +1716,71 @@ class KolboApp {
                 console.error('[Settings] Failed to change download folder:', error);
                 alert('Failed to change download folder');
               }
+            });
+          }
+        }
+
+        // Load subscription usage (credits and plan)
+        const currentPlanEl = document.getElementById('current-plan');
+        const creditsTextEl = document.getElementById('credits-text');
+
+        if (currentPlanEl && creditsTextEl) {
+          try {
+            const token = localStorage.getItem('token') || localStorage.getItem('kolbo_token');
+            if (token) {
+              const apiUrl = window.KOLBO_CONFIG?.apiUrl || 'http://localhost:5050/api';
+              const response = await fetch(`${apiUrl}/user-usage-summary`, {
+                headers: {
+                  'Authorization': `Bearer ${token}`,
+                  'Content-Type': 'application/json'
+                }
+              });
+
+              if (response.ok) {
+                const result = await response.json();
+                const data = result.data;
+
+                // Display plan name
+                const planName = data?.subscription?.name || 'Free';
+                currentPlanEl.textContent = planName;
+                currentPlanEl.style.fontWeight = '500';
+                currentPlanEl.style.color = 'var(--text-primary, #fff)';
+
+                // Display credits with nice formatting
+                const totalCredits = data?.subscription?.totalCredits || 0;
+                creditsTextEl.textContent = totalCredits.toLocaleString() + ' credits';
+                creditsTextEl.style.fontWeight = '500';
+                creditsTextEl.style.color = 'var(--primary-color, #4A90E2)';
+
+                console.log('[Settings] Loaded subscription:', planName, 'with', totalCredits, 'credits');
+              } else {
+                currentPlanEl.textContent = 'Unable to load';
+                creditsTextEl.textContent = 'Unable to load';
+                console.error('[Settings] Failed to fetch subscription usage:', response.status);
+              }
+            } else {
+              currentPlanEl.textContent = 'Not logged in';
+              creditsTextEl.textContent = 'Not logged in';
+            }
+          } catch (error) {
+            console.error('[Settings] Failed to load subscription usage:', error);
+            currentPlanEl.textContent = 'Failed to load';
+            creditsTextEl.textContent = 'Failed to load';
+          }
+        }
+
+        // Setup Purchase Credits button
+        const purchaseCreditsBtn = document.getElementById('purchase-credits-btn');
+        if (purchaseCreditsBtn && window.kolboDesktop) {
+          if (!purchaseCreditsBtn.hasAttribute('data-listener-attached')) {
+            purchaseCreditsBtn.setAttribute('data-listener-attached', 'true');
+            purchaseCreditsBtn.addEventListener('click', () => {
+              // Build pricing URL based on current environment
+              const webappUrl = window.KOLBO_CONFIG?.webappUrl || 'https://app.kolbo.ai';
+              const pricingUrl = `${webappUrl}/pricing`;
+
+              console.log('[Settings] Opening pricing page:', pricingUrl);
+              window.kolboDesktop.openExternal(pricingUrl);
             });
           }
         }

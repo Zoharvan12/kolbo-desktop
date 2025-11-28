@@ -1,4 +1,4 @@
-// Kolbo Desktop - Preload Script
+// Kolbo Studio - Preload Script
 // Secure bridge between main and renderer process using contextBridge
 // This is the ONLY way renderer can communicate with main process
 

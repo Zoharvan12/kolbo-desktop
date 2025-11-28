@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Kolbo Desktop</title>
+  <title>Kolbo Studio</title>
   <!-- Google Fonts - Poppins -->
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -413,7 +413,7 @@
             <div class="settings-item">
               <div class="settings-item-info">
                 <label class="settings-label">Launch on Startup</label>
-                <p class="settings-sublabel">Automatically start Kolbo Desktop when your computer boots</p>
+                <p class="settings-sublabel">Automatically start Kolbo Studio when your computer boots</p>
               </div>
               <label class="toggle-switch">
                 <input type="checkbox" id="auto-launch-toggle">
@@ -444,7 +444,7 @@
               <h2>Updates</h2>
             </div>
             <p class="settings-description">
-              Keep Kolbo Desktop up to date with the latest features and improvements.
+              Keep Kolbo Studio up to date with the latest features and improvements.
             </p>
 
             <div class="settings-item">
@@ -517,6 +517,36 @@
             </div>
             <div class="settings-item">
               <div class="settings-item-info">
+                <label class="settings-label">Current Plan</label>
+                <p class="settings-sublabel" id="current-plan">Loading...</p>
+              </div>
+            </div>
+
+            <div class="settings-item">
+              <div class="settings-item-info">
+                <label class="settings-label">Available Credits</label>
+                <p class="settings-sublabel" id="available-credits" style="display: flex; align-items: center; gap: 6px;">
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="flex-shrink: 0;">
+                    <circle cx="12" cy="12" r="10"></circle>
+                    <path d="M12 6v12"></path>
+                    <path d="M15.5 9.5a3.5 3.5 0 1 0-7 0"></path>
+                    <path d="M8.5 14.5a3.5 3.5 0 1 0 7 0"></path>
+                  </svg>
+                  <span id="credits-text">Loading...</span>
+                </p>
+              </div>
+              <button id="purchase-credits-btn" class="secondary-btn">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <circle cx="12" cy="12" r="10"></circle>
+                  <line x1="12" y1="8" x2="12" y2="16"></line>
+                  <line x1="8" y1="12" x2="16" y2="12"></line>
+                </svg>
+                Purchase Credits
+              </button>
+            </div>
+
+            <div class="settings-item">
+              <div class="settings-item-info">
                 <label class="settings-label">Billing & Usage</label>
                 <p class="settings-sublabel">Manage subscription, billing, and view usage history</p>
               </div>
@@ -542,7 +572,7 @@
             </div>
             <div class="settings-item">
               <div class="settings-item-info">
-                <label class="settings-label">Kolbo Desktop</label>
+                <label class="settings-label">Kolbo Studio</label>
                 <p class="settings-sublabel" id="app-version">Version Loading...</p>
               </div>
             </div>

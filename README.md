@@ -1,6 +1,6 @@
-# Kolbo Desktop
+# Kolbo Studio
 
-Standalone desktop app for Kolbo.AI media library. Drag-and-drop your AI-generated media into any video editor.
+Official desktop application for Kolbo.AI. Access 100+ AI models, manage your AI-generated content, and seamlessly integrate with video editors.
 
 ## Features
 

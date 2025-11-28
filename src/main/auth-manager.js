@@ -1,4 +1,4 @@
-// Kolbo Desktop - Authentication Manager
+// Kolbo Studio - Authentication Manager
 // Handles email/password login and Google OAuth (same flow as plugin)
 
 const { ipcMain, shell, app } = require('electron');

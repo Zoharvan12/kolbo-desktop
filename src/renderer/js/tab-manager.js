@@ -1,5 +1,5 @@
 // ============================================================================
-// TAB MANAGER - Multi-tab system for Kolbo Desktop
+// TAB MANAGER - Multi-tab system for Kolbo Studio
 // ============================================================================
 //
 // PURPOSE:

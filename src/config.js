@@ -1,5 +1,5 @@
 // ============================================================================
-// KOLBO DESKTOP - CENTRALIZED CONFIGURATION
+// KOLBO STUDIO - CENTRALIZED CONFIGURATION
 // ============================================================================
 //
 // Single source of truth for all environment settings
