@@ -78,21 +78,58 @@ Upload the production installer to your website's download section:
 - **Recommended location**: `https://kolbo.ai/downloads/`
 - **File naming**: Keep the version number clear for users
 
-## Version Management
+## Version Management & Automated Releases
 
-Before each production build:
+### Semantic Versioning
+
+Kolbo Studio uses [Semantic Versioning](https://semver.org/):
+- **MAJOR** (x.0.0): Breaking changes, major new features
+- **MINOR** (0.x.0): New features, backwards-compatible
+- **PATCH** (0.0.x): Bug fixes, small improvements
+
+### Creating a New Release (Automatic)
+
+Use these npm scripts to automatically bump version, create git tag, and trigger GitHub Actions:
+
+```bash
+# Patch release (1.0.0 → 1.0.1) - Bug fixes
+npm run version:patch
+
+# Minor release (1.0.0 → 1.1.0) - New features
+npm run version:minor
+
+# Major release (1.0.0 → 2.0.0) - Breaking changes
+npm run version:major
+```
+
+**What happens automatically:**
+1. ✅ Updates version in package.json
+2. ✅ Creates git commit with message "Release vX.X.X"
+3. ✅ Creates git tag (e.g., v1.0.1)
+4. ✅ Pushes commit and tag to GitHub
+5. ✅ GitHub Actions builds Windows and macOS installers
+6. ✅ Creates GitHub Release with installers attached
+7. ✅ electron-updater detects new version automatically
+8. ✅ Users get notified in-app about the update
+
+### Manual Version Management (Advanced)
+
+If you need manual control:
 
 1. Update `version` in `package.json`:
    ```json
    "version": "1.0.1"
    ```
 
-2. Build with the new version:
+2. Create git commit and tag:
    ```bash
-   npm run build:prod:win
+   git add package.json package-lock.json
+   git commit -m "Release v1.0.1"
+   git tag v1.0.1
+   git push && git push --tags
    ```
 
-3. The installer name will automatically include the new version
+3. GitHub Actions will automatically build and release
 
 ## Platform-Specific Notes
 
@@ -132,6 +169,75 @@ npm run build:prod:win
 electron-builder --win
 ```
 
+## GitHub Actions (Automated Builds)
+
+### How It Works
+
+The repository includes a GitHub Actions workflow (`.github/workflows/release.yml`) that automatically:
+- Builds Windows and macOS installers when you push a version tag
+- Creates a GitHub Release with installers attached
+- Generates update metadata files for electron-updater
+- Runs on GitHub's servers (no local build needed)
+
+### Setup Requirements
+
+1. **GitHub Personal Access Token** (automatically provided by GitHub Actions)
+   - Already configured via `GITHUB_TOKEN` secret
+   - No manual setup needed
+
+2. **Push Access**
+   - Ensure you have push access to the repository
+   - Version scripts will push tags automatically
+
+### Monitoring Builds
+
+After running `npm run version:patch` (or minor/major):
+1. Go to GitHub repository
+2. Click "Actions" tab
+3. See build progress in real-time
+4. Builds take ~5-10 minutes per platform
+
+### Troubleshooting GitHub Actions
+
+**Build fails on Windows:**
+- Check Node.js version compatibility
+- Verify dependencies install correctly
+
+**Build fails on macOS:**
+- Apple Silicon builds require macOS runner
+- Check Xcode Command Line Tools version
+
+**Release not created:**
+- Ensure tag matches pattern `vX.Y.Z`
+- Check GitHub Actions permissions
+
+## Auto-Updates for Users
+
+### How It Works
+
+electron-updater automatically:
+1. Checks GitHub Releases for new versions (every 4 hours + on startup)
+2. Downloads update in background (if user approves)
+3. Installs on next app restart
+4. No user intervention needed beyond clicking "Update"
+
+### Configuration
+
+Already configured in `src/main/main.js`:
+- ✅ Auto-check on startup (after 3 seconds)
+- ✅ Periodic checks (every 4 hours)
+- ✅ Manual download (user controls when)
+- ✅ Auto-install on quit
+
+### User Experience
+
+When update available:
+1. User sees notification in app
+2. Clicks "Download Update" button
+3. Update downloads in background
+4. "Install and Restart" button appears
+5. App restarts with new version
+
 ## Next Steps (Optional Enhancements)
 
 ### 1. Code Signing (Recommended for Production)
@@ -151,19 +257,7 @@ electron-builder --win
 - Requires Apple Developer account ($99/year)
 - Add signing identity to build config
 
-### 2. Auto-Updates
-Add `electron-updater` to automatically update the app:
-```bash
-npm install electron-updater
-```
-
-### 3. CI/CD Automation
-Set up GitHub Actions to build automatically on release:
-- Build on push to `main`
-- Automatic version tagging
-- Upload to release assets
-
-### 4. App Store Distribution (Optional)
+### 2. App Store Distribution (Optional)
 - **Mac App Store**: Submit via Apple Developer
 - **Microsoft Store**: Submit via Windows Partner Center
 

@@ -1,0 +1,127 @@
+name: Build and Release
+
+# Trigger on version tags (e.g., v1.0.1, v2.0.0)
+on:
+  push:
+    tags:
+      - 'v*.*.*'
+
+jobs:
+  create-release:
+    runs-on: ubuntu-latest
+    outputs:
+      upload_url: ${{ steps.create_release.outputs.upload_url }}
+      version: ${{ steps.get_version.outputs.version }}
+    steps:
+      - name: Get version from tag
+        id: get_version
+        run: echo "version=${GITHUB_REF#refs/tags/v}" >> $GITHUB_OUTPUT
+
+      - name: Create GitHub Release
+        id: create_release
+        uses: actions/create-release@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tag_name: ${{ github.ref }}
+          release_name: Kolbo Studio v${{ steps.get_version.outputs.version }}
+          body: |
+            ## Kolbo Studio v${{ steps.get_version.outputs.version }}
+
+            ### Downloads
+            - **Windows**: Kolbo Studio-Setup-${{ steps.get_version.outputs.version }}.exe
+            - **macOS (Universal)**: Kolbo Studio-${{ steps.get_version.outputs.version }}.dmg
+
+            ### Installation
+            **Windows**: Download the .exe installer and run it. Follow the setup wizard.
+            **macOS**: Download the .dmg file, open it, and drag Kolbo Studio to Applications.
+
+            ### Auto-Update
+            Existing users will be notified automatically within the app. Click "Download Update" to get the latest version.
+
+            ---
+            **Full Changelog**: https://github.com/${{ github.repository }}/compare/v${{ steps.get_version.outputs.version }}...HEAD
+          draft: false
+          prerelease: false
+
+  build-windows:
+    needs: create-release
+    runs-on: windows-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: '18'
+
+      - name: Install dependencies
+        run: npm install
+
+      - name: Build Windows installer
+        env:
+          KOLBO_ENV: production
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: npm run build:prod:win
+
+      - name: Upload Windows installer to release
+        uses: actions/upload-release-asset@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          upload_url: ${{ needs.create-release.outputs.upload_url }}
+          asset_path: ./dist/Kolbo Studio-Setup-${{ needs.create-release.outputs.version }}.exe
+          asset_name: Kolbo Studio-Setup-${{ needs.create-release.outputs.version }}.exe
+          asset_content_type: application/octet-stream
+
+      - name: Upload latest.yml for auto-updater
+        uses: actions/upload-release-asset@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          upload_url: ${{ needs.create-release.outputs.upload_url }}
+          asset_path: ./dist/latest.yml
+          asset_name: latest.yml
+          asset_content_type: text/yaml
+
+  build-macos:
+    needs: create-release
+    runs-on: macos-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: '18'
+
+      - name: Install dependencies
+        run: npm install
+
+      - name: Build macOS DMG
+        env:
+          KOLBO_ENV: production
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: npm run build:prod:mac
+
+      - name: Upload macOS DMG to release
+        uses: actions/upload-release-asset@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          upload_url: ${{ needs.create-release.outputs.upload_url }}
+          asset_path: ./dist/Kolbo Studio-${{ needs.create-release.outputs.version }}.dmg
+          asset_name: Kolbo Studio-${{ needs.create-release.outputs.version }}.dmg
+          asset_content_type: application/octet-stream
+
+      - name: Upload latest-mac.yml for auto-updater
+        uses: actions/upload-release-asset@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          upload_url: ${{ needs.create-release.outputs.upload_url }}
+          asset_path: ./dist/latest-mac.yml
+          asset_name: latest-mac.yml
+          asset_content_type: text/yaml
