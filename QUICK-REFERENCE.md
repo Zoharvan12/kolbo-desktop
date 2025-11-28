@@ -4,6 +4,23 @@
 
 ---
 
+## ⚡ Most Common Commands
+
+```bash
+# 🎯 MOST USED: Build all 3 installers at once
+npm run build:all:win          # Windows (dev, staging, prod)
+npm run build:all:mac          # macOS (dev, staging, prod)
+
+# 🚀 Release new version to production
+npm run version:patch          # Bug fix (1.0.0 → 1.0.1)
+npm run version:minor          # New feature (1.0.0 → 1.1.0)
+
+# 💻 Test locally during development
+npm start                      # Run app (localhost:5050)
+```
+
+---
+
 ## 🚀 Release New Version (Production)
 
 ### One Command Release
@@ -81,20 +98,30 @@ npm start
 ```
 App opens with development config (localhost:5050)
 
-### Build for Team Testing
+### Build All 3 Installers for Distribution
+```bash
+# Windows - Get all 3 versions (dev, staging, prod)
+npm run build:all:win
+
+# macOS - Get all 3 versions (dev, staging, prod)
+npm run build:all:mac
+```
+Takes ~10-15 minutes. All installers in `dist/` folder.
+
+### Build for Team Testing Only
 ```bash
 npm run build:staging:win
 # Share dist/Kolbo Studio Staging-Setup-1.0.0.exe with team
 ```
 
-### Release to Production Users
+### Release to Production Users (Automatic)
 ```bash
 npm run version:patch
 # Wait 10 mins for GitHub Actions to build
 # Users auto-notified within 4 hours
 ```
 
-### Emergency Manual Build
+### Emergency Manual Production Build
 ```bash
 # If GitHub Actions fails
 npm run build:prod:win
@@ -204,6 +231,25 @@ After running release command:
 
 ---
 
+## 📝 All Available Commands (Summary)
+
+| Command | What It Does | Time |
+|---------|--------------|------|
+| `npm start` | Run app locally (dev mode) | 10s |
+| `npm run build:all:win` | Build all 3 Windows installers | 10-15min |
+| `npm run build:all:mac` | Build all 3 macOS installers | 10-15min |
+| `npm run build:dev:win` | Build Windows dev installer | 3-5min |
+| `npm run build:dev:mac` | Build macOS dev installer | 3-5min |
+| `npm run build:staging:win` | Build Windows staging installer | 3-5min |
+| `npm run build:staging:mac` | Build macOS staging installer | 3-5min |
+| `npm run build:prod:win` | Build Windows production installer | 3-5min |
+| `npm run build:prod:mac` | Build macOS production installer | 3-5min |
+| `npm run version:patch` | Release patch version (1.0.0→1.0.1) | Auto |
+| `npm run version:minor` | Release minor version (1.0.0→1.1.0) | Auto |
+| `npm run version:major` | Release major version (1.0.0→2.0.0) | Auto |
+
+---
+
 ## 🔗 Quick Links
 
 - **Releases**: https://github.com/Zoharvan12/kolbo-desktop/releases
@@ -215,9 +261,10 @@ After running release command:
 
 ## ⏱️ Typical Build Times
 
-- **Local dev build**: 2-3 minutes
-- **Local production build**: 3-5 minutes
-- **GitHub Actions (both platforms)**: 8-12 minutes
+- **Single installer**: 3-5 minutes
+- **All 3 installers** (`build:all:*`): 10-15 minutes
+- **npm start** (local dev): 10-15 seconds
+- **GitHub Actions** (automatic release): 8-12 minutes
 
 ---
 
