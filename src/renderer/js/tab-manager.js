@@ -1222,8 +1222,8 @@ class TabManager {
       mergedData.rightIframe = rightIframe;
     }
 
-    // Click on divider to cycle through presets: 50/50 -> 25/75 -> 75/25 -> 50/50
-    const presets = [0.5, 0.25, 0.75];
+    // Click on divider to cycle through presets: 50/50 -> 25/75 -> 70/30 -> 50/50
+    const presets = [0.5, 0.25, 0.7];
 
     divider.addEventListener('click', (e) => {
       e.preventDefault();
