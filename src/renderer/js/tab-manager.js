@@ -647,6 +647,7 @@ class TabManager {
 
   /**
    * Navigate back in the active tab's iframe
+   * Uses postMessage to communicate with the iframe since direct access is blocked by CORS
    */
   goBack() {
     const activeTab = this.getActiveTab();
@@ -656,12 +657,13 @@ class TabManager {
     }
 
     try {
-      // Use contentWindow.history.back() to navigate back
-      if (activeTab.iframe.contentWindow && activeTab.iframe.contentWindow.history) {
-        activeTab.iframe.contentWindow.history.back();
-        if (this.DEBUG_MODE) {
-          console.log('[TabManager] Navigated back in tab:', activeTab.id);
-        }
+      // Send postMessage to iframe to navigate back
+      activeTab.iframe.contentWindow.postMessage({
+        type: 'NAVIGATE_BACK'
+      }, '*');
+
+      if (this.DEBUG_MODE) {
+        console.log('[TabManager] Sent navigate back message to tab:', activeTab.id);
       }
     } catch (error) {
       console.error('[TabManager] Error navigating back:', error);
@@ -670,6 +672,7 @@ class TabManager {
 
   /**
    * Navigate forward in the active tab's iframe
+   * Uses postMessage to communicate with the iframe since direct access is blocked by CORS
    */
   goForward() {
     const activeTab = this.getActiveTab();
@@ -679,12 +682,13 @@ class TabManager {
     }
 
     try {
-      // Use contentWindow.history.forward() to navigate forward
-      if (activeTab.iframe.contentWindow && activeTab.iframe.contentWindow.history) {
-        activeTab.iframe.contentWindow.history.forward();
-        if (this.DEBUG_MODE) {
-          console.log('[TabManager] Navigated forward in tab:', activeTab.id);
-        }
+      // Send postMessage to iframe to navigate forward
+      activeTab.iframe.contentWindow.postMessage({
+        type: 'NAVIGATE_FORWARD'
+      }, '*');
+
+      if (this.DEBUG_MODE) {
+        console.log('[TabManager] Sent navigate forward message to tab:', activeTab.id);
       }
     } catch (error) {
       console.error('[TabManager] Error navigating forward:', error);
@@ -692,7 +696,8 @@ class TabManager {
   }
 
   /**
-   * Refresh/reload the active tab's iframe
+   * Refresh/reload the active tab's iframe current page
+   * Uses postMessage to communicate with the iframe since direct access is blocked by CORS
    */
   refresh() {
     const activeTab = this.getActiveTab();
@@ -702,18 +707,16 @@ class TabManager {
     }
 
     try {
-      // Use contentWindow.location.reload() to refresh the current page
-      if (activeTab.iframe.contentWindow && activeTab.iframe.contentWindow.location) {
-        activeTab.iframe.contentWindow.location.reload();
-        if (this.DEBUG_MODE) {
-          console.log('[TabManager] Refreshed tab:', activeTab.id);
-        }
+      // Send postMessage to iframe to reload current page
+      activeTab.iframe.contentWindow.postMessage({
+        type: 'RELOAD_PAGE'
+      }, '*');
+
+      if (this.DEBUG_MODE) {
+        console.log('[TabManager] Sent reload message to tab:', activeTab.id);
       }
     } catch (error) {
-      // If cross-origin, fall back to reloading the iframe src
-      console.warn('[TabManager] Cross-origin reload, using iframe.src method');
-      const currentSrc = activeTab.iframe.src;
-      activeTab.iframe.src = currentSrc;
+      console.error('[TabManager] Error refreshing:', error);
     }
   }
 
