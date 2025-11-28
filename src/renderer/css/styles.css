@@ -42,7 +42,7 @@ html, body {
   position: relative;
   overflow: hidden;
   background: #000000; /* Ensure black background as fallback */
-  /* Removed -webkit-app-region: drag to allow input in forms */
+  -webkit-app-region: drag; /* Enable window dragging on auth screen */
 }
 
 /* Background Video */
@@ -59,6 +59,7 @@ html, body {
   overflow: hidden;
   z-index: 1;
   background: #000000; /* Black fallback while video loads */
+  -webkit-app-region: drag; /* Enable dragging on background */
 }
 
 .auth-video {
@@ -90,7 +91,8 @@ html, body {
   height: 100%;
   background: rgba(0, 0, 0, 0.75); /* 75% opacity black overlay */
   z-index: 2;
-  pointer-events: none; /* Allow clicks to pass through */
+  pointer-events: none; /* Allow clicks to pass through to draggable layer below */
+  -webkit-app-region: drag; /* Enable dragging on overlay */
 }
 
 /* Auth Container */
@@ -103,7 +105,7 @@ html, body {
   justify-content: center;
   min-height: 100vh;
   padding: 20px;
-  -webkit-app-region: no-drag; /* Explicitly allow input/clicks in auth forms */
+  -webkit-app-region: drag; /* Enable dragging on empty space around card */
 }
 
 /* Auth Card */
