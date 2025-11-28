@@ -5,6 +5,37 @@
   box-sizing: border-box;
 }
 
+/* Custom Scrollbar Styling */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: rgba(0, 0, 0, 0.2);
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.15);
+  border-radius: 4px;
+  transition: background 0.2s ease;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.25);
+}
+
+::-webkit-scrollbar-thumb:active {
+  background: rgba(255, 255, 255, 0.35);
+}
+
+/* Firefox scrollbar styling */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255, 255, 255, 0.15) rgba(0, 0, 0, 0.2);
+}
+
 html, body {
   font-family: 'Poppins', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
   background: #000000;
@@ -866,6 +897,58 @@ html, body {
   pointer-events: none;
 }
 
+/* Split View Preset Buttons */
+.split-presets {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin-left: 8px;
+  -webkit-app-region: no-drag;
+}
+
+.split-presets.hidden {
+  display: none;
+}
+
+.split-preset-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  padding: 6px;
+  background: transparent;
+  border: 1px solid rgb(var(--border) / 0.3);
+  border-radius: 6px;
+  color: rgba(255, 255, 255, 0.6);
+  cursor: pointer;
+  transition: all 0.15s ease;
+  flex-shrink: 0;
+  -webkit-app-region: no-drag;
+}
+
+.split-preset-btn:hover {
+  background: rgba(255, 255, 255, 0.08);
+  color: rgba(255, 255, 255, 0.9);
+  border-color: rgba(255, 255, 255, 0.3);
+}
+
+.split-preset-btn.active {
+  background: rgba(34, 197, 94, 0.15);
+  color: rgb(34 197 94);
+  border-color: rgba(34, 197, 94, 0.5);
+}
+
+.split-preset-btn.active:hover {
+  background: rgba(34, 197, 94, 0.25);
+  border-color: rgba(34, 197, 94, 0.7);
+}
+
+.split-preset-btn svg {
+  pointer-events: none;
+  flex-shrink: 0;
+}
+
 /* Iframe Container */
 .iframe-container {
   position: relative;
@@ -951,29 +1034,66 @@ html, body {
   border-radius: 1px;
 }
 
-/* Hide regular iframe display in split view */
-.iframe-container.split-view > iframe {
-  display: none !important;
+/* Merged Tab Styles */
+.tab-merged {
+  background: rgba(34, 197, 94, 0.05);
+  border-bottom: 2px solid rgba(34, 197, 94, 0.3);
 }
 
-/* Tab indicators for split view */
-.tab.in-split-left::after,
-.tab.in-split-right::after {
-  content: '';
+.tab-merged.active {
+  background: rgba(34, 197, 94, 0.15);
+  border-bottom: 2px solid rgb(var(--primary));
+}
+
+.tab-merged .merged-icon {
+  color: rgba(34, 197, 94, 0.8);
+  flex-shrink: 0;
+}
+
+/* Split overlay for divider */
+.merged-split-overlay {
   position: absolute;
-  bottom: 0;
+  top: 0;
   left: 0;
-  right: 0;
-  height: 2px;
-  transition: background 0.2s ease;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  z-index: 10;
+  display: none;
 }
 
-.tab.in-split-left::after {
-  background: linear-gradient(to right, rgba(34, 197, 94, 0.8), transparent);
+.merged-split-overlay.active {
+  display: block;
 }
 
-.tab.in-split-right::after {
-  background: linear-gradient(to left, rgba(59, 130, 246, 0.8), transparent);
+.merged-split-overlay .split-divider {
+  pointer-events: auto;
+  position: absolute;
+  top: 0;
+  left: 50%;
+  height: 100%;
+  width: 6px;
+  transform: translateX(-3px);
+  z-index: 100;
+}
+
+/* Split iframe positioning - NO DOM MOVING! */
+.split-left-iframe {
+  position: absolute;
+  top: 0;
+  height: 100%;
+  display: block;
+  z-index: 5;
+  /* width and left set via inline styles for performance */
+}
+
+.split-right-iframe {
+  position: absolute;
+  top: 0;
+  height: 100%;
+  display: block;
+  z-index: 5;
+  /* width and left set via inline styles for performance */
 }
 
 /* Project Selector */

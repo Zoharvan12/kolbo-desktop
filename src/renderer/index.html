@@ -356,6 +356,27 @@
               </svg>
               <span>Split View</span>
             </button>
+            <!-- Split Layout Preset Buttons (hidden by default, shown when split view is active) -->
+            <div id="split-presets" class="split-presets hidden">
+              <button class="split-preset-btn active" data-ratio="0.5" title="Equal Split (50/50)">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <rect x="3" y="3" width="7" height="18" rx="1"></rect>
+                  <rect x="14" y="3" width="7" height="18" rx="1"></rect>
+                </svg>
+              </button>
+              <button class="split-preset-btn" data-ratio="0.25" title="Small Left (25/75)">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <rect x="3" y="3" width="4" height="18" rx="1"></rect>
+                  <rect x="10" y="3" width="11" height="18" rx="1"></rect>
+                </svg>
+              </button>
+              <button class="split-preset-btn" data-ratio="0.75" title="Large Left (75/25)">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <rect x="3" y="3" width="11" height="18" rx="1"></rect>
+                  <rect x="17" y="3" width="4" height="18" rx="1"></rect>
+                </svg>
+              </button>
+            </div>
           </div>
         </div>
 

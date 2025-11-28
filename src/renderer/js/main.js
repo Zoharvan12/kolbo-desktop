@@ -482,7 +482,41 @@ class KolboApp {
       // Clear the tab list and iframe container
       const tabList = document.getElementById('tab-list');
       if (tabList) {
-        tabList.innerHTML = '<button id="new-tab-btn" class="new-tab-btn" title="New Tab (Ctrl+T)"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M5 12h14"/></svg><span>New Tab</span></button>';
+        tabList.innerHTML = `
+          <button id="new-tab-btn" class="new-tab-btn" title="New Tab (Ctrl+T)">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M12 5v14M5 12h14"/>
+            </svg>
+            <span>New Tab</span>
+          </button>
+          <button id="split-view-btn" class="split-view-btn" title="Split View (Ctrl+Shift+S)">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <rect x="3" y="3" width="7" height="18" rx="1"></rect>
+              <rect x="14" y="3" width="7" height="18" rx="1"></rect>
+            </svg>
+            <span>Split View</span>
+          </button>
+          <div id="split-presets" class="split-presets hidden">
+            <button class="split-preset-btn active" data-ratio="0.5" title="Equal Split (50/50)">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <rect x="3" y="3" width="7" height="18" rx="1"></rect>
+                <rect x="14" y="3" width="7" height="18" rx="1"></rect>
+              </svg>
+            </button>
+            <button class="split-preset-btn" data-ratio="0.25" title="Small Left (25/75)">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <rect x="3" y="3" width="4" height="18" rx="1"></rect>
+                <rect x="10" y="3" width="11" height="18" rx="1"></rect>
+              </svg>
+            </button>
+            <button class="split-preset-btn" data-ratio="0.75" title="Large Left (75/25)">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <rect x="3" y="3" width="11" height="18" rx="1"></rect>
+                <rect x="17" y="3" width="4" height="18" rx="1"></rect>
+              </svg>
+            </button>
+          </div>
+        `;
       }
 
       const iframeContainer = document.getElementById('iframe-container');

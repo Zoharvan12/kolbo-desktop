@@ -29,10 +29,15 @@ class TabManager {
     // Generate unique ID for this window instance to avoid localStorage conflicts
     this.windowId = `win_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
 
+    // Merged tabs tracking
+    this.mergedTabs = new Map(); // mergedTabId -> { leftTabId, rightTabId, leftPane, rightPane, divider, activePaneId, splitRatio }
+
     // DOM elements
     this.tabList = document.getElementById('tab-list');
     this.iframeContainer = document.getElementById('iframe-container');
     this.newTabBtn = document.getElementById('new-tab-btn');
+    this.splitViewBtn = document.getElementById('split-view-btn');
+    this.splitPresetsContainer = document.getElementById('split-presets');
     this.loadingEl = document.getElementById('webapp-loading');
     this.backBtn = document.getElementById('webapp-back-btn');
     this.forwardBtn = document.getElementById('webapp-forward-btn');
@@ -166,6 +171,22 @@ class TabManager {
       this.newTabBtn.addEventListener('click', () => this.createTab());
     }
 
+    // Bind split view button
+    if (this.splitViewBtn) {
+      this.splitViewBtn.addEventListener('click', () => this.toggleSplitView());
+    }
+
+    // Bind split preset buttons
+    if (this.splitPresetsContainer) {
+      const presetButtons = this.splitPresetsContainer.querySelectorAll('.split-preset-btn');
+      presetButtons.forEach(btn => {
+        btn.addEventListener('click', (e) => {
+          const ratio = parseFloat(e.currentTarget.getAttribute('data-ratio'));
+          this.applySplitPreset(ratio);
+        });
+      });
+    }
+
     // Bind navigation button events
     if (this.backBtn) {
       this.backBtn.addEventListener('click', () => this.goBack());
@@ -189,8 +210,34 @@ class TabManager {
     // Setup listener for opening specific tabs in new windows
     this.setupNewWindowTabListener();
 
+    // Auto-save state on window close/blur to preserve user's work
+    this.setupAutoSave();
+
     if (this.DEBUG_MODE) {
       console.log('[TabManager] Initialized with', this.tabs.length, 'tabs');
+    }
+  }
+
+  setupAutoSave() {
+    // Save state before window closes
+    window.addEventListener('beforeunload', () => {
+      this.saveTabs();
+    });
+
+    // Auto-save every 30 seconds to prevent data loss
+    setInterval(() => {
+      this.saveTabs();
+    }, 30000);
+
+    // Save on visibility change (when user switches away)
+    document.addEventListener('visibilitychange', () => {
+      if (document.hidden) {
+        this.saveTabs();
+      }
+    });
+
+    if (this.DEBUG_MODE) {
+      console.log('[TabManager] Auto-save enabled (30s interval + beforeunload)');
     }
   }
 
@@ -286,18 +333,22 @@ class TabManager {
       const isMainWindow = !window.opener; // window.opener is set if opened by another window
 
       if (isMainWindow) {
-        const savedTabs = localStorage.getItem('kolbo_tabs');
-        const savedActiveTabId = localStorage.getItem('kolbo_active_tab');
+        // Try to load new state format first
+        const savedState = localStorage.getItem('kolbo_tabs_state');
 
-        if (savedTabs) {
-          const tabsData = JSON.parse(savedTabs);
-          if (Array.isArray(tabsData) && tabsData.length > 0) {
-            // 🔧 FIX: Update saved URLs to use current environment's webapp URL
-            // This prevents using production URLs when in development mode
+        if (savedState) {
+          const state = JSON.parse(savedState);
+
+          if (state.tabs && Array.isArray(state.tabs) && state.tabs.length > 0) {
             const currentWebappUrl = this.getWebappUrl();
+            const tabIdMap = new Map(); // Map old IDs to new IDs
 
-            // Create tabs sequentially with await
-            for (const tabData of tabsData) {
+            if (this.DEBUG_MODE) {
+              console.log('[TabManager] Restoring state:', state);
+            }
+
+            // Create all regular tabs first
+            for (const tabData of state.tabs) {
               // Replace the base URL with the current environment's URL
               let updatedUrl = tabData.url;
 
@@ -318,21 +369,112 @@ class TabManager {
                 }
               }
 
-              await this.createTab(updatedUrl, tabData.title, false);
+              const newTab = await this.createTab(updatedUrl, tabData.title, false);
+              if (newTab && tabData.id) {
+                tabIdMap.set(tabData.id, newTab.id);
+              }
+            }
+
+            // Restore merged tabs if any
+            if (state.mergedTabs && state.mergedTabs.length > 0) {
+              for (const mergedData of state.mergedTabs) {
+                const leftTabId = tabIdMap.get(mergedData.leftTabId);
+                const rightTabId = tabIdMap.get(mergedData.rightTabId);
+
+                if (leftTabId && rightTabId) {
+                  // Find the tabs
+                  const leftTab = this.tabs.find(t => t.id === leftTabId);
+                  const rightTab = this.tabs.find(t => t.id === rightTabId);
+
+                  if (leftTab && rightTab) {
+                    // Create merged tab
+                    const currentIndex = this.tabs.indexOf(leftTab);
+                    this.activeTabId = leftTab.id; // Set active to left tab for createMergedTab
+
+                    // Store the desired split ratio before creating
+                    const desiredRatio = mergedData.splitRatio || 0.5;
+
+                    this.createMergedTab();
+
+                    // Apply the saved split ratio
+                    if (this.tabs.length > 0) {
+                      const mergedTab = this.tabs[this.tabs.length - 1];
+                      if (mergedTab.isMerged) {
+                        // Wait for next tick to ensure merged tab is fully created
+                        setTimeout(() => {
+                          this.activeTabId = mergedTab.id;
+                          this.applySplitPreset(desiredRatio);
+                        }, 100);
+                      }
+                    }
+
+                    if (this.DEBUG_MODE) {
+                      console.log('[TabManager] Restored merged tab with ratio:', desiredRatio);
+                    }
+                  }
+                }
+              }
             }
 
             // Restore active tab
-            if (savedActiveTabId) {
-              const activeTab = this.tabs.find(t => t.id === savedActiveTabId);
-              if (activeTab) {
-                this.switchTab(savedActiveTabId);
+            if (state.activeTabId) {
+              // Check if active tab was a merged tab
+              const wasMergedTab = state.mergedTabs &&
+                state.mergedTabs.some(m => m.mergedId === state.activeTabId);
+
+              if (wasMergedTab) {
+                // Find the recreated merged tab (it will be the last one)
+                const mergedTab = this.tabs.find(t => t.isMerged);
+                if (mergedTab) {
+                  this.switchTab(mergedTab.id);
+                } else {
+                  this.switchTab(this.tabs[0].id);
+                }
               } else {
-                this.switchTab(this.tabs[0].id);
+                // Regular tab - map old ID to new ID
+                const newActiveTabId = tabIdMap.get(state.activeTabId);
+                const activeTab = this.tabs.find(t => t.id === newActiveTabId);
+                if (activeTab) {
+                  this.switchTab(activeTab.id);
+                } else {
+                  this.switchTab(this.tabs[0].id);
+                }
               }
             } else {
               this.switchTab(this.tabs[0].id);
             }
 
+            if (this.DEBUG_MODE) {
+              console.log('[TabManager] State restored successfully');
+            }
+
+            return;
+          }
+        }
+
+        // Fallback: Try old format (backward compatibility)
+        const savedTabs = localStorage.getItem('kolbo_tabs');
+        if (savedTabs) {
+          const tabsData = JSON.parse(savedTabs);
+          if (Array.isArray(tabsData) && tabsData.length > 0) {
+            const currentWebappUrl = this.getWebappUrl();
+
+            for (const tabData of tabsData) {
+              let updatedUrl = tabData.url;
+
+              if (tabData.url.includes('app.kolbo.ai') ||
+                  tabData.url.includes('staging.kolbo.ai') ||
+                  tabData.url.includes('localhost:8080')) {
+
+                const urlObj = new URL(tabData.url);
+                const path = urlObj.pathname + urlObj.search + urlObj.hash;
+                updatedUrl = path === '/' ? currentWebappUrl : currentWebappUrl + path;
+              }
+
+              await this.createTab(updatedUrl, tabData.title, false);
+            }
+
+            this.switchTab(this.tabs[0].id);
             return;
           }
         }
@@ -350,12 +492,38 @@ class TabManager {
       // Only save tabs for the main window to avoid conflicts
       const isMainWindow = !window.opener;
       if (isMainWindow) {
-        const tabsData = this.tabs.map(tab => ({
-          url: tab.url,
-          title: tab.title
-        }));
-        localStorage.setItem('kolbo_tabs', JSON.stringify(tabsData));
-        localStorage.setItem('kolbo_active_tab', this.activeTabId);
+        const tabsData = this.tabs
+          .filter(tab => !tab.isMerged) // Don't save merged tabs, we'll recreate them
+          .map(tab => ({
+            url: tab.url,
+            title: tab.title,
+            id: tab.id
+          }));
+
+        // Save merged tabs info separately
+        const mergedTabsData = [];
+        this.mergedTabs.forEach((data, mergedId) => {
+          mergedTabsData.push({
+            mergedId: mergedId,
+            leftTabId: data.leftTabId,
+            rightTabId: data.rightTabId,
+            splitRatio: data.splitRatio || 0.5,
+            activePaneId: data.activePaneId || 'left'
+          });
+        });
+
+        const state = {
+          tabs: tabsData,
+          activeTabId: this.activeTabId,
+          mergedTabs: mergedTabsData,
+          timestamp: Date.now()
+        };
+
+        localStorage.setItem('kolbo_tabs_state', JSON.stringify(state));
+
+        if (this.DEBUG_MODE) {
+          console.log('[TabManager] Saved state:', state);
+        }
       }
     } catch (error) {
       console.error('[TabManager] Error saving tabs:', error);
@@ -504,6 +672,9 @@ class TabManager {
       this.switchTab(tabId);
     }
 
+    // Update split view button state
+    this.updateSplitViewButtonState();
+
     // Save tabs
     this.saveTabs();
 
@@ -514,18 +685,94 @@ class TabManager {
     const tabIndex = this.tabs.findIndex(t => t.id === tabId);
     if (tabIndex === -1) return;
 
-    // Don't close if it's the last tab
-    if (this.tabs.length === 1) {
-      if (this.DEBUG_MODE) {
-        console.log('[TabManager] Cannot close last tab');
-      }
-      return;
-    }
-
     const tab = this.tabs[tabIndex];
 
     if (this.DEBUG_MODE) {
       console.log('[TabManager] Closing tab:', tabId);
+    }
+
+    // Handle merged tab closing
+    if (tab.isMerged) {
+      // Get the original tabs
+      const leftTab = this.tabs.find(t => t.id === tab.leftTabId);
+      const rightTab = this.tabs.find(t => t.id === tab.rightTabId);
+
+      // Get the merged tab data to access the iframes
+      const mergedData = this.mergedTabs.get(tabId);
+
+      if (this.DEBUG_MODE) {
+        console.log('[TabManager] Closing merged tab, restoring original tabs:', tab.leftTabId, tab.rightTabId);
+      }
+
+      // Remove CSS classes from iframes to restore normal layout (NO DOM MOVING!)
+      if (mergedData) {
+        if (mergedData.leftIframe) {
+          mergedData.leftIframe.classList.remove('split-left-iframe', 'split-active');
+          mergedData.leftIframe.style.width = '';
+          mergedData.leftIframe.style.left = '';
+          mergedData.leftIframe.style.right = '';
+          mergedData.leftIframe.classList.remove('active');
+          if (this.DEBUG_MODE) {
+            console.log('[TabManager] Restored left iframe CSS:', leftTab.id);
+          }
+        }
+        if (mergedData.rightIframe) {
+          mergedData.rightIframe.classList.remove('split-right-iframe', 'split-active');
+          mergedData.rightIframe.style.width = '';
+          mergedData.rightIframe.style.left = '';
+          mergedData.rightIframe.style.right = '';
+          mergedData.rightIframe.classList.remove('active');
+          if (this.DEBUG_MODE) {
+            console.log('[TabManager] Restored right iframe CSS:', rightTab.id);
+          }
+        }
+      }
+
+      // Remove merged tab element and overlay from DOM
+      tab.element.remove();
+      tab.iframe.remove();
+
+      // Remove from array
+      this.tabs.splice(tabIndex, 1);
+
+      // Remove from merged tabs map
+      this.mergedTabs.delete(tabId);
+
+      // Restore original tabs visibility
+      if (leftTab) {
+        leftTab.element.style.display = '';
+      }
+      if (rightTab) {
+        rightTab.element.style.display = '';
+      }
+
+      // Switch to left tab (which will properly show its iframe)
+      if (leftTab) {
+        this.switchTab(leftTab.id);
+      } else if (rightTab) {
+        this.switchTab(rightTab.id);
+      }
+
+      // Update split view button state
+      this.updateSplitViewButtonState();
+
+      // Save tabs
+      this.saveTabs();
+
+      if (this.DEBUG_MODE) {
+        console.log('[TabManager] Merged tab closed successfully');
+      }
+
+      return;
+    }
+
+    // Don't close if it's the last non-hidden tab
+    const visibleTabs = this.tabs.filter(t => t.element.style.display !== 'none');
+    if (visibleTabs.length === 1) {
+      if (this.DEBUG_MODE) {
+        console.log('[TabManager] Cannot close last visible tab');
+      }
+      return;
     }
 
     // If closing active tab, switch to another tab
@@ -542,6 +789,9 @@ class TabManager {
     // Remove from array
     this.tabs.splice(tabIndex, 1);
 
+    // Update split view button state
+    this.updateSplitViewButtonState();
+
     // Save tabs
     this.saveTabs();
   }
@@ -557,11 +807,34 @@ class TabManager {
     // Update active tab ID
     this.activeTabId = tabId;
 
-    // Update UI
+    // Update UI - only visible tabs
     this.tabs.forEach(t => {
-      t.element.classList.toggle('active', t.id === tabId);
+      if (t.element.style.display !== 'none') {
+        t.element.classList.toggle('active', t.id === tabId);
+      }
       t.iframe.classList.toggle('active', t.id === tabId);
     });
+
+    // Handle merged tab - ensure both iframes are visible
+    if (tab.isMerged) {
+      const mergedData = this.mergedTabs.get(tabId);
+      if (mergedData) {
+        // Show both split iframes
+        mergedData.leftIframe.style.display = 'block';
+        mergedData.rightIframe.style.display = 'block';
+
+        if (this.DEBUG_MODE) {
+          console.log('[TabManager] Showing split iframes for merged tab:', tabId);
+        }
+      }
+    } else {
+      // Hide any split iframes from other merged tabs
+      this.mergedTabs.forEach((data, mergedId) => {
+        if (mergedId !== tabId) {
+          // Don't hide them, let the normal active class handle it
+        }
+      });
+    }
 
     // Show/hide loading based on tab loaded state
     if (this.loadingEl) {
@@ -571,6 +844,9 @@ class TabManager {
         this.loadingEl.style.display = 'flex';
       }
     }
+
+    // Update split view button state
+    this.updateSplitViewButtonState();
 
     // Save tabs
     this.saveTabs();
@@ -610,6 +886,12 @@ class TabManager {
         }
       }
 
+      // Ctrl+Shift+S - Toggle split view (create/close merged tab)
+      if ((e.ctrlKey || e.metaKey) && e.shiftKey && e.key === 'S') {
+        e.preventDefault();
+        this.toggleSplitView();
+      }
+
       // Ctrl+Tab - Next tab
       if (e.ctrlKey && e.key === 'Tab' && !e.shiftKey) {
         e.preventDefault();
@@ -626,7 +908,7 @@ class TabManager {
       if (e.ctrlKey && e.key >= '1' && e.key <= '9') {
         e.preventDefault();
         const index = parseInt(e.key) - 1;
-        if (this.tabs[index]) {
+        if (this.tabs[index] && this.tabs[index].element.style.display !== 'none') {
           this.switchTab(this.tabs[index].id);
         }
       }
@@ -754,6 +1036,298 @@ class TabManager {
     });
     this.tabs = [];
     this.activeTabId = null;
+  }
+
+  // ============================================================================
+  // MERGED TABS / SPLIT VIEW METHODS
+  // ============================================================================
+
+  /**
+   * Toggle merged tab - create or close merged tab
+   */
+  toggleSplitView() {
+    const activeTab = this.tabs.find(t => t.id === this.activeTabId);
+
+    // Check if current tab is a merged tab
+    if (activeTab && activeTab.isMerged) {
+      // Close the merged tab (which will restore the original tabs)
+      this.closeTab(activeTab.id);
+    } else {
+      // Create a new merged tab
+      this.createMergedTab();
+    }
+  }
+
+  /**
+   * Create a new merged tab from 2 existing tabs
+   */
+  createMergedTab() {
+    // Need at least 2 tabs
+    if (this.tabs.length < 2) {
+      this.showToast('Need at least 2 tabs to create a merged view');
+      return;
+    }
+
+    // Get current tab and next tab
+    const currentIndex = this.tabs.findIndex(t => t.id === this.activeTabId);
+    const nextIndex = currentIndex + 1 < this.tabs.length ? currentIndex + 1 : 0;
+
+    const leftTab = this.tabs[currentIndex];
+    const rightTab = this.tabs[nextIndex];
+
+    if (this.DEBUG_MODE) {
+      console.log('[TabManager] Creating merged tab from:', leftTab.title, 'and', rightTab.title);
+    }
+
+    // Create merged tab ID
+    const mergedTabId = `merged-tab-${this.nextTabId++}`;
+    const mergedTitle = `${leftTab.title} | ${rightTab.title}`;
+
+    // Create merged tab element
+    const tabElement = document.createElement('div');
+    tabElement.className = 'tab tab-merged';
+    tabElement.id = `tab-${mergedTabId}`;
+    tabElement.setAttribute('data-tab-id', mergedTabId);
+    tabElement.innerHTML = `
+      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="merged-icon">
+        <rect x="3" y="3" width="7" height="18" rx="1"></rect>
+        <rect x="14" y="3" width="7" height="18" rx="1"></rect>
+      </svg>
+      <span class="tab-title">${this.escapeHtml(mergedTitle)}</span>
+      <button class="tab-close" title="Close tab (Ctrl+W)">
+        <svg width="10" height="10" viewBox="0 0 12 12">
+          <path d="M1 1l10 10M11 1L1 11" stroke="currentColor" stroke-width="1.5"/>
+        </svg>
+      </button>
+    `;
+
+    // DON'T create a container or move iframes! Instead, we'll use CSS to position them.
+    // Store references to the actual iframe elements (they stay in place)
+    const leftIframe = leftTab.iframe;
+    const rightIframe = rightTab.iframe;
+
+    // Create overlay container that sits on top
+    const mergedContainer = document.createElement('div');
+    mergedContainer.id = `iframe-${mergedTabId}`;
+    mergedContainer.className = 'merged-split-overlay';
+
+    // Create divider only (panes will be CSS-based)
+    const divider = document.createElement('div');
+    divider.className = 'split-divider';
+    divider.style.left = '50%'; // Initial position
+    mergedContainer.appendChild(divider);
+
+    // Add to DOM
+    const newTabBtn = document.getElementById('new-tab-btn');
+    if (newTabBtn && newTabBtn.parentNode === this.tabList) {
+      this.tabList.insertBefore(tabElement, newTabBtn);
+    } else {
+      this.tabList.appendChild(tabElement);
+    }
+    this.iframeContainer.appendChild(mergedContainer);
+
+    // Create tab object
+    const mergedTab = {
+      id: mergedTabId,
+      title: mergedTitle,
+      url: 'merged', // Special URL for merged tabs
+      element: tabElement,
+      iframe: mergedContainer,
+      loaded: true,
+      isMerged: true, // Flag to identify merged tabs
+      leftTabId: leftTab.id,
+      rightTabId: rightTab.id
+    };
+
+    // Store merged tab info including iframe references
+    this.mergedTabs.set(mergedTabId, {
+      leftTabId: leftTab.id,
+      rightTabId: rightTab.id,
+      divider,
+      leftIframe,  // Store iframe reference
+      rightIframe, // Store iframe reference
+      activePaneId: 'left',
+      splitRatio: 0.5
+    });
+
+    // Apply CSS classes to iframes for split positioning (NO DOM MOVING!)
+    leftIframe.classList.add('split-left-iframe');
+    leftIframe.style.width = '50%';
+    leftIframe.style.left = '0';
+    leftIframe.classList.add('active');
+
+    rightIframe.classList.add('split-right-iframe');
+    rightIframe.style.width = '50%';
+    rightIframe.style.left = '50%';
+    rightIframe.classList.remove('active');
+
+    // Add event listeners
+    tabElement.addEventListener('click', (e) => {
+      if (!e.target.closest('.tab-close')) {
+        this.switchTab(mergedTabId);
+      }
+    });
+
+    tabElement.querySelector('.tab-close').addEventListener('click', (e) => {
+      e.stopPropagation();
+      this.closeTab(mergedTabId);
+    });
+
+    // Setup divider drag
+    this.setupMergedTabDivider(mergedTabId, divider, leftIframe, rightIframe);
+
+    // Track active pane on click (but don't show visual indicator)
+    leftIframe.addEventListener('click', () => {
+      const mergedData = this.mergedTabs.get(mergedTabId);
+      if (mergedData) mergedData.activePaneId = 'left';
+    });
+    rightIframe.addEventListener('click', () => {
+      const mergedData = this.mergedTabs.get(mergedTabId);
+      if (mergedData) mergedData.activePaneId = 'right';
+    });
+
+    // Add to tabs array
+    this.tabs.push(mergedTab);
+
+    // Hide original tabs (but keep their iframe references intact)
+    // Note: The iframes have been moved to the merged container's panes,
+    // but the tab objects still maintain their references for restoration
+    leftTab.element.style.display = 'none';
+    rightTab.element.style.display = 'none';
+    // The iframes are now inside the panes, so they're still accessible via leftTab.iframe and rightTab.iframe
+
+    // Switch to merged tab
+    this.switchTab(mergedTabId);
+
+    // Update split view button state
+    this.updateSplitViewButtonState();
+
+    // Save tabs
+    this.saveTabs();
+
+    if (this.DEBUG_MODE) {
+      console.log('[TabManager] Merged tab created:', mergedTabId);
+    }
+  }
+
+  /**
+   * Setup divider for a merged tab - click to cycle through presets
+   */
+  setupMergedTabDivider(mergedTabId, divider, leftIframe, rightIframe) {
+    // Store references in mergedTabs for applySplitPreset to use
+    const mergedData = this.mergedTabs.get(mergedTabId);
+    if (mergedData) {
+      mergedData.divider = divider;
+      mergedData.leftIframe = leftIframe;
+      mergedData.rightIframe = rightIframe;
+    }
+
+    // Click on divider to cycle through presets: 50/50 -> 25/75 -> 75/25 -> 50/50
+    const presets = [0.5, 0.25, 0.75];
+
+    divider.addEventListener('click', (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+
+      const currentRatio = mergedData.splitRatio || 0.5;
+      const currentIndex = presets.indexOf(currentRatio);
+      const nextIndex = (currentIndex + 1) % presets.length;
+      const nextRatio = presets[nextIndex];
+
+      this.applySplitPreset(nextRatio);
+    });
+
+    // Visual feedback
+    divider.style.cursor = 'pointer';
+  }
+
+  /**
+   * Apply a split preset ratio to the active merged tab
+   */
+  applySplitPreset(ratio) {
+    const activeTab = this.tabs.find(t => t.id === this.activeTabId);
+    if (!activeTab || !activeTab.isMerged) return;
+
+    const mergedData = this.mergedTabs.get(activeTab.id);
+    if (!mergedData) return;
+
+    const { divider, leftIframe, rightIframe } = mergedData;
+
+    // Update iframe widths and positions
+    const leftPercent = (ratio * 100) + '%';
+    const rightPercent = ((1 - ratio) * 100) + '%';
+
+    leftIframe.style.width = leftPercent;
+    rightIframe.style.width = rightPercent;
+    rightIframe.style.left = leftPercent;
+
+    // Update divider position
+    divider.style.left = leftPercent;
+
+    // Update stored ratio
+    mergedData.splitRatio = ratio;
+
+    // Update active state of preset buttons
+    if (this.splitPresetsContainer) {
+      const presetButtons = this.splitPresetsContainer.querySelectorAll('.split-preset-btn');
+      presetButtons.forEach(btn => {
+        const btnRatio = parseFloat(btn.getAttribute('data-ratio'));
+        btn.classList.toggle('active', btnRatio === ratio);
+      });
+    }
+
+    if (this.DEBUG_MODE) {
+      console.log('[TabManager] Split ratio changed to:', ratio);
+    }
+  }
+
+  /**
+   * Set active pane for a merged tab
+   */
+  setMergedTabActivePane(mergedTabId, paneId) {
+    const mergedData = this.mergedTabs.get(mergedTabId);
+    if (!mergedData) return;
+
+    mergedData.activePaneId = paneId;
+
+    // Update visual indicators with CSS classes
+    mergedData.leftIframe.classList.toggle('split-active', paneId === 'left');
+    mergedData.rightIframe.classList.toggle('split-active', paneId === 'right');
+  }
+
+  /**
+   * Update split view button state
+   */
+  updateSplitViewButtonState() {
+    if (!this.splitViewBtn) return;
+
+    const activeTab = this.tabs.find(t => t.id === this.activeTabId);
+
+    // If current tab is merged, show "active" state and preset buttons
+    if (activeTab && activeTab.isMerged) {
+      this.splitViewBtn.classList.add('active');
+      this.splitViewBtn.disabled = false;
+
+      // Show preset buttons
+      if (this.splitPresetsContainer) {
+        this.splitPresetsContainer.classList.remove('hidden');
+      }
+    } else {
+      this.splitViewBtn.classList.remove('active');
+
+      // Hide preset buttons
+      if (this.splitPresetsContainer) {
+        this.splitPresetsContainer.classList.add('hidden');
+      }
+
+      // Disable button if less than 2 non-merged tabs
+      const nonMergedTabs = this.tabs.filter(t => !t.isMerged && t.element.style.display !== 'none');
+      if (nonMergedTabs.length < 2) {
+        this.splitViewBtn.disabled = true;
+      } else {
+        this.splitViewBtn.disabled = false;
+      }
+    }
   }
 }
 
