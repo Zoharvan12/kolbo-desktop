@@ -33,3 +33,4 @@ Thumbs.db
 
 # Auto-generated build environment config (created during builds)
 src/renderer/build-env.js
+nul
