@@ -1,20 +1,56 @@
-// Kolbo Studio - Preload Script (MINIMAL TEST VERSION)
+// Kolbo Studio - Preload Script
+// Secure bridge between main and renderer process using contextBridge
+// This is the ONLY way renderer can communicate with main process
+
 console.log('[Preload] Script starting...');
 
 const { contextBridge, ipcRenderer } = require('electron');
-console.log('[Preload] Electron loaded');
+const path = require('path');
 
-// Test if path module can be required
-try {
-  const path = require('path');
-  console.log('[Preload] Path module loaded successfully');
-} catch (err) {
-  console.error('[Preload] FAILED to load path module:', err);
+// Detect environment from app executable name
+// Dev: "Kolbo Studio Dev" → development
+// Staging: "Kolbo Studio Staging" → staging
+// Prod: "Kolbo Studio" → production
+function detectEnvironment() {
+  try {
+    // PRIORITY 1: Check process.env.KOLBO_ENV (works with npm start using cross-env)
+    if (process.env.KOLBO_ENV) {
+      console.log('[Preload] Environment from KOLBO_ENV:', process.env.KOLBO_ENV);
+      return process.env.KOLBO_ENV;
+    }
+
+    // PRIORITY 2: Detect from executable name (works in packaged apps)
+    let exeName = path.basename(process.execPath);
+    console.log('[Preload] Executable path:', process.execPath);
+    console.log('[Preload] Executable name:', exeName);
+
+    // Remove .exe extension on Windows
+    if (exeName.endsWith('.exe')) {
+      exeName = exeName.slice(0, -4);
+    }
+
+    // Check if this is the packaged app (not electron.exe in node_modules)
+    if (exeName.toLowerCase().includes('kolbo')) {
+      if (exeName.includes('Dev')) {
+        return 'development';
+      } else if (exeName.includes('Staging')) {
+        return 'staging';
+      } else {
+        return 'production';
+      }
+    }
+
+    // PRIORITY 3: Fallback to development (for npm start without cross-env)
+    console.log('[Preload] Using fallback environment: development');
+    return 'development';
+  } catch (err) {
+    console.error('[Preload] Error detecting environment:', err);
+    return 'development';
+  }
 }
 
-// Simple environment detection without path module
-const detectedEnvironment = process.env.KOLBO_ENV || 'development';
-console.log('[Preload] Environment:', detectedEnvironment);
+const detectedEnvironment = detectEnvironment();
+console.log('[Preload] Detected environment:', detectedEnvironment);
 
 // Expose safe API to renderer process
 contextBridge.exposeInMainWorld('kolboDesktop', {
@@ -175,3 +211,4 @@ contextBridge.exposeInMainWorld('kolboDesktop', {
 
 console.log('[Preload] Context bridge established');
 console.log('[Preload] Platform:', process.platform);
+console.log('[Preload] Electron version:', process.versions.electron);

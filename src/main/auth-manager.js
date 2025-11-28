@@ -67,20 +67,21 @@ class AuthManager {
     try {
       console.log('[AuthManager] Google OAuth login initiated');
 
-      // Generate random 16-char hex auth code (SAME AS PLUGIN)
+      // Generate random 16-char hex auth code (for desktop app)
       const authCode = crypto.randomBytes(8).toString('hex');
 
       const API_BASE_URL = config.apiUrl;
-      const authUrl = `${API_BASE_URL}/auth/google?plugin_auth_code=${authCode}`;
+      // Use desktop_auth_code instead of plugin_auth_code to differentiate
+      const authUrl = `${API_BASE_URL}/auth/google?desktop_auth_code=${authCode}`;
 
       console.log('[AuthManager] Opening browser with auth code:', authCode);
 
-      // Open system browser (Electron equivalent of CEP openURLInDefaultBrowser)
+      // Open system browser
       await shell.openExternal(authUrl);
 
       console.log('[AuthManager] Browser opened, starting polling...');
 
-      // Poll for token (EXACT SAME AS PLUGIN: 30 attempts, 1 second interval)
+      // Poll for token (30 attempts, 1 second interval)
       for (let i = 0; i < 30; i++) {
         await new Promise(resolve => setTimeout(resolve, 1000));
 

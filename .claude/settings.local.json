@@ -29,7 +29,8 @@
       "Bash(npm install:*)",
       "Bash(cat:*)",
       "WebSearch",
-      "Bash(tasklist)"
+      "Bash(tasklist)",
+      "Read(//g/Projects/Kolbo.AI/github/kolbo-api/**)"
     ],
     "deny": [],
     "ask": []

@@ -211,6 +211,16 @@ class KolboAPI {
       console.log('[API] Google login via IPC');
     }
 
+    // Check if Electron bridge is available
+    if (!window.kolboDesktop || !window.kolboDesktop.googleLogin) {
+      console.error('[API] window.kolboDesktop is not available. Make sure preload.js is loaded correctly.');
+      console.error('[API] window.kolboDesktop:', window.kolboDesktop);
+      return {
+        success: false,
+        error: 'Electron bridge not available. Please restart the app.'
+      };
+    }
+
     try {
       const response = await window.kolboDesktop.googleLogin();
 

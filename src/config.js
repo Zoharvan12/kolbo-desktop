@@ -8,21 +8,55 @@
 // ============================================================================
 
 // ============================================
-// 🎯 ENVIRONMENT AUTO-DETECTED FROM BUILD
+// 🎯 ENVIRONMENT AUTO-DETECTED FROM APP NAME
 // ============================================
-// In main process: reads from process.env.KOLBO_ENV (set during build)
-// In renderer process: reads from window.kolboDesktop.environment (passed via preload)
-// Fallback: 'development' for local dev
+// Detects environment from app executable name:
+// - "Kolbo Studio Dev" → development
+// - "Kolbo Studio Staging" → staging
+// - "Kolbo Studio" → production
 const ENVIRONMENT = (() => {
-  // Main process (Node.js environment)
-  if (typeof process !== 'undefined' && process.env && process.env.KOLBO_ENV) {
-    return process.env.KOLBO_ENV;
-  }
-  // Renderer process (browser environment with Electron bridge)
+  // Renderer process: use environment from kolboDesktop bridge (set by preload.js)
   if (typeof window !== 'undefined' && window.kolboDesktop && window.kolboDesktop.environment) {
     return window.kolboDesktop.environment;
   }
-  // Fallback for development
+
+  // Main process: detect environment (only if we have access to require)
+  if (typeof process !== 'undefined' && typeof require !== 'undefined') {
+    try {
+      // PRIORITY 1: Check process.env.KOLBO_ENV (works with npm start using cross-env)
+      if (process.env.KOLBO_ENV) {
+        return process.env.KOLBO_ENV;
+      }
+
+      // PRIORITY 2: Detect from executable name (works in packaged apps)
+      const path = require('path');
+      const exePath = process.execPath || '';
+
+      // Get just the filename without path
+      const lastSlash = Math.max(exePath.lastIndexOf('/'), exePath.lastIndexOf('\\'));
+      let exeName = lastSlash >= 0 ? exePath.substring(lastSlash + 1) : exePath;
+
+      // Remove .exe extension on Windows
+      if (exeName.endsWith('.exe')) {
+        exeName = exeName.slice(0, -4);
+      }
+
+      // Check if this is the packaged app (not electron.exe in node_modules)
+      if (exeName.toLowerCase().includes('kolbo')) {
+        if (exeName.includes('Dev')) {
+          return 'development';
+        } else if (exeName.includes('Staging')) {
+          return 'staging';
+        } else {
+          return 'production';
+        }
+      }
+    } catch (err) {
+      console.error('[Config] Failed to detect environment:', err);
+    }
+  }
+
+  // Fallback for npm start / development
   return 'development';
 })();
 

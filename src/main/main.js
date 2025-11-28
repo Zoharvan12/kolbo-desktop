@@ -70,7 +70,12 @@ function createWindow() {
     webPreferences: {
       nodeIntegration: false,      // Security: no Node.js in renderer
       contextIsolation: true,       // Security: isolate contexts
-      preload: path.join(__dirname, 'preload.js'),
+      preload: (() => {
+        const preloadPath = path.join(__dirname, 'preload.js');
+        console.log('[Main] Preload script path:', preloadPath);
+        console.log('[Main] Preload exists:', require('fs').existsSync(preloadPath));
+        return preloadPath;
+      })(),
       webSecurity: process.env.NODE_ENV === 'development' ? false : true  // Enabled in production
     },
     show: true // Show immediately for debugging
