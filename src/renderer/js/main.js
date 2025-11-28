@@ -37,7 +37,7 @@ class KolboApp {
     this.currentFilter = 'all';
     this.currentSubcategory = 'all';
     this.selectedProjectId = localStorage.getItem('kolbo_selected_project') || 'all';
-    this.gridSize = parseInt(localStorage.getItem('kolbo_grid_size')) || 2;
+    this.gridSize = parseInt(localStorage.getItem('kolbo_grid_size')) || 3;
 
     // Media & Pagination State
     this.media = [];
@@ -466,11 +466,35 @@ class KolboApp {
   handleRefresh() {
     if (this.currentView === 'media') {
       this.loadMedia(true);
-    } else if (this.currentView === 'webapp' && this.tabManager) {
-      // Reload active tab
-      const activeTab = this.tabManager.getActiveTab();
-      if (activeTab && activeTab.iframe) {
-        activeTab.iframe.src = activeTab.iframe.src; // Force reload
+    } else if (this.currentView === 'webapp') {
+      // Full webapp relaunch - destroy and recreate TabManager
+      // This helps recover from bugs, crashes, or any issues
+      if (this.DEBUG_MODE) {
+        console.log('[Refresh] Relaunching entire webapp view...');
+      }
+
+      // Destroy existing TabManager if it exists
+      if (this.tabManager) {
+        this.tabManager.destroy();
+        this.tabManager = null;
+      }
+
+      // Clear the tab list and iframe container
+      const tabList = document.getElementById('tab-list');
+      if (tabList) {
+        tabList.innerHTML = '<button id="new-tab-btn" class="new-tab-btn" title="New Tab (Ctrl+T)"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M5 12h14"/></svg><span>New Tab</span></button>';
+      }
+
+      const iframeContainer = document.getElementById('iframe-container');
+      if (iframeContainer) {
+        iframeContainer.innerHTML = '<div id="webapp-loading" class="loading-state"><div class="spinner"></div><p>Loading Kolbo Web App...</p></div>';
+      }
+
+      // Recreate TabManager (will rebind to new-tab-btn)
+      this.tabManager = new TabManager();
+
+      if (this.DEBUG_MODE) {
+        console.log('[Refresh] Webapp view relaunched successfully');
       }
     }
   }

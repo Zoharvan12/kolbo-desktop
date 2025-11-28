@@ -34,6 +34,9 @@ class TabManager {
     this.iframeContainer = document.getElementById('iframe-container');
     this.newTabBtn = document.getElementById('new-tab-btn');
     this.loadingEl = document.getElementById('webapp-loading');
+    this.backBtn = document.getElementById('webapp-back-btn');
+    this.forwardBtn = document.getElementById('webapp-forward-btn');
+    this.refreshBtn = document.getElementById('webapp-refresh-btn');
 
     // Default Kolbo.ai URLs
     this.defaultUrls = {
@@ -161,6 +164,17 @@ class TabManager {
     // Bind events
     if (this.newTabBtn) {
       this.newTabBtn.addEventListener('click', () => this.createTab());
+    }
+
+    // Bind navigation button events
+    if (this.backBtn) {
+      this.backBtn.addEventListener('click', () => this.goBack());
+    }
+    if (this.forwardBtn) {
+      this.forwardBtn.addEventListener('click', () => this.goForward());
+    }
+    if (this.refreshBtn) {
+      this.refreshBtn.addEventListener('click', () => this.refresh());
     }
 
     // Load saved tabs or create default tab (MUST AWAIT!)
@@ -629,6 +643,78 @@ class TabManager {
     const currentIndex = this.tabs.findIndex(t => t.id === this.activeTabId);
     const prevIndex = currentIndex === 0 ? this.tabs.length - 1 : currentIndex - 1;
     this.switchTab(this.tabs[prevIndex].id);
+  }
+
+  /**
+   * Navigate back in the active tab's iframe
+   */
+  goBack() {
+    const activeTab = this.getActiveTab();
+    if (!activeTab || !activeTab.iframe) {
+      console.warn('[TabManager] No active tab for navigation');
+      return;
+    }
+
+    try {
+      // Use contentWindow.history.back() to navigate back
+      if (activeTab.iframe.contentWindow && activeTab.iframe.contentWindow.history) {
+        activeTab.iframe.contentWindow.history.back();
+        if (this.DEBUG_MODE) {
+          console.log('[TabManager] Navigated back in tab:', activeTab.id);
+        }
+      }
+    } catch (error) {
+      console.error('[TabManager] Error navigating back:', error);
+    }
+  }
+
+  /**
+   * Navigate forward in the active tab's iframe
+   */
+  goForward() {
+    const activeTab = this.getActiveTab();
+    if (!activeTab || !activeTab.iframe) {
+      console.warn('[TabManager] No active tab for navigation');
+      return;
+    }
+
+    try {
+      // Use contentWindow.history.forward() to navigate forward
+      if (activeTab.iframe.contentWindow && activeTab.iframe.contentWindow.history) {
+        activeTab.iframe.contentWindow.history.forward();
+        if (this.DEBUG_MODE) {
+          console.log('[TabManager] Navigated forward in tab:', activeTab.id);
+        }
+      }
+    } catch (error) {
+      console.error('[TabManager] Error navigating forward:', error);
+    }
+  }
+
+  /**
+   * Refresh/reload the active tab's iframe
+   */
+  refresh() {
+    const activeTab = this.getActiveTab();
+    if (!activeTab || !activeTab.iframe) {
+      console.warn('[TabManager] No active tab to refresh');
+      return;
+    }
+
+    try {
+      // Use contentWindow.location.reload() to refresh the current page
+      if (activeTab.iframe.contentWindow && activeTab.iframe.contentWindow.location) {
+        activeTab.iframe.contentWindow.location.reload();
+        if (this.DEBUG_MODE) {
+          console.log('[TabManager] Refreshed tab:', activeTab.id);
+        }
+      }
+    } catch (error) {
+      // If cross-origin, fall back to reloading the iframe src
+      console.warn('[TabManager] Cross-origin reload, using iframe.src method');
+      const currentSrc = activeTab.iframe.src;
+      activeTab.iframe.src = currentSrc;
+    }
   }
 
   setupTabDrag(tabElement, tab) {

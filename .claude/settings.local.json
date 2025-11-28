@@ -33,7 +33,9 @@
       "Read(//g/Projects/Kolbo.AI/github/kolbo-api/**)",
       "Bash(findstr:*)",
       "Bash(tasklist:*)",
-      "Bash(del \"G:\\Projects\\Kolbo.AI\\github\\kolbo-desktop\\src\\renderer\\build-env.js\")"
+      "Bash(del \"G:\\Projects\\Kolbo.AI\\github\\kolbo-desktop\\src\\renderer\\build-env.js\")",
+      "Read(//g/Projects/Kolbo.AI/github/**)",
+      "Bash(git checkout:*)"
     ],
     "deny": [],
     "ask": []

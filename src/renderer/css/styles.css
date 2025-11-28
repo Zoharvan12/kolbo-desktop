@@ -589,6 +589,55 @@ html, body {
   display: none; /* Chrome/Safari */
 }
 
+/* Webapp Navigation Controls */
+.webapp-nav-controls {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 0 8px;
+  margin-right: 8px;
+  border-right: 1px solid rgba(255, 255, 255, 0.1);
+  -webkit-app-region: no-drag;
+}
+
+.webapp-nav-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 6px;
+  border: none;
+  background: transparent;
+  color: rgba(255, 255, 255, 0.6);
+  cursor: pointer;
+  transition: all 0.2s;
+  flex-shrink: 0;
+}
+
+.webapp-nav-btn:hover {
+  background: rgba(255, 255, 255, 0.08);
+  color: rgba(255, 255, 255, 0.9);
+}
+
+.webapp-nav-btn:active {
+  transform: scale(0.95);
+}
+
+.webapp-nav-btn:disabled {
+  opacity: 0.3;
+  cursor: not-allowed;
+}
+
+.webapp-nav-btn:disabled:hover {
+  background: transparent;
+  color: rgba(255, 255, 255, 0.6);
+}
+
+.webapp-nav-btn svg {
+  pointer-events: none;
+}
+
 .tab {
   display: flex;
   align-items: center;
