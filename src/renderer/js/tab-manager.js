@@ -21,6 +21,7 @@ class TabManager {
     this.nextTabId = 1;
     this.MAX_TABS = 10;
     this.DEBUG_MODE = window.KOLBO_CONFIG ? window.KOLBO_CONFIG.debug : false;
+    this.initialized = false; // Track initialization state
 
     // Cache webapp URL to avoid multiple calls
     this._cachedWebappUrl = null;
@@ -42,7 +43,15 @@ class TabManager {
       videoTools: `${this.getWebappUrl()}/video-tools`,
     };
 
-    this.init();
+    // Initialize asynchronously (can't await in constructor)
+    this.init().then(() => {
+      this.initialized = true;
+      if (this.DEBUG_MODE) {
+        console.log('[TabManager] Async initialization complete');
+      }
+    }).catch(err => {
+      console.error('[TabManager] Initialization error:', err);
+    });
   }
 
   getWebappUrl() {
@@ -56,9 +65,9 @@ class TabManager {
     // PRIORITY 1: Use centralized config from config.js (respects build environment)
     if (typeof window !== 'undefined' && window.KOLBO_CONFIG && window.KOLBO_CONFIG.webappUrl) {
       url = window.KOLBO_CONFIG.webappUrl;
-      if (this.DEBUG_MODE) {
-        console.log('[TabManager] Using webapp URL from KOLBO_CONFIG:', url);
-      }
+      // ALWAYS log for debugging
+      console.log('[TabManager] 📍 Using webapp URL from KOLBO_CONFIG:', url);
+      console.log('[TabManager] 📍 Environment:', window.KOLBO_CONFIG.environment);
     }
     // PRIORITY 2: Manual override via localStorage (for debugging/testing)
     else if (localStorage.getItem('WEBAPP_ENVIRONMENT')) {
@@ -140,7 +149,7 @@ class TabManager {
     return 'production';
   }
 
-  init() {
+  async init() {
     if (this.DEBUG_MODE) {
       console.log('[TabManager] Initializing...');
     }
@@ -154,8 +163,8 @@ class TabManager {
       this.newTabBtn.addEventListener('click', () => this.createTab());
     }
 
-    // Load saved tabs or create default tab
-    this.loadSavedTabs();
+    // Load saved tabs or create default tab (MUST AWAIT!)
+    await this.loadSavedTabs();
 
     // Setup keyboard shortcuts
     this.setupKeyboardShortcuts();
@@ -256,7 +265,7 @@ class TabManager {
     });
   }
 
-  loadSavedTabs() {
+  async loadSavedTabs() {
     try {
       // Only load tabs if this is the main window (first one opened)
       // New windows (from drag-out) start fresh
@@ -273,7 +282,8 @@ class TabManager {
             // This prevents using production URLs when in development mode
             const currentWebappUrl = this.getWebappUrl();
 
-            tabsData.forEach(tabData => {
+            // Create tabs sequentially with await
+            for (const tabData of tabsData) {
               // Replace the base URL with the current environment's URL
               let updatedUrl = tabData.url;
 
@@ -294,8 +304,8 @@ class TabManager {
                 }
               }
 
-              this.createTab(updatedUrl, tabData.title, false);
-            });
+              await this.createTab(updatedUrl, tabData.title, false);
+            }
 
             // Restore active tab
             if (savedActiveTabId) {
@@ -318,7 +328,7 @@ class TabManager {
     }
 
     // No saved tabs or new window, create default
-    this.createTab(this.defaultUrls.home);
+    await this.createTab(this.defaultUrls.home);
   }
 
   saveTabs() {
@@ -338,7 +348,7 @@ class TabManager {
     }
   }
 
-  createTab(url = null, title = null, switchTo = true) {
+  async createTab(url = null, title = null, switchTo = true) {
     // Check max tabs limit
     if (this.tabs.length >= this.MAX_TABS) {
       console.warn('[TabManager] Maximum number of tabs reached:', this.MAX_TABS);
@@ -369,6 +379,17 @@ class TabManager {
     // 2. Token stays synchronized if user re-logs in with different account
     // 3. Expired tokens get refreshed automatically
     // 4. The webapp knows it's embedded and won't try to do Google OAuth (which won't work in iframe)
+
+    // IMPORTANT: Sync token from main process (electron-store) before creating iframe
+    // This ensures Google OAuth tokens are available immediately after login
+    if (window.kolboAPI && typeof window.kolboAPI.syncTokenFromMainProcess === 'function') {
+      try {
+        await window.kolboAPI.syncTokenFromMainProcess();
+      } catch (error) {
+        console.error('[TabManager] Error syncing token from main process:', error);
+      }
+    }
+
     const token = window.kolboAPI?.getToken();
     if (token) {
       const separator = tabUrl.includes('?') ? '&' : '?';
@@ -376,15 +397,15 @@ class TabManager {
       // This tells the webapp to use the passed token and not show Google login options
       iframe.src = `${tabUrl}${separator}embedded=true&source=desktop&token=${encodeURIComponent(token)}`;
 
-      if (this.DEBUG_MODE) {
-        console.log(`[TabManager] Creating iframe with authentication token`);
-        console.log(`[TabManager] Token (first 20 chars): ${token.substring(0, 20)}...`);
-        console.log(`[TabManager] Full URL: ${tabUrl}${separator}embedded=true&source=desktop&token=${token.substring(0, 20)}...`);
-      }
+      // ALWAYS log iframe URL for debugging (even if not in debug mode)
+      console.log(`[TabManager] 🌐 Creating iframe with URL: ${tabUrl}${separator}embedded=true&source=desktop&token=***`);
+      console.log(`[TabManager] 🔑 Token (first 20 chars): ${token.substring(0, 20)}...`);
+      console.log(`[TabManager] ✅ Token synced from main process`);
     } else {
       iframe.src = tabUrl;
-      console.warn('[TabManager] No authentication token found - iframe will load without authentication');
-      console.warn('[TabManager] User may need to login again in the web app');
+      console.error('[TabManager] ❌ No authentication token found - iframe will load without authentication');
+      console.error('[TabManager] ⚠️ URL being loaded:', tabUrl);
+      console.error('[TabManager] ⚠️ User may need to login again in the web app');
     }
 
     // Create tab element

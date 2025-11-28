@@ -309,6 +309,11 @@ class FileManager {
   // Media API proxies (call Kolbo API from main process)
   static async getMedia(event, params) {
     try {
+      // Use favorites endpoint if filtering by favorites
+      if (params.isFavorited || params.category === 'favorites') {
+        return this.getFavorites(event, params);
+      }
+
       const API_BASE_URL = config.apiUrl;
       const token = store.get('token') || store.get('kolbo_access_token') || store.get('kolbo_token');
 
@@ -324,7 +329,7 @@ class FileManager {
       if (params.pageSize) queryParams.set('pageSize', params.pageSize);
       if (params.type && params.type !== 'all') queryParams.set('type', params.type);
       if (params.projectId && params.projectId !== 'all') queryParams.set('projectId', params.projectId);
-      if (params.category) queryParams.set('category', params.category);
+      if (params.category && params.category !== 'favorites') queryParams.set('category', params.category);
       if (params.sort) queryParams.set('sort', params.sort);
 
       const url = `${API_BASE_URL}/media/db/all?${queryParams.toString()}`;
@@ -353,6 +358,104 @@ class FileManager {
 
     } catch (error) {
       console.error('[FileManager] getMedia error:', error);
+      return { success: false, error: error.message };
+    }
+  }
+
+  // Get favorites using dedicated endpoint (same as Adobe plugin)
+  static async getFavorites(event, params) {
+    try {
+      const API_BASE_URL = config.apiUrl;
+      const token = store.get('token') || store.get('kolbo_access_token') || store.get('kolbo_token');
+
+      if (!token) {
+        console.error('[FileManager] No token found for favorites');
+        return { success: false, error: 'Not authenticated' };
+      }
+
+      const queryParams = new URLSearchParams();
+      // Favorites endpoint uses 'limit' instead of 'pageSize'
+      queryParams.set('limit', params.pageSize || 100);
+      if (params.page) queryParams.set('page', params.page);
+
+      // Add item_type filter if specified
+      if (params.type && params.type !== 'all') {
+        queryParams.set('item_type', params.type);
+      }
+
+      // Add project_id filter if specified
+      if (params.projectId && params.projectId !== 'all') {
+        queryParams.set('project_id', params.projectId);
+      }
+
+      const url = `${API_BASE_URL}/favorite-items?${queryParams.toString()}`;
+      console.log('[FileManager] Fetching favorites from:', url);
+
+      const response = await fetch(url, {
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      });
+
+      if (!response.ok) {
+        console.error('[FileManager] Favorites fetch failed:', response.status, response.statusText);
+        return { success: false, error: `HTTP ${response.status}` };
+      }
+
+      const responseData = await response.json();
+      console.log('[FileManager] Favorites raw response:', responseData);
+
+      // Transform favorites response to match media response format
+      // Favorites endpoint returns {favorites: [...], totalCount, page, totalPages, hasMore}
+      // Media endpoint returns {status: true, data: {items: [...], pagination: {...}}}
+      const favorites = responseData.data?.favorites || responseData.favorites || [];
+      const totalCount = responseData.data?.totalCount || responseData.totalCount || 0;
+      const currentPage = responseData.data?.page || responseData.page || 1;
+      const totalPages = responseData.data?.totalPages || responseData.totalPages || 1;
+      const hasMore = responseData.data?.hasMore || responseData.hasMore || false;
+
+      // Transform each favorite to match media item format
+      const items = favorites.map(fav => ({
+        id: fav.item_id || fav._id,
+        type: fav.item_type,
+        category: fav.metadata?.category || fav.item_type,
+        filename: fav.metadata?.title || fav.metadata?.filename || 'Untitled',
+        url: fav.url,
+        thumbnailUrl: fav.metadata?.thumbnail_url || fav.metadata?.thumbnailUrl,
+        created: fav.created_at,
+        projectId: fav.project_id,
+        userId: fav.user_id,
+        metadata: fav.metadata || {},
+        isFavorited: true
+      }));
+
+      console.log('[FileManager] Transformed favorites:', {
+        itemsCount: items.length,
+        totalItems: totalCount,
+        currentPage,
+        totalPages,
+        hasMore
+      });
+
+      // Return in standard media format
+      const data = {
+        status: true,
+        data: {
+          items: items,
+          pagination: {
+            totalItems: totalCount,
+            currentPage: currentPage,
+            totalPages: totalPages,
+            hasNext: hasMore,
+            pageSize: params.pageSize || 100
+          }
+        }
+      };
+
+      return { success: true, data };
+
+    } catch (error) {
+      console.error('[FileManager] getFavorites error:', error);
       return { success: false, error: error.message };
     }
   }

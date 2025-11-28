@@ -42,7 +42,7 @@ html, body {
   position: relative;
   overflow: hidden;
   background: #000000; /* Ensure black background as fallback */
-  -webkit-app-region: drag; /* Make auth screen draggable */
+  /* Removed -webkit-app-region: drag to allow input in forms */
 }
 
 /* Background Video */
@@ -103,6 +103,7 @@ html, body {
   justify-content: center;
   min-height: 100vh;
   padding: 20px;
+  -webkit-app-region: no-drag; /* Explicitly allow input/clicks in auth forms */
 }
 
 /* Auth Card */
@@ -732,28 +733,57 @@ html, body {
 
 .project-dropdown {
   width: 100%;
-  height: 36px;
-  padding: 0 12px;
-  border: none;
+  height: 40px;
+  padding: 0 16px;
+  border: 1px solid rgb(var(--border) / 0.4);
   border-radius: 8px;
-  background: rgb(var(--muted) / 0.6);
+  background: rgb(var(--card));
   color: rgb(var(--foreground));
   font-size: 13px;
   font-weight: 500;
   cursor: pointer;
   transition: var(--transition-base);
   box-shadow: var(--shadow-sm);
+  appearance: none;
+  -webkit-appearance: none;
+  -moz-appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg width='12' height='8' viewBox='0 0 12 8' fill='none' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M1 1.5L6 6.5L11 1.5' stroke='%23a0a0a0' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 12px center;
+  padding-right: 36px;
 }
 
 .project-dropdown:hover {
-  background: rgb(var(--muted) / 0.8);
+  background-color: rgb(var(--muted) / 0.5);
+  border-color: rgb(var(--border) / 0.6);
   box-shadow: var(--shadow-md);
+  transform: translateY(-1px);
 }
 
 .project-dropdown:focus {
   outline: none;
-  box-shadow: var(--shadow-md);
-  background: rgb(var(--muted));
+  border-color: rgb(var(--primary));
+  box-shadow: 0 0 0 3px rgb(var(--primary) / 0.2);
+  background-color: rgb(var(--card));
+}
+
+/* Dropdown options styling */
+.project-dropdown option {
+  background: rgb(var(--card));
+  color: rgb(var(--foreground));
+  padding: 8px 12px;
+  font-size: 13px;
+}
+
+.project-dropdown option:hover {
+  background: rgb(var(--primary));
+  color: rgb(var(--primary-foreground));
+}
+
+.project-dropdown option:checked {
+  background: rgb(var(--primary) / 0.2);
+  color: rgb(var(--foreground));
+  font-weight: 600;
 }
 
 /* Filters */
@@ -1229,7 +1259,7 @@ html, body {
   aspect-ratio: 16/9;
   border-radius: 6px;
   overflow: hidden;
-  background: rgb(var(--card));
+  background: rgba(255, 255, 255, 0.02) !important; /* Ultra-subtle white tint - prevents black background showing through */
   cursor: pointer;
   transition: var(--transition-base);
   border: 2px solid rgb(var(--border));
@@ -1593,7 +1623,7 @@ html, body {
   display: flex;
   align-items: center;
   justify-content: center;
-  background: rgb(var(--muted) / 0.8);
+  background: rgba(255, 255, 255, 0.01) !important; /* Ultra-subtle - barely visible, prevents black bleed */
 }
 
 .media-item-image img {
@@ -1607,7 +1637,7 @@ html, body {
   position: relative;
   width: 100%;
   height: 100%;
-  background: #000;
+  background: rgba(255, 255, 255, 0.01) !important; /* Ultra-subtle - prevents black bleed */
 }
 
 .media-item-video .video-preview {

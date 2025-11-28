@@ -1209,17 +1209,96 @@ function setupMediaCacheHandlers() {
     }
   });
 
-  // Start native file drag (supports single file or multiple files)
-  ipcMain.on('file:start-drag', (event, filePaths) => {
+  // Helper: Extract video thumbnail (first frame)
+  async function extractVideoThumbnail(videoPath) {
+    const { nativeImage } = require('electron');
     const path = require('path');
+    const fs = require('fs');
+    const { promisify } = require('util');
+    const exec = promisify(require('child_process').exec);
+
+    try {
+      // Create temp thumbnail path
+      const tempDir = app.getPath('temp');
+      const thumbPath = path.join(tempDir, `thumb_${Date.now()}.jpg`);
+
+      // Try using ffmpeg if available, otherwise return null
+      try {
+        await exec(`ffmpeg -i "${videoPath}" -vframes 1 -f image2 "${thumbPath}"`, { timeout: 3000 });
+        const thumb = nativeImage.createFromPath(thumbPath);
+        fs.unlinkSync(thumbPath); // Clean up
+        return thumb.resize({ width: 200, height: 200, quality: 'good' });
+      } catch (ffmpegErr) {
+        console.log('[Native Drag] ffmpeg not available, using default video icon');
+        return null;
+      }
+    } catch (err) {
+      console.warn('[Native Drag] Failed to extract video thumbnail:', err);
+      return null;
+    }
+  }
+
+  // Helper: Create audio icon
+  function createAudioIcon() {
+    const { nativeImage } = require('electron');
+    const path = require('path');
+
+    // Try to use a music/audio icon if available, otherwise use default
+    const audioIconPath = path.join(__dirname, '../../assets/audio-icon.png');
+    const fs = require('fs');
+
+    if (fs.existsSync(audioIconPath)) {
+      return audioIconPath;
+    }
+
+    // Fallback to default icon
+    return path.join(__dirname, '../../assets/icon-source.png');
+  }
+
+  // Start native file drag (supports single file or multiple files)
+  ipcMain.on('file:start-drag', async (event, filePaths) => {
+    const path = require('path');
+    const { nativeImage } = require('electron');
 
     // Convert single path to array for consistent handling
     const paths = Array.isArray(filePaths) ? filePaths : [filePaths];
 
     console.log('[Native Drag] Starting drag for', paths.length, 'file(s):', paths);
 
-    // Icon is required by Electron - use existing icon from assets
-    const iconPath = path.join(__dirname, '../../assets/icon-source.png');
+    // Use the actual file as icon if it's an image, extract frame for video, or use audio icon
+    let dragIcon;
+    const firstFile = paths[0];
+    const ext = path.extname(firstFile).toLowerCase();
+
+    if (['.png', '.jpg', '.jpeg', '.gif', '.webp'].includes(ext)) {
+      // Use the actual image file as drag icon
+      try {
+        dragIcon = nativeImage.createFromPath(firstFile);
+        // Resize to reasonable thumbnail size for drag preview
+        dragIcon = dragIcon.resize({ width: 200, height: 200, quality: 'good' });
+        console.log('[Native Drag] Using actual image as drag icon');
+      } catch (err) {
+        console.warn('[Native Drag] Failed to load image icon, using default:', err);
+        dragIcon = path.join(__dirname, '../../assets/icon-source.png');
+      }
+    } else if (['.mp4', '.mov', '.avi', '.webm', '.mkv'].includes(ext)) {
+      // Try to extract video first frame
+      const videoThumb = await extractVideoThumbnail(firstFile);
+      if (videoThumb) {
+        dragIcon = videoThumb;
+        console.log('[Native Drag] Using video first frame as drag icon');
+      } else {
+        // Fallback to default
+        dragIcon = path.join(__dirname, '../../assets/icon-source.png');
+      }
+    } else if (['.mp3', '.wav', '.aac', '.ogg', '.m4a'].includes(ext)) {
+      // Use audio icon
+      dragIcon = createAudioIcon();
+      console.log('[Native Drag] Using audio icon for drag');
+    } else {
+      // For unknown types, use default icon
+      dragIcon = path.join(__dirname, '../../assets/icon-source.png');
+    }
 
     // Use 'file' for single, 'files' for multiple
     // Note: According to Electron docs, 'files' array should work for multiple files
@@ -1227,13 +1306,13 @@ function setupMediaCacheHandlers() {
     if (paths.length === 1) {
       event.sender.startDrag({
         file: paths[0],
-        icon: iconPath
+        icon: dragIcon
       });
       console.log('[Native Drag] Single file drag started');
     } else {
       event.sender.startDrag({
         files: paths,
-        icon: iconPath
+        icon: dragIcon
       });
       console.log('[Native Drag] Multi-file drag started');
     }
@@ -1242,9 +1321,38 @@ function setupMediaCacheHandlers() {
   console.log('[MediaCache] IPC handlers registered');
 }
 
+// First-time setup: Enable auto-launch by default
+function setupFirstTimeDefaults() {
+  const isFirstRun = !store.has('app_initialized');
+
+  if (isFirstRun) {
+    console.log('[Main] First time setup - enabling auto-launch by default');
+
+    try {
+      app.setLoginItemSettings({
+        openAtLogin: true,
+        openAsHidden: false,
+        args: []
+      });
+      console.log('[Main] Auto-launch enabled successfully');
+    } catch (error) {
+      console.error('[Main] Failed to enable auto-launch:', error);
+    }
+
+    // Mark app as initialized
+    store.set('app_initialized', true);
+    console.log('[Main] First-time setup complete');
+  } else {
+    console.log('[Main] App already initialized, skipping first-time setup');
+  }
+}
+
 // App ready
 app.whenReady().then(() => {
   console.log('[Main] App ready, creating window and tray');
+
+  // Run first-time setup (enables auto-launch on first install)
+  setupFirstTimeDefaults();
 
   createWindow();
   createTray();

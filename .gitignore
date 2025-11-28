@@ -30,3 +30,6 @@ Thumbs.db
 # Environment files (if you create them later)
 .env
 .env.local
+
+# Auto-generated build environment config (created during builds)
+src/renderer/build-env.js

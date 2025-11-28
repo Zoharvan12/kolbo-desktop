@@ -15,22 +15,32 @@
 // - "Kolbo Studio Staging" → staging
 // - "Kolbo Studio" → production
 const ENVIRONMENT = (() => {
-  // Renderer process: use environment from kolboDesktop bridge (set by preload.js)
+  console.log('[Config] Detecting environment...');
+
+  // PRIORITY 1: Build-time environment (from build-env.js, set during build)
+  if (typeof window !== 'undefined' && window.KOLBO_BUILD_ENV) {
+    console.log('[Config] ✅ Environment from build-env.js:', window.KOLBO_BUILD_ENV);
+    return window.KOLBO_BUILD_ENV;
+  }
+
+  // PRIORITY 2: Runtime process.env.KOLBO_ENV (works with npm start using cross-env)
+  if (typeof process !== 'undefined' && process.env && process.env.KOLBO_ENV) {
+    console.log('[Config] Environment from process.env.KOLBO_ENV:', process.env.KOLBO_ENV);
+    return process.env.KOLBO_ENV;
+  }
+
+  // PRIORITY 3: Renderer process - use environment from kolboDesktop bridge (set by preload.js)
   if (typeof window !== 'undefined' && window.kolboDesktop && window.kolboDesktop.environment) {
+    console.log('[Config] Environment from kolboDesktop bridge:', window.kolboDesktop.environment);
     return window.kolboDesktop.environment;
   }
 
-  // Main process: detect environment (only if we have access to require)
+  // PRIORITY 4: Main process - detect from executable name (works in packaged apps as fallback)
   if (typeof process !== 'undefined' && typeof require !== 'undefined') {
     try {
-      // PRIORITY 1: Check process.env.KOLBO_ENV (works with npm start using cross-env)
-      if (process.env.KOLBO_ENV) {
-        return process.env.KOLBO_ENV;
-      }
-
-      // PRIORITY 2: Detect from executable name (works in packaged apps)
       const path = require('path');
       const exePath = process.execPath || '';
+      console.log('[Config] Process executable path:', exePath);
 
       // Get just the filename without path
       const lastSlash = Math.max(exePath.lastIndexOf('/'), exePath.lastIndexOf('\\'));
@@ -41,13 +51,18 @@ const ENVIRONMENT = (() => {
         exeName = exeName.slice(0, -4);
       }
 
+      console.log('[Config] Executable name:', exeName);
+
       // Check if this is the packaged app (not electron.exe in node_modules)
       if (exeName.toLowerCase().includes('kolbo')) {
         if (exeName.includes('Dev')) {
+          console.log('[Config] Detected DEV from executable name');
           return 'development';
         } else if (exeName.includes('Staging')) {
+          console.log('[Config] Detected STAGING from executable name');
           return 'staging';
         } else {
+          console.log('[Config] Detected PRODUCTION from executable name');
           return 'production';
         }
       }
@@ -57,6 +72,7 @@ const ENVIRONMENT = (() => {
   }
 
   // Fallback for npm start / development
+  console.warn('[Config] Using fallback environment: development');
   return 'development';
 })();
 

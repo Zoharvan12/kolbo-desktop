@@ -1,20 +1,58 @@
-// Kolbo Studio - Preload Script (MINIMAL TEST VERSION)
+// Kolbo Studio - Preload Script
 console.log('[Preload] Script starting...');
 
 const { contextBridge, ipcRenderer } = require('electron');
 console.log('[Preload] Electron loaded');
 
-// Test if path module can be required
-try {
-  const path = require('path');
-  console.log('[Preload] Path module loaded successfully');
-} catch (err) {
-  console.error('[Preload] FAILED to load path module:', err);
+// Detect environment from app executable name
+function detectEnvironment() {
+  // PRIORITY 1: Check process.env.KOLBO_ENV (works with npm start using cross-env)
+  if (process.env.KOLBO_ENV) {
+    console.log('[Preload] Environment from KOLBO_ENV:', process.env.KOLBO_ENV);
+    return process.env.KOLBO_ENV;
+  }
+
+  // PRIORITY 2: Detect from executable name (works in packaged apps)
+  // Use simple string parsing to avoid path module issues
+  const exePath = process.execPath || '';
+  console.log('[Preload] Executable path:', exePath);
+
+  // Get filename from path (works on Windows and Unix)
+  let exeName = exePath;
+  const lastBackslash = exePath.lastIndexOf('\\');
+  const lastSlash = exePath.lastIndexOf('/');
+  const lastSeparator = Math.max(lastBackslash, lastSlash);
+
+  if (lastSeparator >= 0) {
+    exeName = exePath.substring(lastSeparator + 1);
+  }
+
+  // Remove .exe extension
+  if (exeName.endsWith('.exe')) {
+    exeName = exeName.slice(0, -4);
+  }
+
+  console.log('[Preload] Executable name:', exeName);
+
+  // Detect environment from name
+  if (exeName.includes('Dev')) {
+    console.log('[Preload] Detected DEVELOPMENT from executable name');
+    return 'development';
+  } else if (exeName.includes('Staging')) {
+    console.log('[Preload] Detected STAGING from executable name');
+    return 'staging';
+  } else if (exeName.toLowerCase().includes('kolbo')) {
+    console.log('[Preload] Detected PRODUCTION from executable name');
+    return 'production';
+  }
+
+  // PRIORITY 3: Fallback to development (for npm start without cross-env)
+  console.warn('[Preload] Using fallback environment: development');
+  return 'development';
 }
 
-// Simple environment detection without path module
-const detectedEnvironment = process.env.KOLBO_ENV || 'development';
-console.log('[Preload] Environment:', detectedEnvironment);
+const detectedEnvironment = detectEnvironment();
+console.log('[Preload] Final detected environment:', detectedEnvironment);
 
 // Expose safe API to renderer process
 contextBridge.exposeInMainWorld('kolboDesktop', {

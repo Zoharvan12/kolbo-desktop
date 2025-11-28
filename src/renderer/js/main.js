@@ -572,7 +572,7 @@ class KolboApp {
 
       const projectSelect = document.getElementById('project-select');
       if (projectSelect && this.projects.length > 0) {
-        projectSelect.innerHTML = '<option value="all">Select All Projects</option>';
+        projectSelect.innerHTML = '<option value="all">All Projects</option>';
 
         this.projects.forEach(project => {
           const option = document.createElement('option');
@@ -581,7 +581,8 @@ class KolboApp {
           projectSelect.appendChild(option);
         });
 
-        projectSelect.value = this.selectedProjectId;
+        // Ensure default is always 'all' if no valid selection exists
+        projectSelect.value = this.selectedProjectId || 'all';
       }
 
       if (this.DEBUG_MODE) {
@@ -1195,6 +1196,9 @@ class KolboApp {
 
         console.log('[Drag] Files cached, starting native drag:', filesToDrag);
 
+        // Create custom drag image
+        this.setCustomDragImage(e, elementsBeingDragged, mediaItem);
+
         // Start Electron native drag (will use 'file' or 'files' based on count)
         window.kolboDesktop.startFileDrag(filesToDrag);
 
@@ -1260,6 +1264,75 @@ class KolboApp {
     gridEl.addEventListener('mouseover', mouseoverHandler);
 
     console.log('[Drag] Drag-and-drop handlers initialized');
+  }
+
+  setCustomDragImage(e, elementsBeingDragged, primaryItem) {
+    try {
+      const count = elementsBeingDragged.length;
+
+      // Create custom drag preview
+      const dragPreview = document.createElement('div');
+      dragPreview.style.cssText = `
+        position: absolute;
+        top: -9999px;
+        left: -9999px;
+        width: 200px;
+        padding: 12px;
+        background: rgba(20, 20, 20, 0.95);
+        border-radius: 8px;
+        border: 2px solid rgba(102, 126, 234, 0.5);
+        box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
+        pointer-events: none;
+      `;
+
+      // Get thumbnail from the primary item
+      const thumbnail = primaryItem.querySelector('img, video');
+
+      if (thumbnail) {
+        const thumbClone = document.createElement('img');
+        thumbClone.src = thumbnail.src || thumbnail.poster || thumbnail.currentSrc;
+        thumbClone.style.cssText = `
+          width: 100%;
+          height: 120px;
+          object-fit: cover;
+          border-radius: 6px;
+          margin-bottom: ${count > 1 ? '8px' : '0'};
+        `;
+        dragPreview.appendChild(thumbClone);
+      }
+
+      // Add count badge if multiple items
+      if (count > 1) {
+        const badge = document.createElement('div');
+        badge.textContent = `${count} items`;
+        badge.style.cssText = `
+          color: white;
+          font-size: 13px;
+          font-weight: 600;
+          text-align: center;
+          padding: 6px;
+          background: rgba(102, 126, 234, 0.8);
+          border-radius: 6px;
+        `;
+        dragPreview.appendChild(badge);
+      }
+
+      document.body.appendChild(dragPreview);
+
+      // Set as drag image
+      if (e.dataTransfer && e.dataTransfer.setDragImage) {
+        e.dataTransfer.setDragImage(dragPreview, 100, 60);
+      }
+
+      // Clean up after a delay
+      setTimeout(() => {
+        if (dragPreview && dragPreview.parentNode) {
+          dragPreview.parentNode.removeChild(dragPreview);
+        }
+      }, 100);
+    } catch (error) {
+      console.warn('[Drag] Failed to set custom drag image:', error);
+    }
   }
 
   handleVideoPlayPause(videoId) {
