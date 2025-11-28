@@ -1689,6 +1689,37 @@ class KolboApp {
           }
         }
 
+        // Load download folder setting
+        const downloadFolderPath = document.getElementById('download-folder-path');
+        const changeDownloadFolderBtn = document.getElementById('change-download-folder-btn');
+
+        if (downloadFolderPath && window.kolboDesktop.getDownloadFolder) {
+          const currentFolder = await window.kolboDesktop.getDownloadFolder();
+          if (currentFolder) {
+            downloadFolderPath.textContent = currentFolder;
+          } else {
+            downloadFolderPath.textContent = 'Not set (will ask on first download)';
+          }
+        }
+
+        if (changeDownloadFolderBtn && window.kolboDesktop.setDownloadFolder) {
+          if (!changeDownloadFolderBtn.hasAttribute('data-listener-attached')) {
+            changeDownloadFolderBtn.setAttribute('data-listener-attached', 'true');
+            changeDownloadFolderBtn.addEventListener('click', async () => {
+              try {
+                const newFolder = await window.kolboDesktop.setDownloadFolder();
+                if (newFolder && downloadFolderPath) {
+                  downloadFolderPath.textContent = newFolder;
+                  console.log('[Settings] Download folder changed to:', newFolder);
+                }
+              } catch (error) {
+                console.error('[Settings] Failed to change download folder:', error);
+                alert('Failed to change download folder');
+              }
+            });
+          }
+        }
+
         // Load update settings
         await this.loadUpdateSettings();
       }
@@ -2071,10 +2102,6 @@ function initBackgroundVideo() {
     return;
   }
 
-  console.log('[Video] Initializing background video...');
-  console.log('[Video] Video src:', video.currentSrc || video.src);
-  console.log('[Video] Video source element:', video.querySelector('source')?.src);
-
   // Set video properties to ensure it plays
   video.muted = true;
   video.loop = true;
@@ -2086,22 +2113,14 @@ function initBackgroundVideo() {
   const attemptPlay = async () => {
     try {
       await video.play();
-      console.log('[Video] Video is now playing');
-      console.log('[Video] Video paused:', video.paused);
-      console.log('[Video] Video readyState:', video.readyState);
     } catch (err) {
       console.error('[Video] Play failed:', err);
-      console.log('[Video] Video paused:', video.paused);
-      console.log('[Video] Video readyState:', video.readyState);
     }
   };
 
   video.addEventListener('loadedmetadata', () => {
-    console.log('[Video] Video metadata loaded');
-    console.log('[Video] Video dimensions:', video.videoWidth, 'x', video.videoHeight);
     // Ensure video element has explicit dimensions
     if (video.videoWidth > 0 && video.videoHeight > 0) {
-      console.log('[Video] Video has valid dimensions, setting styles');
       video.style.width = '100%';
       video.style.height = '100%';
     }
@@ -2109,11 +2128,8 @@ function initBackgroundVideo() {
 
   // Force video to load and play
   video.addEventListener('loadeddata', () => {
-    console.log('[Video] Video data loaded, readyState:', video.readyState);
-    console.log('[Video] Video dimensions after loadeddata:', video.videoWidth, 'x', video.videoHeight);
     // Force dimensions if still 0
     if (video.videoWidth === 0 || video.videoHeight === 0) {
-      console.warn('[Video] Video dimensions are 0, forcing size via CSS');
       video.style.width = '100vw';
       video.style.height = '100vh';
     }
@@ -2121,52 +2137,16 @@ function initBackgroundVideo() {
   });
 
   video.addEventListener('canplay', () => {
-    console.log('[Video] Video can play, readyState:', video.readyState);
-    console.log('[Video] Video dimensions at canplay:', video.videoWidth, 'x', video.videoHeight);
-    attemptPlay();
-  });
-
-  video.addEventListener('canplaythrough', () => {
-    console.log('[Video] Video can play through');
     attemptPlay();
   });
 
   video.addEventListener('playing', () => {
-    console.log('[Video] Video is now playing!');
-    console.log('[Video] Video currentTime:', video.currentTime);
-    console.log('[Video] Video duration:', video.duration);
-    console.log('[Video] Video videoWidth:', video.videoWidth);
-    console.log('[Video] Video videoHeight:', video.videoHeight);
-    
-    // Force video to be visible even if dimensions are 0
-    // This handles cases where metadata doesn't load properly
+    // Force video to be visible
     video.style.width = '100%';
     video.style.height = '100%';
     video.style.display = 'block';
     video.style.visibility = 'visible';
     video.style.opacity = '1';
-    
-    // Check dimensions again after a short delay
-    setTimeout(() => {
-      console.log('[Video] Delayed check - dimensions:', video.videoWidth, 'x', video.videoHeight);
-      if (video.videoWidth === 0 || video.videoHeight === 0) {
-        console.warn('[Video] Video still has 0 dimensions, but forcing visibility');
-        // Force container to show video
-        const container = video.parentElement;
-        if (container) {
-          container.style.width = '100%';
-          container.style.height = '100%';
-        }
-      }
-    }, 500);
-  });
-
-  video.addEventListener('play', () => {
-    console.log('[Video] Play event fired');
-  });
-
-  video.addEventListener('pause', () => {
-    console.warn('[Video] Video was paused');
   });
 
   video.addEventListener('error', (e) => {
@@ -2184,65 +2164,14 @@ function initBackgroundVideo() {
   video.style.display = 'block';
   video.style.visibility = 'visible';
   video.style.opacity = '1';
-  
-  // Debug function to check video visibility
-  const checkVideoVisibility = () => {
-    const styles = window.getComputedStyle(video);
-    const rect = video.getBoundingClientRect();
-    console.log('[Video] Computed styles:', {
-      width: styles.width,
-      height: styles.height,
-      display: styles.display,
-      visibility: styles.visibility,
-      opacity: styles.opacity,
-      zIndex: styles.zIndex,
-      position: styles.position
-    });
-    console.log('[Video] Bounding rect:', {
-      width: rect.width,
-      height: rect.height,
-      top: rect.top,
-      left: rect.left
-    });
-    console.log('[Video] Video element dimensions:', {
-      offsetWidth: video.offsetWidth,
-      offsetHeight: video.offsetHeight,
-      clientWidth: video.clientWidth,
-      clientHeight: video.clientHeight
-    });
-  };
-  
+
   // Ensure video loads
   video.load();
-  console.log('[Video] Video load() called');
-  
-  // Check visibility after load
-  setTimeout(checkVideoVisibility, 200);
-  
-  // Try to play immediately (might fail due to autoplay policy)
+
+  // Try to play after a short delay
   setTimeout(() => {
     attemptPlay();
   }, 100);
-
-  // Also try after a short delay
-  setTimeout(() => {
-    attemptPlay();
-  }, 500);
-  
-  // Final check after video should be playing
-  setTimeout(() => {
-    console.log('[Video] Final check - playing:', !video.paused, 'dimensions:', video.videoWidth, 'x', video.videoHeight);
-    checkVideoVisibility();
-    if (!video.paused && (video.videoWidth === 0 || video.videoHeight === 0)) {
-      console.warn('[Video] Video is playing but has no dimensions - this may indicate a codec issue');
-      // Force visibility anyway
-      video.style.width = '100vw';
-      video.style.height = '100vh';
-      video.style.minWidth = '100%';
-      video.style.minHeight = '100%';
-      checkVideoVisibility();
-    }
-  }, 1000);
 
   // Try on any user interaction
   const playOnInteraction = () => {
@@ -2274,3 +2203,80 @@ window.addEventListener('error', (e) => {
 window.addEventListener('unhandledrejection', (e) => {
   console.error('[Unhandled Promise Rejection]', e.reason);
 });
+
+// ============================================================================
+// DOWNLOAD NOTIFICATIONS
+// ============================================================================
+
+// Setup download notification banner
+function setupDownloadNotifications() {
+  const notification = document.getElementById("download-notification");
+  const filenameEl = notification.querySelector(".download-filename");
+  const folderEl = notification.querySelector(".download-folder");
+  const showFolderBtn = document.getElementById("show-folder-btn");
+  const changeFolderBtn = document.getElementById("change-folder-btn");
+  const closeBtn = document.getElementById("close-notification-btn");
+
+  let currentFilePath = null;
+  let autoCloseTimeout = null;
+
+  // Listen for download complete events
+  if (window.kolboDesktop && window.kolboDesktop.onDownloadComplete) {
+    window.kolboDesktop.onDownloadComplete((data) => {
+      console.log("[Download Notification] Download complete:", data);
+
+      currentFilePath = data.filePath;
+      filenameEl.textContent = data.fileName;
+      folderEl.textContent = data.folderPath;
+
+      notification.classList.remove("hidden");
+
+      // Auto-close after 5 seconds
+      if (autoCloseTimeout) clearTimeout(autoCloseTimeout);
+      autoCloseTimeout = setTimeout(() => {
+        notification.classList.add("hidden");
+      }, 5000);
+    });
+  }
+
+  // Listen for download failed events
+  if (window.kolboDesktop && window.kolboDesktop.onDownloadFailed) {
+    window.kolboDesktop.onDownloadFailed((data) => {
+      console.error("[Download Notification] Download failed:", data);
+      showToast(`Download failed: ${data.fileName}`, "error");
+    });
+  }
+
+  // Show folder button
+  showFolderBtn.addEventListener("click", () => {
+    if (currentFilePath && window.kolboDesktop && window.kolboDesktop.showInFolder) {
+      window.kolboDesktop.showInFolder(currentFilePath);
+      notification.classList.add("hidden");
+    }
+  });
+
+  // Change folder button
+  changeFolderBtn.addEventListener("click", async () => {
+    if (window.kolboDesktop && window.kolboDesktop.setDownloadFolder) {
+      const newFolder = await window.kolboDesktop.setDownloadFolder();
+      if (newFolder) {
+        showToast(`Download folder changed to: ${newFolder}`, "success");
+        notification.classList.add("hidden");
+      }
+    }
+  });
+
+  // Close button
+  closeBtn.addEventListener("click", () => {
+    notification.classList.add("hidden");
+    if (autoCloseTimeout) clearTimeout(autoCloseTimeout);
+  });
+}
+
+// Initialize download notifications on DOM load
+if (document.readyState === "loading") {
+  document.addEventListener("DOMContentLoaded", setupDownloadNotifications);
+} else {
+  setupDownloadNotifications();
+}
+

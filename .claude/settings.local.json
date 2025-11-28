@@ -27,7 +27,9 @@
       "Bash(magick:*)",
       "Bash(powershell.exe:*)",
       "Bash(npm install:*)",
-      "Bash(cat:*)"
+      "Bash(cat:*)",
+      "WebSearch",
+      "Bash(tasklist)"
     ],
     "deny": [],
     "ask": []

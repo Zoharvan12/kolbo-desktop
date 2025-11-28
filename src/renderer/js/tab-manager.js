@@ -22,6 +22,9 @@ class TabManager {
     this.MAX_TABS = 10;
     this.DEBUG_MODE = window.KOLBO_CONFIG ? window.KOLBO_CONFIG.debug : false;
 
+    // Cache webapp URL to avoid multiple calls
+    this._cachedWebappUrl = null;
+
     // Generate unique ID for this window instance to avoid localStorage conflicts
     this.windowId = `win_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
 
@@ -43,30 +46,108 @@ class TabManager {
   }
 
   getWebappUrl() {
-    const env = localStorage.getItem('WEBAPP_ENVIRONMENT') || 'auto';
-    if (env === 'localhost') {
-      return 'http://localhost:8080';
-    } else if (env === 'staging') {
-      return 'https://staging.kolbo.ai';
-    } else if (env === 'production') {
-      return 'https://app.kolbo.ai';
-    } else {
-      // Auto-detect based on API URL
-      const apiUrl = localStorage.getItem('API_BASE_URL') || '';
-      if (apiUrl.includes('localhost')) {
-        return 'http://localhost:8080';
-      } else if (apiUrl.includes('staging')) {
-        return 'https://staging.kolbo.ai';
-      } else {
-        return 'https://app.kolbo.ai';
+    // Return cached URL if already determined
+    if (this._cachedWebappUrl) {
+      return this._cachedWebappUrl;
+    }
+
+    let url;
+
+    // PRIORITY 1: Use centralized config from config.js (respects build environment)
+    if (typeof window !== 'undefined' && window.KOLBO_CONFIG && window.KOLBO_CONFIG.webappUrl) {
+      url = window.KOLBO_CONFIG.webappUrl;
+      if (this.DEBUG_MODE) {
+        console.log('[TabManager] Using webapp URL from KOLBO_CONFIG:', url);
       }
     }
+    // PRIORITY 2: Manual override via localStorage (for debugging/testing)
+    else if (localStorage.getItem('WEBAPP_ENVIRONMENT')) {
+      const env = localStorage.getItem('WEBAPP_ENVIRONMENT');
+      if (env === 'localhost') {
+        url = 'http://localhost:8080';
+      } else if (env === 'staging') {
+        url = 'https://staging.kolbo.ai';
+      } else if (env === 'production') {
+        url = 'https://app.kolbo.ai';
+      }
+    }
+    // PRIORITY 3: Auto-detect from Electron environment
+    else if (typeof window !== 'undefined' && window.kolboDesktop && window.kolboDesktop.environment) {
+      const electronEnv = window.kolboDesktop.environment;
+      if (electronEnv === 'development') {
+        url = 'http://localhost:8080';
+      } else if (electronEnv === 'staging') {
+        url = 'https://staging.kolbo.ai';
+      } else if (electronEnv === 'production') {
+        url = 'https://app.kolbo.ai';
+      }
+    }
+    // PRIORITY 4: Fallback to production
+    else {
+      console.warn('[TabManager] Could not detect environment, defaulting to production');
+      url = 'https://app.kolbo.ai';
+    }
+
+    // Cache the result
+    this._cachedWebappUrl = url;
+    return url;
+  }
+
+  /**
+   * Check if saved tabs are from a different environment and clear them if needed
+   * This prevents using production URLs in development and vice versa
+   */
+  checkAndClearStaleTabsIfNeeded() {
+    try {
+      const savedTabs = localStorage.getItem('kolbo_tabs');
+      if (!savedTabs) return;
+
+      const currentWebappUrl = this.getWebappUrl();
+      const currentEnvironment = this.getCurrentEnvironment();
+
+      // Get saved environment (if stored)
+      const savedEnvironment = localStorage.getItem('kolbo_tabs_environment');
+
+      // If environment changed, clear saved tabs
+      if (savedEnvironment && savedEnvironment !== currentEnvironment) {
+        console.log(`[TabManager] Environment changed: ${savedEnvironment} → ${currentEnvironment}`);
+        console.log('[TabManager] Clearing saved tabs to prevent URL mismatch');
+        localStorage.removeItem('kolbo_tabs');
+        localStorage.removeItem('kolbo_active_tab');
+      }
+
+      // Store current environment for next time
+      localStorage.setItem('kolbo_tabs_environment', currentEnvironment);
+
+    } catch (error) {
+      console.error('[TabManager] Error checking stale tabs:', error);
+    }
+  }
+
+  /**
+   * Get current environment name
+   */
+  getCurrentEnvironment() {
+    if (window.KOLBO_CONFIG && window.KOLBO_CONFIG.environment) {
+      return window.KOLBO_CONFIG.environment;
+    }
+    if (window.kolboDesktop && window.kolboDesktop.environment) {
+      return window.kolboDesktop.environment;
+    }
+    const webappUrl = this.getWebappUrl();
+    if (webappUrl.includes('localhost')) return 'development';
+    if (webappUrl.includes('staging')) return 'staging';
+    return 'production';
   }
 
   init() {
     if (this.DEBUG_MODE) {
       console.log('[TabManager] Initializing...');
     }
+
+    // 🔧 ENVIRONMENT CHANGE DETECTION: Clear saved tabs if environment changed
+    // This ensures tabs use the correct environment URL after switching
+    this.checkAndClearStaleTabsIfNeeded();
 
     // Bind events
     if (this.newTabBtn) {
@@ -188,9 +269,32 @@ class TabManager {
         if (savedTabs) {
           const tabsData = JSON.parse(savedTabs);
           if (Array.isArray(tabsData) && tabsData.length > 0) {
-            // Restore tabs
+            // 🔧 FIX: Update saved URLs to use current environment's webapp URL
+            // This prevents using production URLs when in development mode
+            const currentWebappUrl = this.getWebappUrl();
+
             tabsData.forEach(tabData => {
-              this.createTab(tabData.url, tabData.title, false);
+              // Replace the base URL with the current environment's URL
+              let updatedUrl = tabData.url;
+
+              // Check if the saved URL is a Kolbo URL (not a custom URL)
+              if (tabData.url.includes('app.kolbo.ai') ||
+                  tabData.url.includes('staging.kolbo.ai') ||
+                  tabData.url.includes('localhost:8080')) {
+
+                // Extract the path (everything after the domain)
+                const urlObj = new URL(tabData.url);
+                const path = urlObj.pathname + urlObj.search + urlObj.hash;
+
+                // Use current environment's base URL
+                updatedUrl = path === '/' ? currentWebappUrl : currentWebappUrl + path;
+
+                if (this.DEBUG_MODE) {
+                  console.log(`[TabManager] Updated tab URL: ${tabData.url} → ${updatedUrl}`);
+                }
+              }
+
+              this.createTab(updatedUrl, tabData.title, false);
             });
 
             // Restore active tab
@@ -255,7 +359,8 @@ class TabManager {
     const iframe = document.createElement('iframe');
     iframe.id = `iframe-${tabId}`;
     iframe.className = 'tab-iframe';
-    iframe.setAttribute('sandbox', 'allow-same-origin allow-scripts allow-forms allow-popups allow-modals');
+    // Note: 'allow-downloads-without-user-activation' is not valid in Electron 28, removed
+    iframe.setAttribute('sandbox', 'allow-same-origin allow-scripts allow-forms allow-popups allow-modals allow-downloads');
 
     // Add authentication token to URL
     // NOTE: Web app iframe has its own localStorage that persists the token,
@@ -263,15 +368,18 @@ class TabManager {
     // 1. First-time auto-login works
     // 2. Token stays synchronized if user re-logs in with different account
     // 3. Expired tokens get refreshed automatically
+    // 4. The webapp knows it's embedded and won't try to do Google OAuth (which won't work in iframe)
     const token = window.kolboAPI?.getToken();
     if (token) {
       const separator = tabUrl.includes('?') ? '&' : '?';
-      iframe.src = `${tabUrl}${separator}embedded=true&token=${encodeURIComponent(token)}`;
+      // Add source=desktop to identify the embedding context (like Adobe plugin does with source=adobe)
+      // This tells the webapp to use the passed token and not show Google login options
+      iframe.src = `${tabUrl}${separator}embedded=true&source=desktop&token=${encodeURIComponent(token)}`;
 
       if (this.DEBUG_MODE) {
         console.log(`[TabManager] Creating iframe with authentication token`);
         console.log(`[TabManager] Token (first 20 chars): ${token.substring(0, 20)}...`);
-        console.log(`[TabManager] Full URL: ${tabUrl}${separator}embedded=true&token=${token.substring(0, 20)}...`);
+        console.log(`[TabManager] Full URL: ${tabUrl}${separator}embedded=true&source=desktop&token=${token.substring(0, 20)}...`);
       }
     } else {
       iframe.src = tabUrl;

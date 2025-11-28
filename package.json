@@ -14,8 +14,8 @@
     "url": "https://github.com/Zoharvan12/kolbo-desktop.git"
   },
   "scripts": {
-    "start": "electron .",
-    "dev": "cross-env KOLBO_ENV=development electron .",
+    "start": "cross-env KOLBO_ENV=development NODE_ENV=development electron .",
+    "dev": "cross-env KOLBO_ENV=development NODE_ENV=development electron .",
     "build": "electron-builder",
     "build:win": "electron-builder --win",
     "build:mac": "electron-builder --mac",

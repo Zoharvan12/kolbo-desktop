@@ -492,6 +492,195 @@ function setupUpdaterHandlers() {
 }
 
 // ============================================================================
+// DOWNLOAD HANDLER
+// ============================================================================
+
+/**
+ * Setup download handler for webapp downloads
+ * Intercepts downloads from the web app (iframes) and shows save dialog
+ * Remembers last download location for convenience
+ */
+function setupDownloadHandler() {
+  const { shell, session, ipcMain } = require('electron');
+  const path = require('path');
+  const fs = require('fs');
+
+  // Track recent downloads to prevent duplicates
+  const recentDownloads = new Map(); // filename -> timestamp
+  const DUPLICATE_THRESHOLD = 1000; // 1 second
+
+  // Track active dialogs to prevent showing multiple for same file
+  const activeDialogs = new Set();
+
+  // IPC handler to get default download folder
+  ipcMain.handle('get-download-folder', async () => {
+    return store.get('defaultDownloadFolder') || null;
+  });
+
+  // IPC handler to set default download folder
+  ipcMain.handle('set-download-folder', async () => {
+    const targetWindow = BrowserWindow.getFocusedWindow() || mainWindow;
+    const result = await dialog.showOpenDialog(targetWindow, {
+      title: 'Choose Download Folder',
+      properties: ['openDirectory', 'createDirectory']
+    });
+
+    if (!result.canceled && result.filePaths.length > 0) {
+      const folderPath = result.filePaths[0];
+      store.set('defaultDownloadFolder', folderPath);
+      console.log('[Download] Default download folder set to:', folderPath);
+      return folderPath;
+    }
+    return null;
+  });
+
+  // IPC handler to open folder in explorer
+  ipcMain.handle('show-in-folder', async (event, filePath) => {
+    shell.showItemInFolder(filePath);
+  });
+
+  // Use defaultSession to catch downloads from all windows and iframes
+  session.defaultSession.on('will-download', async (event, item, webContents) => {
+    const fileName = item.getFilename();
+    const fileUrl = item.getURL();
+    const now = Date.now();
+
+    console.log('[Download] Event fired:', fileName, 'URL:', fileUrl);
+
+    // Check if we're already showing a dialog for this file
+    if (activeDialogs.has(fileName)) {
+      console.log('[Download] Dialog already active for:', fileName, '- canceling duplicate');
+      item.cancel();
+      return;
+    }
+
+    // Check if this is a duplicate download (same filename within 1 second)
+    const lastDownload = recentDownloads.get(fileName);
+    if (lastDownload && (now - lastDownload) < DUPLICATE_THRESHOLD) {
+      console.log('[Download] Ignoring duplicate download (recent):', fileName);
+      item.cancel();
+      return;
+    }
+
+    // Mark as active
+    activeDialogs.add(fileName);
+
+    // Track this download
+    recentDownloads.set(fileName, now);
+
+    // Clean up old entries (older than threshold)
+    for (const [name, timestamp] of recentDownloads.entries()) {
+      if (now - timestamp > DUPLICATE_THRESHOLD) {
+        recentDownloads.delete(name);
+      }
+    }
+
+    console.log('[Download] Download started:', fileName);
+    console.log('[Download] File URL:', fileUrl);
+
+    // Get default download folder from store
+    let downloadFolder = store.get('defaultDownloadFolder');
+
+    // If no default folder set, ask user to choose one
+    if (!downloadFolder) {
+      const targetWindow = BrowserWindow.getFocusedWindow() || mainWindow;
+      const result = await dialog.showOpenDialog(targetWindow, {
+        title: 'Choose Download Folder',
+        defaultPath: app.getPath('downloads'),
+        properties: ['openDirectory', 'createDirectory'],
+        message: 'Choose a folder for downloaded files. You can change this later in settings.'
+      });
+
+      if (result.canceled || !result.filePaths.length) {
+        console.log('[Download] Download canceled - no folder selected');
+        activeDialogs.delete(fileName);
+        item.cancel();
+        return;
+      }
+
+      downloadFolder = result.filePaths[0];
+      store.set('defaultDownloadFolder', downloadFolder);
+      console.log('[Download] Default download folder set to:', downloadFolder);
+    }
+
+    // Generate unique filename if file already exists
+    let savePath = path.join(downloadFolder, fileName);
+    let counter = 1;
+    const ext = path.extname(fileName);
+    const base = path.basename(fileName, ext);
+
+    while (fs.existsSync(savePath)) {
+      savePath = path.join(downloadFolder, `${base} (${counter})${ext}`);
+      counter++;
+    }
+
+    console.log('[Download] Saving to:', savePath);
+
+    // Remove from active dialogs
+    activeDialogs.delete(fileName);
+
+    // Set save path
+    item.setSavePath(savePath);
+
+    // Track download progress
+    item.on('updated', (event, state) => {
+      if (state === 'interrupted') {
+        console.log('[Download] Download interrupted');
+      } else if (state === 'progressing') {
+        if (item.isPaused()) {
+          console.log('[Download] Download paused');
+        } else {
+          const percent = Math.round((item.getReceivedBytes() / item.getTotalBytes()) * 100);
+          console.log(`[Download] Progress: ${percent}% (${item.getReceivedBytes()}/${item.getTotalBytes()} bytes)`);
+        }
+      }
+    });
+
+    // Handle download completion
+    item.once('done', (event, state) => {
+      if (state === 'completed') {
+        console.log('[Download] Download completed:', savePath);
+
+        // Send download notification to renderer for banner display
+        const targetWindow = BrowserWindow.getFocusedWindow() || mainWindow;
+        if (targetWindow && !targetWindow.isDestroyed()) {
+          targetWindow.webContents.send('download-complete', {
+            fileName: fileName,
+            filePath: savePath,
+            folderPath: path.dirname(savePath)
+          });
+        }
+      } else if (state === 'interrupted') {
+        console.error('[Download] Download interrupted');
+
+        // Send error notification to renderer
+        const targetWindow = BrowserWindow.getFocusedWindow() || mainWindow;
+        if (targetWindow && !targetWindow.isDestroyed()) {
+          targetWindow.webContents.send('download-failed', {
+            fileName: fileName,
+            error: 'Download interrupted'
+          });
+        }
+
+        const { Notification } = require('electron');
+        if (Notification.isSupported()) {
+          const notification = new Notification({
+            title: 'Download Failed',
+            body: `${fileName} download was interrupted`,
+            silent: true
+          });
+          notification.show();
+        }
+      } else if (state === 'cancelled') {
+        console.log('[Download] Download cancelled');
+      }
+    });
+  });
+
+  console.log('[Download] Download handler registered');
+}
+
+// ============================================================================
 // ADOBE PLUGIN DETECTION
 // ============================================================================
 
@@ -1064,6 +1253,9 @@ app.whenReady().then(() => {
   setupMediaCacheHandlers();
 
   console.log('[Main] IPC handlers registered');
+
+  // Setup download handler for webapp downloads
+  setupDownloadHandler();
 
   // Setup auto-updater (only in production)
   // TEMPORARY: Enable in development for testing
