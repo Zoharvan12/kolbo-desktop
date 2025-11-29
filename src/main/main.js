@@ -489,9 +489,23 @@ function setupUpdaterHandlers() {
       const path = require('path');
       const { app } = require('electron');
 
-      // Build download URL
+      // Build download URL based on platform
       const version = updateInfo.version;
-      const fileName = `Kolbo.Studio-Setup-${version}.exe`;
+      const os = require('os');
+      const platform = os.platform();
+
+      let fileName;
+      if (platform === 'darwin') {
+        // Mac: Kolbo.Studio-1.0.8.dmg
+        fileName = `Kolbo.Studio-${version}.dmg`;
+      } else if (platform === 'win32') {
+        // Windows: Kolbo.Studio-Setup-1.0.8.exe
+        fileName = `Kolbo.Studio-Setup-${version}.exe`;
+      } else {
+        // Linux (future support)
+        fileName = `Kolbo.Studio-${version}.AppImage`;
+      }
+
       const downloadUrl = `https://github.com/Zoharvan12/kolbo-desktop/releases/download/v${version}/${fileName}`;
 
       // Download to Downloads folder
@@ -599,12 +613,23 @@ function setupUpdaterHandlers() {
   ipcMain.handle('updater:install', async () => {
     console.log('[Updater] User will install manually');
     const { dialog } = require('electron');
+    const os = require('os');
+    const platform = os.platform();
+
+    let installInstructions;
+    if (platform === 'darwin') {
+      installInstructions = 'Open the DMG file and drag Kolbo Studio to your Applications folder. Your settings and data will be preserved.';
+    } else if (platform === 'win32') {
+      installInstructions = 'Run the installer to update to the latest version. Your settings and data will be preserved.';
+    } else {
+      installInstructions = 'Run the installer to update to the latest version. Your settings and data will be preserved.';
+    }
 
     await dialog.showMessageBox(mainWindow, {
       type: 'info',
       title: 'Update Downloaded',
       message: 'The installer has been downloaded to your Downloads folder.',
-      detail: 'Run the installer to update to the latest version. Your settings and data will be preserved.',
+      detail: installInstructions,
       buttons: ['OK']
     });
 
