@@ -1,51 +1,31 @@
 name: Build and Release
 
-# Trigger on version tags (e.g., v1.0.1, v2.0.0)
+# Trigger on pushes to master branch
 on:
   push:
-    tags:
-      - 'v*.*.*'
+    branches:
+      - master
 
 jobs:
-  create-release:
+  prepare-release:
     runs-on: ubuntu-latest
     outputs:
-      upload_url: ${{ steps.create_release.outputs.upload_url }}
       version: ${{ steps.get_version.outputs.version }}
+      tag_name: ${{ steps.get_version.outputs.tag_name }}
     steps:
-      - name: Get version from tag
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Get version from package.json
         id: get_version
-        run: echo "version=${GITHUB_REF#refs/tags/v}" >> $GITHUB_OUTPUT
-
-      - name: Create GitHub Release
-        id: create_release
-        uses: actions/create-release@v1
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          tag_name: ${{ github.ref }}
-          release_name: Kolbo Studio v${{ steps.get_version.outputs.version }}
-          body: |
-            ## Kolbo Studio v${{ steps.get_version.outputs.version }}
-
-            ### Downloads
-            - **Windows**: Kolbo Studio-Setup-${{ steps.get_version.outputs.version }}.exe
-            - **macOS (Universal)**: Kolbo Studio-${{ steps.get_version.outputs.version }}.dmg
-
-            ### Installation
-            **Windows**: Download the .exe installer and run it. Follow the setup wizard.
-            **macOS**: Download the .dmg file, open it, and drag Kolbo Studio to Applications.
-
-            ### Auto-Update
-            Existing users will be notified automatically within the app. Click "Download Update" to get the latest version.
-
-            ---
-            **Full Changelog**: https://github.com/${{ github.repository }}/compare/v${{ steps.get_version.outputs.version }}...HEAD
-          draft: false
-          prerelease: false
+        run: |
+          VERSION=$(node -p "require('./package.json').version")
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "tag_name=v$VERSION" >> $GITHUB_OUTPUT
+          echo "Detected version: $VERSION"
 
   build-windows:
-    needs: create-release
+    needs: prepare-release
     runs-on: windows-latest
     steps:
       - name: Checkout code
@@ -65,28 +45,23 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: npm run build:prod:win
 
-      - name: Upload Windows installer to release
-        uses: actions/upload-release-asset@v1
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          upload_url: ${{ needs.create-release.outputs.upload_url }}
-          asset_path: ./dist/Kolbo Studio-Setup-${{ needs.create-release.outputs.version }}.exe
-          asset_name: Kolbo Studio-Setup-${{ needs.create-release.outputs.version }}.exe
-          asset_content_type: application/octet-stream
+      - name: Fix filename format in latest.yml
+        shell: bash
+        run: |
+          sed -i 's/Kolbo-Studio/Kolbo.Studio/g' dist/latest.yml
+          cat dist/latest.yml
 
-      - name: Upload latest.yml for auto-updater
-        uses: actions/upload-release-asset@v1
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: Upload Windows artifacts
+        uses: actions/upload-artifact@v3
         with:
-          upload_url: ${{ needs.create-release.outputs.upload_url }}
-          asset_path: ./dist/latest.yml
-          asset_name: latest.yml
-          asset_content_type: text/yaml
+          name: windows-artifacts
+          path: |
+            dist/Kolbo Studio-Setup-${{ needs.prepare-release.outputs.version }}.exe
+            dist/Kolbo Studio-Setup-${{ needs.prepare-release.outputs.version }}.exe.blockmap
+            dist/latest.yml
 
   build-macos:
-    needs: create-release
+    needs: prepare-release
     runs-on: macos-latest
     steps:
       - name: Checkout code
@@ -100,28 +75,83 @@ jobs:
       - name: Install dependencies
         run: npm install
 
+      - name: Generate Mac icon with rounded corners
+        run: node scripts/generate-icons.js
+
       - name: Build macOS DMG
         env:
           KOLBO_ENV: production
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: npm run build:prod:mac
 
-      - name: Upload macOS DMG to release
-        uses: actions/upload-release-asset@v1
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          upload_url: ${{ needs.create-release.outputs.upload_url }}
-          asset_path: ./dist/Kolbo Studio-${{ needs.create-release.outputs.version }}.dmg
-          asset_name: Kolbo Studio-${{ needs.create-release.outputs.version }}.dmg
-          asset_content_type: application/octet-stream
+      - name: Fix filename format in latest-mac.yml
+        run: |
+          sed -i '' 's/Kolbo-Studio/Kolbo.Studio/g' dist/latest-mac.yml
+          cat dist/latest-mac.yml
 
-      - name: Upload latest-mac.yml for auto-updater
-        uses: actions/upload-release-asset@v1
+      - name: Create backward compatible DMG (universal)
+        run: |
+          cp "dist/Kolbo Studio-${{ needs.prepare-release.outputs.version }}-arm64.dmg" "dist/Kolbo.Studio-${{ needs.prepare-release.outputs.version }}.dmg"
+
+      - name: Upload macOS artifacts
+        uses: actions/upload-artifact@v3
+        with:
+          name: macos-artifacts
+          path: |
+            dist/Kolbo Studio-${{ needs.prepare-release.outputs.version }}-arm64.dmg
+            dist/Kolbo Studio-${{ needs.prepare-release.outputs.version }}-x64.dmg
+            dist/Kolbo.Studio-${{ needs.prepare-release.outputs.version }}.dmg
+            dist/latest-mac.yml
+
+  create-release:
+    needs: [prepare-release, build-windows, build-macos]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download Windows artifacts
+        uses: actions/download-artifact@v3
+        with:
+          name: windows-artifacts
+          path: ./dist-windows
+
+      - name: Download macOS artifacts
+        uses: actions/download-artifact@v3
+        with:
+          name: macos-artifacts
+          path: ./dist-macos
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v1
+        with:
+          tag_name: ${{ needs.prepare-release.outputs.tag_name }}
+          name: Kolbo Studio v${{ needs.prepare-release.outputs.version }}
+          body: |
+            ## Kolbo Studio v${{ needs.prepare-release.outputs.version }}
+
+            ### Downloads
+            - **Windows**: Kolbo.Studio-Setup-${{ needs.prepare-release.outputs.version }}.exe
+            - **macOS (Apple Silicon)**: Kolbo.Studio-${{ needs.prepare-release.outputs.version }}-arm64.dmg
+            - **macOS (Intel)**: Kolbo.Studio-${{ needs.prepare-release.outputs.version }}-x64.dmg
+            - **macOS (Universal)**: Kolbo.Studio-${{ needs.prepare-release.outputs.version }}.dmg
+
+            ### Installation
+            **Windows**: Download the .exe installer and run it. Follow the setup wizard.
+
+            **macOS**: Download the appropriate .dmg file for your Mac:
+            - Apple Silicon (M1/M2/M3): Download the arm64 version
+            - Intel Mac: Download the x64 version
+            - Not sure? Download the Universal version
+
+            Open the DMG and drag Kolbo Studio to Applications.
+
+            ### Auto-Update
+            Existing users will be notified automatically within the app. Click "Download Update" to get the latest version.
+
+            ---
+            🚀 **Auto-generated release from master branch**
+          draft: false
+          prerelease: false
+          files: |
+            dist-windows/*
+            dist-macos/*
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          upload_url: ${{ needs.create-release.outputs.upload_url }}
-          asset_path: ./dist/latest-mac.yml
-          asset_name: latest-mac.yml
-          asset_content_type: text/yaml

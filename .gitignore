@@ -43,3 +43,4 @@ certs/
 
 # Claude settings (may contain tokens)
 .claude/settings.local.json
+temp-icons/

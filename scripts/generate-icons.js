@@ -76,7 +76,8 @@ async function cleanupDir(dir) {
 }
 
 async function generateMacIcon() {
-  console.log('Generating macOS icon with rounded corners...');
+  console.log('Generating macOS icon with ROUNDED CORNERS (squircle)...');
+  console.log(`Corner radius: ${MAC_CORNER_RADIUS_PERCENT}% for macOS Big Sur+ style\n`);
 
   const iconsetDir = path.join(TEMP_DIR, 'icon.iconset');
   await ensureDir(iconsetDir);
@@ -93,7 +94,7 @@ async function generateMacIcon() {
     const outputPath = path.join(iconsetDir, `icon_${size}x${size}.png`);
     const roundedBuffer = await applyRoundedCorners(sourceBuffer, size, MAC_CORNER_RADIUS_PERCENT);
     await sharp(roundedBuffer).toFile(outputPath);
-    console.log(`  Created ${size}x${size} (rounded)`);
+    console.log(`  ✓ Created ${size}x${size} with rounded corners`);
 
     // @2x retina resolution (except for 1024 which is already max)
     if (size <= 512) {
@@ -101,23 +102,32 @@ async function generateMacIcon() {
       const retinaPath = path.join(iconsetDir, `icon_${size}x${size}@2x.png`);
       const retinaRoundedBuffer = await applyRoundedCorners(sourceBuffer, retinaSize, MAC_CORNER_RADIUS_PERCENT);
       await sharp(retinaRoundedBuffer).toFile(retinaPath);
-      console.log(`  Created ${size}x${size}@2x (${retinaSize}x${retinaSize}, rounded)`);
+      console.log(`  ✓ Created ${size}x${size}@2x (${retinaSize}x${retinaSize}) with rounded corners`);
     }
   }
 
   // Use iconutil to create .icns (macOS only)
   const icnsPath = path.join(ASSETS_DIR, 'icon.icns');
-  try {
-    execSync(`iconutil -c icns "${iconsetDir}" -o "${icnsPath}"`, { stdio: 'inherit' });
-    console.log(`✓ Created ${icnsPath}`);
-  } catch (error) {
-    console.error('Failed to create .icns file. Make sure you are on macOS.');
-    console.error('Error:', error.message);
+  const isWindows = process.platform === 'win32';
+
+  if (isWindows) {
+    console.log('\n⚠️  iconutil is macOS-only. Iconset files generated in temp-icons/icon.iconset/');
+    console.log('To generate .icns file, run this on a Mac or in GitHub Actions.');
+    console.log('The iconset files have rounded corners applied.\n');
+  } else {
+    try {
+      execSync(`iconutil -c icns "${iconsetDir}" -o "${icnsPath}"`, { stdio: 'inherit' });
+      console.log(`\n✓ Created ${icnsPath} with rounded corners\n`);
+    } catch (error) {
+      console.error('Failed to create .icns file.');
+      console.error('Error:', error.message);
+    }
   }
 }
 
 async function generateWindowsIcon() {
-  console.log('Generating Windows icon with rounded corners...');
+  console.log('Generating Windows icon with ROUNDED CORNERS (Windows 11 style)...');
+  console.log(`Corner radius: ${WIN_CORNER_RADIUS_PERCENT}% for modern Windows look\n`);
 
   const pngDir = path.join(TEMP_DIR, 'win-pngs');
   await ensureDir(pngDir);
@@ -136,7 +146,7 @@ async function generateWindowsIcon() {
     const roundedBuffer = await applyRoundedCorners(sourceBuffer, size, WIN_CORNER_RADIUS_PERCENT);
     await sharp(roundedBuffer).toFile(outputPath);
     pngPaths.push(outputPath);
-    console.log(`  Created ${size}x${size} (rounded)`);
+    console.log(`  ✓ Created ${size}x${size} with rounded corners`);
   }
 
   // Try to use png2icons if available, otherwise use ImageMagick
@@ -149,20 +159,22 @@ async function generateWindowsIcon() {
     const output = png2icons.createICO(input, png2icons.BICUBIC, 0, true, true);
     if (output) {
       fs.writeFileSync(icoPath, output);
-      console.log(`✓ Created ${icoPath}`);
+      console.log(`\n✓ Created ${icoPath} with rounded corners\n`);
     } else {
       throw new Error('png2icons returned null');
     }
   } catch (error) {
     console.log('png2icons failed, trying ImageMagick...');
     try {
-      // Fallback to ImageMagick
-      const pngList = pngPaths.join(' ');
-      execSync(`convert ${pngList} "${icoPath}"`, { stdio: 'inherit' });
-      console.log(`✓ Created ${icoPath}`);
+      // Fallback to ImageMagick (magick convert on Windows)
+      const pngList = pngPaths.map(p => `"${p}"`).join(' ');
+      const convertCmd = process.platform === 'win32' ? 'magick convert' : 'convert';
+      execSync(`${convertCmd} ${pngList} "${icoPath}"`, { stdio: 'inherit' });
+      console.log(`\n✓ Created ${icoPath} with rounded corners\n`);
     } catch (magickError) {
       console.error('Failed to create .ico file.');
       console.error('Install ImageMagick or ensure png2icons is working.');
+      console.error('Rounded corner PNGs are available in temp-icons/win-pngs/');
     }
   }
 }
@@ -189,9 +201,11 @@ async function verifyIcons() {
 }
 
 async function main() {
-  console.log('=== Icon Generator ===\n');
+  console.log('=== Icon Generator with ROUNDED CORNERS ===\n');
   console.log(`Source: ${SOURCE_ICON}`);
-  console.log(`Output: ${ASSETS_DIR}\n`);
+  console.log(`Output: ${ASSETS_DIR}`);
+  console.log(`macOS Corner Radius: ${MAC_CORNER_RADIUS_PERCENT}% (squircle)`);
+  console.log(`Windows Corner Radius: ${WIN_CORNER_RADIUS_PERCENT}% (rounded rect)\n`);
 
   // Check source exists
   if (!fs.existsSync(SOURCE_ICON)) {
@@ -207,11 +221,16 @@ async function main() {
     await generateWindowsIcon();
     await verifyIcons();
   } finally {
-    // Cleanup temp directory
-    await cleanupDir(TEMP_DIR);
+    // On Windows, keep the iconset files for Mac build in GitHub Actions
+    const isWindows = process.platform === 'win32';
+    if (isWindows) {
+      console.log(`\n📁 Temp files kept in ${TEMP_DIR} for GitHub Actions Mac build`);
+    } else {
+      await cleanupDir(TEMP_DIR);
+    }
   }
 
-  console.log('\n=== Done ===');
+  console.log('\n=== Done - All icons have ROUNDED CORNERS ===');
 }
 
 main().catch(console.error);
