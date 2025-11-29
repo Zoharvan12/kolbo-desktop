@@ -451,14 +451,29 @@ function setupAutoUpdater() {
   // Configure auto-updater
   autoUpdater.autoDownload = false; // Manual download via UI
   autoUpdater.autoInstallOnAppQuit = true; // Install when app quits
+  autoUpdater.allowDowngrade = false; // Only allow upgrades, not downgrades
+  autoUpdater.allowPrerelease = false; // Only stable releases
+
+  // Force check for latest release (not just any newer version)
+  autoUpdater.channel = 'latest';
+
+  console.log('[Updater] Configuration:');
+  console.log('[Updater] - Current version:', app.getVersion());
+  console.log('[Updater] - Channel: latest (always fetches newest release)');
+  console.log('[Updater] - Provider: GitHub');
 
   // Log all updater events
   autoUpdater.on('checking-for-update', () => {
     console.log('[Updater] Checking for updates...');
+    console.log('[Updater] Will fetch the LATEST release from GitHub');
   });
 
   autoUpdater.on('update-available', (info) => {
-    console.log('[Updater] Update available:', info.version);
+    console.log('[Updater] ✅ Update available!');
+    console.log('[Updater] - Current version:', app.getVersion());
+    console.log('[Updater] - Latest version:', info.version);
+    console.log('[Updater] - Release date:', info.releaseDate);
+    console.log('[Updater] This is the LATEST release from GitHub');
 
     // Store update info
     updateInfo = {
@@ -476,7 +491,9 @@ function setupAutoUpdater() {
   });
 
   autoUpdater.on('update-not-available', () => {
-    console.log('[Updater] App is up to date');
+    console.log('[Updater] ✅ App is up to date!');
+    console.log('[Updater] - Current version:', app.getVersion());
+    console.log('[Updater] This is the LATEST version available');
     updateInfo = null;
 
     // Notify renderer
