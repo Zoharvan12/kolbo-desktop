@@ -474,22 +474,140 @@ function setupUpdaterHandlers() {
     return updateInfo;
   });
 
-  // Start download
+  // Download installer to Downloads folder (no code signing needed!)
   ipcMain.handle('updater:download', async () => {
     try {
       console.log('[Updater] Download requested');
-      await autoUpdater.downloadUpdate();
-      return { success: true };
+
+      if (!updateInfo || !updateInfo.version) {
+        return { success: false, error: 'No update available' };
+      }
+
+      const { shell } = require('electron');
+      const https = require('https');
+      const fs = require('fs');
+      const path = require('path');
+      const { app } = require('electron');
+
+      // Build download URL
+      const version = updateInfo.version;
+      const fileName = `Kolbo.Studio-Setup-${version}.exe`;
+      const downloadUrl = `https://github.com/Zoharvan12/kolbo-desktop/releases/download/v${version}/${fileName}`;
+
+      // Download to Downloads folder
+      const downloadsPath = app.getPath('downloads');
+      const savePath = path.join(downloadsPath, fileName);
+
+      console.log('[Updater] Downloading from:', downloadUrl);
+      console.log('[Updater] Saving to:', savePath);
+
+      return new Promise((resolve, reject) => {
+        const file = fs.createWriteStream(savePath);
+
+        https.get(downloadUrl, (response) => {
+          if (response.statusCode === 302 || response.statusCode === 301) {
+            // Follow redirect
+            https.get(response.headers.location, (redirectResponse) => {
+              const totalBytes = parseInt(redirectResponse.headers['content-length'], 10);
+              let downloadedBytes = 0;
+
+              redirectResponse.pipe(file);
+
+              redirectResponse.on('data', (chunk) => {
+                downloadedBytes += chunk.length;
+                const percent = (downloadedBytes / totalBytes) * 100;
+
+                // Send progress to renderer
+                if (mainWindow && mainWindow.webContents) {
+                  mainWindow.webContents.send('updater:progress', {
+                    percent: percent,
+                    transferred: downloadedBytes,
+                    total: totalBytes
+                  });
+                }
+              });
+
+              file.on('finish', () => {
+                file.close();
+                console.log('[Updater] Download complete:', savePath);
+
+                // Show file in folder
+                shell.showItemInFolder(savePath);
+
+                resolve({
+                  success: true,
+                  path: savePath,
+                  message: `Installer downloaded to Downloads folder. Run it to update.`
+                });
+              });
+            }).on('error', (err) => {
+              fs.unlink(savePath, () => {});
+              reject({ success: false, error: err.message });
+            });
+          } else {
+            const totalBytes = parseInt(response.headers['content-length'], 10);
+            let downloadedBytes = 0;
+
+            response.pipe(file);
+
+            response.on('data', (chunk) => {
+              downloadedBytes += chunk.length;
+              const percent = (downloadedBytes / totalBytes) * 100;
+
+              // Send progress to renderer
+              if (mainWindow && mainWindow.webContents) {
+                mainWindow.webContents.send('updater:progress', {
+                  percent: percent,
+                  transferred: downloadedBytes,
+                  total: totalBytes
+                });
+              }
+            });
+
+            file.on('finish', () => {
+              file.close();
+              console.log('[Updater] Download complete:', savePath);
+
+              // Show file in folder
+              shell.showItemInFolder(savePath);
+
+              resolve({
+                success: true,
+                path: savePath,
+                message: `Installer downloaded to Downloads folder. Run it to update.`
+              });
+            });
+          }
+        }).on('error', (err) => {
+          fs.unlink(savePath, () => {});
+          reject({ success: false, error: err.message });
+        });
+
+        file.on('error', (err) => {
+          fs.unlink(savePath, () => {});
+          reject({ success: false, error: err.message });
+        });
+      });
+
     } catch (error) {
       console.error('[Updater] Download failed:', error);
       return { success: false, error: error.message };
     }
   });
 
-  // Quit and install
-  ipcMain.handle('updater:install', () => {
-    console.log('[Updater] Install requested, quitting and installing...');
-    setImmediate(() => autoUpdater.quitAndInstall());
+  // Open installer (no auto-install, user runs it manually)
+  ipcMain.handle('updater:install', async () => {
+    console.log('[Updater] User will install manually');
+    const { dialog } = require('electron');
+
+    await dialog.showMessageBox(mainWindow, {
+      type: 'info',
+      title: 'Update Downloaded',
+      message: 'The installer has been downloaded to your Downloads folder.',
+      detail: 'Run the installer to update to the latest version. Your settings and data will be preserved.',
+      buttons: ['OK']
+    });
+
     return { success: true };
   });
 

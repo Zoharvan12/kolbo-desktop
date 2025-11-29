@@ -74,12 +74,7 @@
       ],
       "icon": "assets/icon.ico",
       "publisherName": "Kolbo.AI",
-      "artifactName": "${productName}-Setup-${version}.${ext}",
-      "certificateFile": "certs/windows-certificate.pfx",
-      "certificatePassword": "${env.WIN_CSC_KEY_PASSWORD}",
-      "signingHashAlgorithms": ["sha256"],
-      "signAndEditExecutable": true,
-      "signDlls": false
+      "artifactName": "${productName}-Setup-${version}.${ext}"
     },
     "nsis": {
       "oneClick": false,
