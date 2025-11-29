@@ -413,6 +413,11 @@ html, body {
   -webkit-app-region: no-drag; /* Make interactive elements clickable */
 }
 
+/* macOS: Add left padding to avoid overlap with traffic light buttons */
+body.is-mac .header {
+  padding-left: 80px;
+}
+
 .header-title {
   font-size: 14px;
   font-weight: 600;
@@ -581,6 +586,11 @@ html, body {
   padding-left: 12px;
   border-left: 1px solid rgb(var(--border) / 0.3);
   -webkit-app-region: no-drag;
+}
+
+/* macOS: Hide custom window controls (uses native traffic lights) */
+body.is-mac .window-controls {
+  display: none;
 }
 
 .window-btn {

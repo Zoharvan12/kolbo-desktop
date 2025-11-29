@@ -104,12 +104,12 @@
       "gatekeeperAssess": false,
       "entitlements": null,
       "entitlementsInherit": null,
-      "artifactName": "${productName}-${version}.${ext}"
+      "artifactName": "${productName}-${version}-${arch}.${ext}"
     },
     "dmg": {
       "title": "${productName} ${version}",
       "icon": "assets/icon.icns",
-      "background": "assets/images/9x16 image.jpg",
+      "background": "assets/images/dmg-background.jpg",
       "window": {
         "width": 540,
         "height": 380
