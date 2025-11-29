@@ -191,6 +191,9 @@ class KolboApp {
     }
 
     this.bindEvents();
+
+    // Setup update listeners on app startup (not just when settings page opens)
+    this.setupUpdateListeners();
   }
 
   bindEvents() {
@@ -2109,36 +2112,7 @@ class KolboApp {
         installBtn.addEventListener('click', () => this.handleInstallUpdate());
       }
 
-      // Setup update event listeners (only once)
-      if (!this._updateListenersSetup) {
-        this._updateListenersSetup = true;
-
-        window.kolboDesktop.onUpdateAvailable((info) => {
-          console.log('[Update] Update available:', info);
-          this.showUpdateAvailable(info);
-        });
-
-        window.kolboDesktop.onUpdateNotAvailable(() => {
-          console.log('[Update] App is up to date');
-          this.showUpdateStatus('Your app is up to date', 'uptodate');
-        });
-
-        window.kolboDesktop.onDownloadProgress((progress) => {
-          console.log('[Update] Download progress:', progress.percent);
-          this.updateDownloadProgress(progress);
-        });
-
-        window.kolboDesktop.onUpdateDownloaded((info) => {
-          console.log('[Update] Update downloaded:', info);
-          this.showUpdateDownloaded(info);
-        });
-
-        window.kolboDesktop.onUpdateError((error) => {
-          console.error('[Update] Error:', error);
-          this.showUpdateStatus(`Error checking for updates: ${error}`, 'error');
-        });
-      }
-
+      // Update listeners are now set up on app startup (see setupUpdateListeners in init())
       // Check if there's already an update available
       const updateInfo = await window.kolboDesktop.getUpdateInfo();
       if (updateInfo && updateInfo.available) {
@@ -2204,6 +2178,40 @@ class KolboApp {
     }
   }
 
+  // Setup update event listeners on app startup
+  setupUpdateListeners() {
+    if (!this._updateListenersSetup) {
+      this._updateListenersSetup = true;
+
+      console.log('[Update] Setting up update listeners...');
+
+      window.kolboDesktop.onUpdateAvailable((info) => {
+        console.log('[Update] Update available:', info);
+        this.showUpdateAvailable(info);
+      });
+
+      window.kolboDesktop.onUpdateNotAvailable(() => {
+        console.log('[Update] App is up to date');
+        this.showUpdateStatus('Your app is up to date', 'uptodate');
+      });
+
+      window.kolboDesktop.onDownloadProgress((progress) => {
+        console.log('[Update] Download progress:', progress.percent);
+        this.updateDownloadProgress(progress);
+      });
+
+      window.kolboDesktop.onUpdateDownloaded((info) => {
+        console.log('[Update] Update downloaded:', info);
+        this.showUpdateDownloaded(info);
+      });
+
+      window.kolboDesktop.onUpdateError((error) => {
+        console.error('[Update] Error:', error);
+        this.showUpdateStatus(`Error checking for updates: ${error}`, 'error');
+      });
+    }
+  }
+
   showUpdateAvailable(info) {
     console.log('[Updater] Update available:', info.version);
 
@@ -2213,7 +2221,7 @@ class KolboApp {
       updateBtn.classList.remove('hidden');
       updateBtn.onclick = () => {
         // Switch to settings view and scroll to updates section
-        this.showView('settings');
+        this.switchView('settings');
         setTimeout(() => {
           const updatesSection = document.querySelector('.settings-section:has(#update-available-card)');
           if (updatesSection) {
