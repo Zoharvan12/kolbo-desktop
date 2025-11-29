@@ -2241,7 +2241,7 @@ class KolboApp {
     if (versionText) versionText.textContent = `Version ${info.version} is ready to download`;
 
     if (changelog && info.releaseNotes) {
-      changelog.textContent = info.releaseNotes;
+      changelog.innerHTML = info.releaseNotes;
     }
 
     if (statusEl) {
