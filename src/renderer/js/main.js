@@ -2105,17 +2105,41 @@ class KolboApp {
       // Show progress bar
       if (progressContainer) progressContainer.classList.remove('hidden');
 
-      // Disable button
+      // Disable button with centered spinner
       if (downloadBtn) {
         downloadBtn.disabled = true;
         downloadBtn.innerHTML = `
-          <div class="spinner" style="width: 14px; height: 14px; border: 2px solid white; border-top-color: transparent;"></div>
-          Downloading...
+          <div style="display: flex; align-items: center; justify-content: center; gap: 8px;">
+            <div class="spinner" style="width: 14px; height: 14px; border: 2px solid white; border-top-color: transparent;"></div>
+            <span>Downloading...</span>
+          </div>
         `;
       }
 
       console.log('[Update] Starting download');
-      await window.kolboDesktop.downloadUpdate();
+      const result = await window.kolboDesktop.downloadUpdate();
+
+      // Download complete - update UI
+      if (result && result.success) {
+        if (downloadBtn) {
+          downloadBtn.disabled = false;
+          downloadBtn.classList.add('hidden');
+        }
+
+        const statusEl = document.getElementById('update-status');
+        if (statusEl) {
+          statusEl.textContent = 'Installer downloaded to Downloads folder!';
+          statusEl.className = 'settings-sublabel available';
+        }
+
+        if (progressContainer) progressContainer.classList.add('hidden');
+
+        // Show success message
+        const progressText = document.getElementById('update-progress-text');
+        if (progressText) {
+          progressText.textContent = 'Download complete! Check your Downloads folder.';
+        }
+      }
     } catch (error) {
       console.error('[Update] Download failed:', error);
       alert(`Failed to download update: ${error.message}`);
