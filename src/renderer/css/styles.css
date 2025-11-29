@@ -2030,6 +2030,34 @@ body.is-mac .window-controls {
   pointer-events: none; /* Allow drag to pass through video element */
 }
 
+/* Thumbnail Loading States */
+.media-preview img[src=""],
+.media-preview img:not([src]),
+.media-preview video[poster=""],
+.media-preview video:not([poster]) {
+  background: linear-gradient(90deg, #1a1a1a 25%, #2a2a2a 50%, #1a1a1a 75%);
+  background-size: 200% 100%;
+  animation: thumbnail-loading 1.5s ease-in-out infinite;
+}
+
+@keyframes thumbnail-loading {
+  0% {
+    background-position: 200% 0;
+  }
+  100% {
+    background-position: -200% 0;
+  }
+}
+
+.media-preview img {
+  background: #1a1a1a; /* Dark placeholder while loading */
+  min-height: 160px; /* Ensure placeholder has height */
+}
+
+.media-preview video {
+  background: #1a1a1a; /* Dark placeholder while loading */
+}
+
 .video-play-btn {
   pointer-events: auto; /* But keep play button clickable */
   position: absolute;

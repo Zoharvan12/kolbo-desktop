@@ -666,6 +666,11 @@ class KolboApp {
       console.log('Project changed to:', this.selectedProjectId);
     }
 
+    // Reset loading states when changing projects
+    this.loadingMore = false;
+    const loadingMoreEl = this.getElement('loading-more');
+    if (loadingMoreEl) loadingMoreEl.classList.add('hidden');
+
     clearTimeout(this.filterDebounceTimer);
     this.filterDebounceTimer = setTimeout(() => {
       this.loadMedia(true);
@@ -706,6 +711,11 @@ class KolboApp {
     if (this.DEBUG_MODE) {
       console.log('[Filter] Previous filter:', previousFilter, '-> New filter:', this.currentFilter);
     }
+
+    // Reset loading states when changing filters
+    this.loadingMore = false;
+    const loadingMoreEl = this.getElement('loading-more');
+    if (loadingMoreEl) loadingMoreEl.classList.add('hidden');
 
     this.updateSubcategoryVisibility(filterType);
 
@@ -766,6 +776,11 @@ class KolboApp {
 
     this.currentSubcategory = subcategory;
 
+    // Reset loading states when changing subcategories
+    this.loadingMore = false;
+    const loadingMoreEl = this.getElement('loading-more');
+    if (loadingMoreEl) loadingMoreEl.classList.add('hidden');
+
     // Reset scroll position to top when changing subcategory
     const mediaContainer = document.getElementById('media-container');
     if (mediaContainer) {
@@ -802,6 +817,8 @@ class KolboApp {
     } else {
       this.isLoading = true;
       loadingEl.classList.remove('hidden');
+      // Hide loading more indicator when doing a fresh load
+      if (loadingMoreEl) loadingMoreEl.classList.add('hidden');
       gridEl.innerHTML = '';
       emptyEl.classList.add('hidden');
       errorEl.classList.add('hidden');
@@ -969,6 +986,9 @@ class KolboApp {
     this.setupMediaItemListeners();
     this.updateBatchMenu();
 
+    // AGGRESSIVE CACHING: Preload ALL thumbnails immediately (they're tiny!)
+    this.preloadAllThumbnails(filtered);
+
     // Preload first 20 items to cache for drag-and-drop (async, don't wait)
     this.preloadVisibleMediaToCache(filtered.slice(0, 20));
   }
@@ -1020,6 +1040,66 @@ class KolboApp {
           const cacheStatus = document.querySelector(`.cache-status[data-id="${item.id}"]`);
           if (cacheStatus) {
             cacheStatus.style.display = 'block';
+          }
+        }
+      } catch (error) {
+        // Silently ignore errors
+      }
+    }
+  }
+
+  async preloadAllThumbnails(items) {
+    if (!items || items.length === 0) return;
+    if (!window.kolboDesktop || !window.kolboDesktop.preloadThumbnails) return;
+
+    console.log(`[ThumbnailCache] Preloading ${items.length} thumbnails...`);
+
+    // Prepare thumbnail items for cache
+    const thumbnailItems = items
+      .filter(item => item.thumbnail_url || item.thumbnailUrl)
+      .map(item => ({
+        id: item.id,
+        thumbnailUrl: item.thumbnail_url || item.thumbnailUrl
+      }));
+
+    if (thumbnailItems.length === 0) {
+      console.log('[ThumbnailCache] No thumbnails to preload');
+      return;
+    }
+
+    try {
+      // Start aggressive thumbnail preloading (fire and forget)
+      window.kolboDesktop.preloadThumbnails(thumbnailItems).then(result => {
+        if (result.success) {
+          console.log(`[ThumbnailCache] Preloaded ${result.successful}/${result.total} thumbnails`);
+
+          // Update all thumbnail images to use cached paths
+          this.updateThumbnailsWithCachedPaths(items);
+        }
+      });
+    } catch (error) {
+      console.error('[ThumbnailCache] Preload error:', error);
+    }
+  }
+
+  async updateThumbnailsWithCachedPaths(items) {
+    if (!window.kolboDesktop || !window.kolboDesktop.getCachedThumbnailPath) return;
+
+    for (const item of items) {
+      try {
+        const result = await window.kolboDesktop.getCachedThumbnailPath(item.id);
+
+        if (result.cached && result.filePath) {
+          // Update image src to use file:// protocol for cached thumbnail
+          const imgEl = document.querySelector(`[data-id="${item.id}"] img, [data-id="${item.id}"] video`);
+          if (imgEl) {
+            const cachedUrl = `file://${result.filePath.replace(/\\/g, '/')}`;
+            if (imgEl.tagName === 'IMG') {
+              imgEl.src = cachedUrl;
+            } else if (imgEl.tagName === 'VIDEO') {
+              imgEl.poster = cachedUrl;
+            }
+            console.log(`[ThumbnailCache] Updated thumbnail for ${item.id}`);
           }
         }
       } catch (error) {

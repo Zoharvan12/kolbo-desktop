@@ -119,6 +119,16 @@ contextBridge.exposeInMainWorld('kolboDesktop', {
   getCacheStats: () =>
     ipcRenderer.invoke('cache:get-stats'),
 
+  // Thumbnail Cache
+  getCachedThumbnailPath: (mediaId) =>
+    ipcRenderer.invoke('cache:get-thumbnail-path', mediaId),
+
+  preloadThumbnails: (items) =>
+    ipcRenderer.invoke('cache:preload-thumbnails', items),
+
+  clearThumbnails: () =>
+    ipcRenderer.invoke('cache:clear-thumbnails'),
+
   startFileDrag: (filePaths) =>
     ipcRenderer.send('file:start-drag', filePaths),
 

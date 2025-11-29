@@ -895,10 +895,13 @@ class MediaCache {
   constructor() {
     const path = require('path');
     this.cachePath = path.join(app.getPath('appData'), 'Kolbo.AI', 'MediaCache');
+    this.thumbnailCachePath = path.join(app.getPath('appData'), 'Kolbo.AI', 'ThumbnailCache');
     this.cacheIndex = new Map(); // id -> { filePath, lastAccessed, size, type }
+    this.thumbnailIndex = new Map(); // id -> { filePath, lastAccessed, size }
     this.maxCacheSize = 5 * 1024 * 1024 * 1024; // 5GB
     this.maxCacheItems = 100;
     this.downloadQueue = new Map(); // id -> Promise
+    this.thumbnailQueue = new Map(); // id -> Promise
 
     this.ensureCacheFolderExists();
     this.loadCacheIndex();
@@ -910,30 +913,56 @@ class MediaCache {
       fs.mkdirSync(this.cachePath, { recursive: true });
       console.log('[MediaCache] Created cache folder:', this.cachePath);
     }
+    if (!fs.existsSync(this.thumbnailCachePath)) {
+      fs.mkdirSync(this.thumbnailCachePath, { recursive: true });
+      console.log('[MediaCache] Created thumbnail cache folder:', this.thumbnailCachePath);
+    }
   }
 
   loadCacheIndex() {
     const fs = require('fs');
     const path = require('path');
 
-    if (!fs.existsSync(this.cachePath)) return;
+    // Load media cache
+    if (fs.existsSync(this.cachePath)) {
+      const files = fs.readdirSync(this.cachePath);
+      console.log(`[MediaCache] Found ${files.length} cached files`);
 
-    const files = fs.readdirSync(this.cachePath);
-    console.log(`[MediaCache] Found ${files.length} cached files`);
+      for (const fileName of files) {
+        const filePath = path.join(this.cachePath, fileName);
+        const stats = fs.statSync(filePath);
 
-    for (const fileName of files) {
-      const filePath = path.join(this.cachePath, fileName);
-      const stats = fs.statSync(filePath);
+        // Extract ID from filename (e.g., "kolbo-123.mp4" -> "123")
+        const id = fileName.replace(/^kolbo-/, '').replace(/\.[^.]+$/, '');
 
-      // Extract ID from filename (e.g., "kolbo-123.mp4" -> "123")
-      const id = fileName.replace(/^kolbo-/, '').replace(/\.[^.]+$/, '');
+        this.cacheIndex.set(id, {
+          filePath,
+          lastAccessed: stats.mtime.getTime(),
+          size: stats.size,
+          fileName
+        });
+      }
+    }
 
-      this.cacheIndex.set(id, {
-        filePath,
-        lastAccessed: stats.mtime.getTime(),
-        size: stats.size,
-        fileName
-      });
+    // Load thumbnail cache
+    if (fs.existsSync(this.thumbnailCachePath)) {
+      const thumbFiles = fs.readdirSync(this.thumbnailCachePath);
+      console.log(`[MediaCache] Found ${thumbFiles.length} cached thumbnails`);
+
+      for (const fileName of thumbFiles) {
+        const filePath = path.join(this.thumbnailCachePath, fileName);
+        const stats = fs.statSync(filePath);
+
+        // Extract ID from filename (e.g., "thumb-123.jpg" -> "123")
+        const id = fileName.replace(/^thumb-/, '').replace(/\.[^.]+$/, '');
+
+        this.thumbnailIndex.set(id, {
+          filePath,
+          lastAccessed: stats.mtime.getTime(),
+          size: stats.size,
+          fileName
+        });
+      }
     }
   }
 
@@ -1104,12 +1133,132 @@ class MediaCache {
       totalSize += cached.size || 0;
     }
 
+    let thumbnailSize = 0;
+    for (const thumb of this.thumbnailIndex.values()) {
+      thumbnailSize += thumb.size || 0;
+    }
+
     return {
       itemCount: this.cacheIndex.size,
       totalSize,
       totalSizeMB: (totalSize / 1024 / 1024).toFixed(2),
-      maxItems: this.maxCacheItems
+      maxItems: this.maxCacheItems,
+      thumbnailCount: this.thumbnailIndex.size,
+      thumbnailSize,
+      thumbnailSizeMB: (thumbnailSize / 1024 / 1024).toFixed(2)
     };
+  }
+
+  // ============================================================================
+  // THUMBNAIL CACHE METHODS
+  // ============================================================================
+
+  async getCachedThumbnailPath(mediaId) {
+    // Check if already cached
+    if (this.thumbnailIndex.has(mediaId)) {
+      const cached = this.thumbnailIndex.get(mediaId);
+      cached.lastAccessed = Date.now();
+      console.log(`[ThumbnailCache] Cache HIT for ${mediaId}`);
+      return cached.filePath;
+    }
+
+    console.log(`[ThumbnailCache] Cache MISS for ${mediaId}`);
+    return null;
+  }
+
+  async preloadThumbnails(items) {
+    console.log(`[ThumbnailCache] Preloading ${items.length} thumbnails...`);
+
+    const downloadPromises = items.map(item => this.downloadThumbnailToCache(item));
+    const results = await Promise.allSettled(downloadPromises);
+
+    const successful = results.filter(r => r.status === 'fulfilled').length;
+    console.log(`[ThumbnailCache] Preloaded ${successful}/${items.length} thumbnails`);
+
+    return { successful, total: items.length };
+  }
+
+  async downloadThumbnailToCache(item) {
+    const { id, thumbnailUrl } = item;
+
+    // Skip if no thumbnail URL
+    if (!thumbnailUrl) {
+      console.log(`[ThumbnailCache] No thumbnail URL for ${id}`);
+      return null;
+    }
+
+    // Check if already downloading
+    if (this.thumbnailQueue.has(id)) {
+      console.log(`[ThumbnailCache] Already downloading ${id}`);
+      return this.thumbnailQueue.get(id);
+    }
+
+    // Check if already cached
+    if (this.thumbnailIndex.has(id)) {
+      console.log(`[ThumbnailCache] Already cached ${id}`);
+      return this.thumbnailIndex.get(id).filePath;
+    }
+
+    const path = require('path');
+    const fs = require('fs');
+
+    // Determine file extension from URL or default to .jpg
+    const urlExt = thumbnailUrl.match(/\.(jpg|jpeg|png|webp|gif)(\?|$)/i);
+    const ext = urlExt ? urlExt[1] : 'jpg';
+    const fileName = `thumb-${id}.${ext}`;
+    const filePath = path.join(this.thumbnailCachePath, fileName);
+
+    // Start download
+    const downloadPromise = this.downloadFile(thumbnailUrl, filePath)
+      .then(() => {
+        const stats = fs.statSync(filePath);
+
+        // Add to thumbnail index
+        this.thumbnailIndex.set(id, {
+          filePath,
+          lastAccessed: Date.now(),
+          size: stats.size,
+          fileName
+        });
+
+        console.log(`[ThumbnailCache] Downloaded ${fileName} (${(stats.size / 1024).toFixed(1)} KB)`);
+
+        this.thumbnailQueue.delete(id);
+        return filePath;
+      })
+      .catch(err => {
+        console.error(`[ThumbnailCache] Failed to download ${fileName}:`, err.message);
+        this.thumbnailQueue.delete(id);
+        // Don't throw - just return null so we can continue with other thumbnails
+        return null;
+      });
+
+    this.thumbnailQueue.set(id, downloadPromise);
+    return downloadPromise;
+  }
+
+  clearThumbnailCache() {
+    const fs = require('fs');
+    const path = require('path');
+
+    if (!fs.existsSync(this.thumbnailCachePath)) {
+      return { success: true, deletedFiles: 0 };
+    }
+
+    let deletedCount = 0;
+    for (const [id, thumb] of this.thumbnailIndex.entries()) {
+      try {
+        fs.unlinkSync(thumb.filePath);
+        deletedCount++;
+      } catch (err) {
+        console.error(`[ThumbnailCache] Failed to delete ${thumb.fileName}:`, err);
+      }
+    }
+
+    this.thumbnailIndex.clear();
+    console.log(`[ThumbnailCache] Cleared ${deletedCount} thumbnails`);
+
+    return { success: true, deletedFiles: deletedCount };
   }
 }
 
@@ -1458,6 +1607,60 @@ function setupMediaCacheHandlers() {
         icon: dragIcon
       });
       console.log('[Native Drag] Multi-file drag started');
+    }
+  });
+
+  // Thumbnail cache handlers
+  ipcMain.handle('cache:get-thumbnail-path', async (event, mediaId) => {
+    try {
+      const cache = getMediaCache();
+      const filePath = await cache.getCachedThumbnailPath(mediaId);
+
+      return {
+        success: true,
+        cached: filePath !== null,
+        filePath: filePath
+      };
+    } catch (error) {
+      console.error('[ThumbnailCache] Error getting thumbnail path:', error);
+      return {
+        success: false,
+        cached: false,
+        error: error.message
+      };
+    }
+  });
+
+  ipcMain.handle('cache:preload-thumbnails', async (event, items) => {
+    try {
+      const cache = getMediaCache();
+      const result = await cache.preloadThumbnails(items);
+
+      return {
+        success: true,
+        ...result
+      };
+    } catch (error) {
+      console.error('[ThumbnailCache] Error preloading thumbnails:', error);
+      return {
+        success: false,
+        error: error.message
+      };
+    }
+  });
+
+  ipcMain.handle('cache:clear-thumbnails', async (event) => {
+    try {
+      const cache = getMediaCache();
+      const result = cache.clearThumbnailCache();
+
+      return result;
+    } catch (error) {
+      console.error('[ThumbnailCache] Error clearing thumbnails:', error);
+      return {
+        success: false,
+        error: error.message
+      };
     }
   });
 
