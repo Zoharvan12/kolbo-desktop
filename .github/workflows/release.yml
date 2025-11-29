@@ -52,7 +52,7 @@ jobs:
           cat dist/latest.yml
 
       - name: Upload Windows artifacts
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: windows-artifacts
           path: |
@@ -94,7 +94,7 @@ jobs:
           cp "dist/Kolbo Studio-${{ needs.prepare-release.outputs.version }}-arm64.dmg" "dist/Kolbo.Studio-${{ needs.prepare-release.outputs.version }}.dmg"
 
       - name: Upload macOS artifacts
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: macos-artifacts
           path: |
@@ -108,13 +108,13 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Download Windows artifacts
-        uses: actions/download-artifact@v3
+        uses: actions/download-artifact@v4
         with:
           name: windows-artifacts
           path: ./dist-windows
 
       - name: Download macOS artifacts
-        uses: actions/download-artifact@v3
+        uses: actions/download-artifact@v4
         with:
           name: macos-artifacts
           path: ./dist-macos
