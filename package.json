@@ -29,7 +29,10 @@
     "build:all:mac": "npm run build:dev:mac && npm run build:staging:mac && npm run build:prod:mac",
     "version:patch": "npm version patch -m \"Release v%s\" && git push && git push --tags",
     "version:minor": "npm version minor -m \"Release v%s\" && git push && git push --tags",
-    "version:major": "npm version major -m \"Release v%s\" && git push && git push --tags"
+    "version:major": "npm version major -m \"Release v%s\" && git push && git push --tags",
+    "release": "node scripts/release.js",
+    "release:win": "cross-env KOLBO_ENV=production node build-env.js && electron-builder --win --publish always",
+    "release:mac": "cross-env KOLBO_ENV=production node build-env.js && electron-builder --mac --publish always"
   },
   "dependencies": {
     "electron-store": "^8.1.0",

@@ -35,7 +35,8 @@
       "Bash(tasklist:*)",
       "Bash(del \"G:\\Projects\\Kolbo.AI\\github\\kolbo-desktop\\src\\renderer\\build-env.js\")",
       "Read(//g/Projects/Kolbo.AI/github/**)",
-      "Bash(git checkout:*)"
+      "Bash(git checkout:*)",
+      "Bash(curl:*)"
     ],
     "deny": [],
     "ask": []
