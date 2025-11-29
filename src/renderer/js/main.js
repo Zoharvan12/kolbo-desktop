@@ -395,6 +395,13 @@ class KolboApp {
       mediaView?.classList.remove('hidden');
       mediaView?.classList.add('active');
       if (mediaCount) mediaCount.style.display = '';
+
+      // Reset scroll position to top when switching to media view
+      // This prevents infinite scroll from firing immediately due to stale scroll position
+      const mediaContainer = document.getElementById('media-container');
+      if (mediaContainer) {
+        mediaContainer.scrollTop = 0;
+      }
     } else if (view === 'webapp') {
       webappView?.classList.remove('hidden');
       webappView?.classList.add('active');
@@ -702,6 +709,12 @@ class KolboApp {
 
     this.updateSubcategoryVisibility(filterType);
 
+    // Reset scroll position to top when changing filters
+    const mediaContainer = document.getElementById('media-container');
+    if (mediaContainer) {
+      mediaContainer.scrollTop = 0;
+    }
+
     if (filterType === 'favorites' || previousFilter === 'favorites') {
       if (this.DEBUG_MODE) {
         console.log('[Filter] Triggering API reload for favorites');
@@ -753,6 +766,12 @@ class KolboApp {
 
     this.currentSubcategory = subcategory;
 
+    // Reset scroll position to top when changing subcategory
+    const mediaContainer = document.getElementById('media-container');
+    if (mediaContainer) {
+      mediaContainer.scrollTop = 0;
+    }
+
     clearTimeout(this.filterDebounceTimer);
     this.filterDebounceTimer = setTimeout(() => {
       this.loadMedia(true);
@@ -791,9 +810,16 @@ class KolboApp {
     }
 
     try {
+      // Calculate optimal page size based on viewport (approx 200px per item)
+      // Load just enough to fill viewport + small buffer for smooth scrolling
+      const viewportHeight = window.innerHeight;
+      const itemsPerRow = Math.max(2, Math.floor(window.innerWidth / 220)); // ~220px per item with gap
+      const rowsVisible = Math.ceil(viewportHeight / 200); // ~200px per row
+      const optimalPageSize = Math.min(50, Math.max(12, itemsPerRow * (rowsVisible + 2))); // +2 rows buffer
+
       const params = {
         page: this.currentPage,
-        pageSize: 50,
+        pageSize: optimalPageSize,
         sort: 'created_desc',
         type: (this.currentFilter === 'all' || this.currentFilter === 'favorites') ? 'all' : this.currentFilter,
         projectId: this.selectedProjectId
@@ -811,6 +837,7 @@ class KolboApp {
       }
 
       if (this.DEBUG_MODE) {
+        console.log('[Media] Viewport-based pageSize:', optimalPageSize, `(${itemsPerRow} cols x ${rowsVisible + 2} rows)`);
         console.log('[Media] Loading media with params:', JSON.stringify(params, null, 2));
         console.log('[Media] Current filter state:', this.currentFilter);
         console.log('[Media] Append to existing:', appendToExisting);
@@ -2427,6 +2454,13 @@ function initBackgroundVideo() {
 // Initialize app when DOM is ready
 let app;
 document.addEventListener('DOMContentLoaded', () => {
+  // Add platform class for OS-specific styling (e.g., macOS traffic light padding)
+  if (navigator.platform.includes('Mac')) {
+    document.body.classList.add('is-mac');
+  } else if (navigator.platform.includes('Win')) {
+    document.body.classList.add('is-windows');
+  }
+
   // Initialize background video first
   initBackgroundVideo();
   
