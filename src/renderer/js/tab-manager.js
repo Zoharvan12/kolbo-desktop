@@ -42,6 +42,8 @@ class TabManager {
     this.backBtn = document.getElementById('webapp-back-btn');
     this.forwardBtn = document.getElementById('webapp-forward-btn');
     this.refreshBtn = document.getElementById('webapp-refresh-btn');
+    this.zoomInBtn = document.getElementById('webapp-zoom-in-btn');
+    this.zoomOutBtn = document.getElementById('webapp-zoom-out-btn');
 
     // Default Kolbo.ai URLs
     this.defaultUrls = {
@@ -196,6 +198,12 @@ class TabManager {
     }
     if (this.refreshBtn) {
       this.refreshBtn.addEventListener('click', () => this.refresh());
+    }
+    if (this.zoomInBtn) {
+      this.zoomInBtn.addEventListener('click', () => this.zoomIn());
+    }
+    if (this.zoomOutBtn) {
+      this.zoomOutBtn.addEventListener('click', () => this.zoomOut());
     }
 
     // Load saved tabs or create default tab (MUST AWAIT!)
@@ -372,6 +380,12 @@ class TabManager {
               const newTab = await this.createTab(updatedUrl, tabData.title, false);
               if (newTab && tabData.id) {
                 tabIdMap.set(tabData.id, newTab.id);
+
+                // Restore zoom level if saved
+                if (tabData.zoomLevel && tabData.zoomLevel !== 1.0) {
+                  newTab.zoomLevel = tabData.zoomLevel;
+                  this.applyZoom(newTab);
+                }
               }
             }
 
@@ -497,7 +511,8 @@ class TabManager {
           .map(tab => ({
             url: tab.url,
             title: tab.title,
-            id: tab.id
+            id: tab.id,
+            zoomLevel: tab.zoomLevel || 1.0
           }));
 
         // Save merged tabs info separately
@@ -611,7 +626,8 @@ class TabManager {
       url: tabUrl,
       element: tabElement,
       iframe: iframe,
-      loaded: false
+      loaded: false,
+      zoomLevel: 1.0 // 100% zoom by default
     };
 
     // Add event listeners
@@ -815,6 +831,11 @@ class TabManager {
       t.iframe.classList.toggle('active', t.id === tabId);
     });
 
+    // Apply zoom for the active tab
+    if (tab.zoomLevel && tab.zoomLevel !== 1.0) {
+      this.applyZoom(tab);
+    }
+
     // Handle merged tab - ensure both iframes are visible
     if (tab.isMerged) {
       const mergedData = this.mergedTabs.get(tabId);
@@ -1000,6 +1021,64 @@ class TabManager {
     } catch (error) {
       console.error('[TabManager] Error refreshing:', error);
     }
+  }
+
+  zoomIn() {
+    try {
+      const activeTab = this.tabs.find(t => t.id === this.activeTabId);
+      if (!activeTab) return;
+
+      // Increase zoom by 10% (0.1)
+      activeTab.zoomLevel = Math.min(activeTab.zoomLevel + 0.1, 3.0); // Max 300%
+      this.applyZoom(activeTab);
+
+      if (this.DEBUG_MODE) {
+        console.log('[TabManager] Zoom in:', activeTab.id, activeTab.zoomLevel);
+      }
+    } catch (error) {
+      console.error('[TabManager] Error zooming in:', error);
+    }
+  }
+
+  zoomOut() {
+    try {
+      const activeTab = this.tabs.find(t => t.id === this.activeTabId);
+      if (!activeTab) return;
+
+      // Decrease zoom by 10% (0.1)
+      activeTab.zoomLevel = Math.max(activeTab.zoomLevel - 0.1, 0.3); // Min 30%
+      this.applyZoom(activeTab);
+
+      if (this.DEBUG_MODE) {
+        console.log('[TabManager] Zoom out:', activeTab.id, activeTab.zoomLevel);
+      }
+    } catch (error) {
+      console.error('[TabManager] Error zooming out:', error);
+    }
+  }
+
+  applyZoom(tab) {
+    if (!tab || !tab.iframe) return;
+
+    // Apply CSS transform to zoom the iframe content
+    tab.iframe.style.transform = `scale(${tab.zoomLevel})`;
+    tab.iframe.style.transformOrigin = 'top left';
+
+    // Adjust iframe dimensions to compensate for the scale
+    // This prevents content from being cut off
+    const containerWidth = this.iframeContainer.offsetWidth;
+    const containerHeight = this.iframeContainer.offsetHeight;
+
+    if (tab.zoomLevel !== 1.0) {
+      tab.iframe.style.width = `${100 / tab.zoomLevel}%`;
+      tab.iframe.style.height = `${100 / tab.zoomLevel}%`;
+    } else {
+      tab.iframe.style.width = '100%';
+      tab.iframe.style.height = '100%';
+    }
+
+    // Save tabs to persist zoom level
+    this.saveTabs();
   }
 
   setupTabDrag(tabElement, tab) {

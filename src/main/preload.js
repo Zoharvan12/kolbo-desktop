@@ -218,7 +218,14 @@ contextBridge.exposeInMainWorld('kolboDesktop', {
     ipcRenderer.on('download-complete', (event, data) => callback(data)),
 
   onDownloadFailed: (callback) =>
-    ipcRenderer.on('download-failed', (event, data) => callback(data))
+    ipcRenderer.on('download-failed', (event, data) => callback(data)),
+
+  // Drag-and-drop events
+  onDragError: (callback) =>
+    ipcRenderer.on('drag:error', (event, data) => callback(data)),
+
+  onDragWarning: (callback) =>
+    ipcRenderer.on('drag:warning', (event, data) => callback(data))
 });
 
 console.log('[Preload] Context bridge established');

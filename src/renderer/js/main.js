@@ -192,6 +192,9 @@ class KolboApp {
 
     this.bindEvents();
 
+    // Setup drag event listeners
+    this.setupDragEventListeners();
+
     // Setup update listeners on app startup (not just when settings page opens)
     this.setupUpdateListeners();
   }
@@ -410,6 +413,9 @@ class KolboApp {
       webappView?.classList.remove('hidden');
       webappView?.classList.add('active');
       if (mediaCount) mediaCount.style.display = 'none';
+
+      // Clear batch selection when navigating to webapp
+      this.handleBatchClear();
 
       // Initialize TabManager if not already initialized
       if (!this.tabManager) {
@@ -1422,6 +1428,22 @@ class KolboApp {
         });
 
         console.log('[Drag] Native drag started for', filesToDrag.length, 'file(s)');
+
+        // Clear batch selection after drag starts
+        // Note: dragend event doesn't fire reliably with Electron native drags
+        // So we clear the selection after a short delay to ensure drag has initiated
+        setTimeout(() => {
+          // Reset opacity
+          elementsBeingDragged.forEach(item => {
+            item.style.opacity = '1';
+          });
+
+          // Clear batch selection
+          this.handleBatchClear();
+          if (this.DEBUG_MODE) {
+            console.log('[Drag] Batch selection cleared after native drag started');
+          }
+        }, 150);
       } else {
         // File not cached - prevent drag and download in background
         console.log('[Drag] File not cached - preventing drag');
@@ -1467,6 +1489,13 @@ class KolboApp {
       allMediaItems.forEach(item => {
         item.style.opacity = '1';
       });
+
+      // Clear batch selection after drag completes to avoid confusion
+      // User has completed the drag action, so selection is no longer needed
+      this.handleBatchClear();
+      if (this.DEBUG_MODE) {
+        console.log('[Drag] Batch selection cleared after drag operation');
+      }
     };
 
     gridEl._dragstartHandler = dragstartHandler;
@@ -2179,6 +2208,34 @@ class KolboApp {
   }
 
   // Setup update event listeners on app startup
+  setupDragEventListeners() {
+    if (!window.kolboDesktop) return;
+
+    if (!this._dragListenersSetup) {
+      this._dragListenersSetup = true;
+
+      console.log('[Drag] Setting up drag event listeners...');
+
+      // Listen for drag errors from main process
+      window.kolboDesktop.onDragError((data) => {
+        console.error('[Drag] Drag operation failed:', data.message);
+        console.error('[Drag] Failed files:', data.failedFiles);
+
+        // Show error to user
+        alert(`❌ Drag Failed: ${data.message}\n\nSome files may be locked by another application.`);
+      });
+
+      // Listen for drag warnings from main process
+      window.kolboDesktop.onDragWarning((data) => {
+        console.warn('[Drag] Drag warning:', data.message);
+        console.warn(`[Drag] Accessible: ${data.accessibleCount}, Failed: ${data.failedCount}`);
+
+        // Show warning toast (optional - could be intrusive)
+        // For now just log it, user will see files that drag successfully
+      });
+    }
+  }
+
   setupUpdateListeners() {
     if (!this._updateListenersSetup) {
       this._updateListenersSetup = true;

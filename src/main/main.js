@@ -1040,17 +1040,28 @@ class MediaCache {
 
       for (const fileName of files) {
         const filePath = path.join(this.cachePath, fileName);
-        const stats = fs.statSync(filePath);
 
-        // Extract ID from filename (e.g., "kolbo-123.mp4" -> "123")
-        const id = fileName.replace(/^kolbo-/, '').replace(/\.[^.]+$/, '');
+        try {
+          const stats = fs.statSync(filePath);
 
-        this.cacheIndex.set(id, {
-          filePath,
-          lastAccessed: stats.mtime.getTime(),
-          size: stats.size,
-          fileName
-        });
+          // Extract ID from filename (e.g., "kolbo-123.mp4" -> "123")
+          const id = fileName.replace(/^kolbo-/, '').replace(/\.[^.]+$/, '');
+
+          this.cacheIndex.set(id, {
+            filePath,
+            lastAccessed: stats.mtime.getTime(),
+            size: stats.size,
+            fileName
+          });
+        } catch (error) {
+          // Skip files that can't be accessed (locked, permission denied, etc.)
+          // This commonly happens on Windows when files are open in other apps
+          if (error.code === 'EPERM' || error.code === 'EBUSY' || error.code === 'EACCES') {
+            console.warn(`[MediaCache] Skipping inaccessible file: ${fileName} (${error.code})`);
+          } else {
+            console.error(`[MediaCache] Error getting file stats for ${fileName}:`, error);
+          }
+        }
       }
     }
 
@@ -1061,31 +1072,65 @@ class MediaCache {
 
       for (const fileName of thumbFiles) {
         const filePath = path.join(this.thumbnailCachePath, fileName);
-        const stats = fs.statSync(filePath);
 
-        // Extract ID from filename (e.g., "thumb-123.jpg" -> "123")
-        const id = fileName.replace(/^thumb-/, '').replace(/\.[^.]+$/, '');
+        try {
+          const stats = fs.statSync(filePath);
 
-        this.thumbnailIndex.set(id, {
-          filePath,
-          lastAccessed: stats.mtime.getTime(),
-          size: stats.size,
-          fileName
-        });
+          // Extract ID from filename (e.g., "thumb-123.jpg" -> "123")
+          const id = fileName.replace(/^thumb-/, '').replace(/\.[^.]+$/, '');
+
+          this.thumbnailIndex.set(id, {
+            filePath,
+            lastAccessed: stats.mtime.getTime(),
+            size: stats.size,
+            fileName
+          });
+        } catch (error) {
+          // Skip files that can't be accessed (locked, permission denied, etc.)
+          if (error.code === 'EPERM' || error.code === 'EBUSY' || error.code === 'EACCES') {
+            console.warn(`[MediaCache] Skipping inaccessible thumbnail: ${fileName} (${error.code})`);
+          } else {
+            console.error(`[MediaCache] Error getting thumbnail stats for ${fileName}:`, error);
+          }
+        }
       }
     }
   }
 
   async getCachedFilePath(mediaId) {
+    const fs = require('fs');
+
     // Check if already cached
     if (this.cacheIndex.has(mediaId)) {
       const cached = this.cacheIndex.get(mediaId);
 
-      // Update last accessed time
-      cached.lastAccessed = Date.now();
+      // Validate file still exists and is accessible before returning
+      try {
+        // Check if file exists and is readable
+        fs.accessSync(cached.filePath, fs.constants.R_OK);
 
-      console.log(`[MediaCache] Cache HIT for ${mediaId}`);
-      return cached.filePath;
+        // Update last accessed time
+        cached.lastAccessed = Date.now();
+
+        console.log(`[MediaCache] Cache HIT for ${mediaId}`);
+        return cached.filePath;
+      } catch (error) {
+        // File no longer exists or is not accessible
+        if (error.code === 'ENOENT') {
+          console.warn(`[MediaCache] Cached file no longer exists: ${cached.filePath}`);
+          this.cacheIndex.delete(mediaId);
+        } else if (error.code === 'EPERM' || error.code === 'EACCES') {
+          // File is locked/inaccessible - try to wait and retry
+          console.warn(`[MediaCache] File temporarily locked: ${cached.filePath} (${error.code})`);
+
+          // Return the path anyway - might be unlocked by the time it's used
+          // The drag handler will have its own retry logic
+          return cached.filePath;
+        } else {
+          console.error(`[MediaCache] Error accessing cached file: ${cached.filePath}:`, error);
+          this.cacheIndex.delete(mediaId);
+        }
+      }
     }
 
     console.log(`[MediaCache] Cache MISS for ${mediaId}`);
@@ -1170,7 +1215,11 @@ class MediaCache {
         if (response.statusCode === 301 || response.statusCode === 302) {
           const redirectUrl = response.headers.location;
           file.close();
-          fs.unlinkSync(outputPath);
+          try {
+            fs.unlinkSync(outputPath);
+          } catch (unlinkErr) {
+            console.warn('[Download] Could not delete redirect file (may be locked):', unlinkErr.message);
+          }
           return this.downloadFile(redirectUrl, outputPath).then(resolve).catch(reject);
         }
 
@@ -1182,7 +1231,11 @@ class MediaCache {
           });
         } else {
           file.close();
-          fs.unlinkSync(outputPath);
+          try {
+            fs.unlinkSync(outputPath);
+          } catch (unlinkErr) {
+            console.warn('[Download] Could not delete failed file (may be locked):', unlinkErr.message);
+          }
           reject(new Error(`HTTP ${response.statusCode}`));
         }
       });
@@ -1549,6 +1602,39 @@ function setupPremiereImportHandler() {
 // MEDIA CACHE IPC HANDLERS
 // ============================================================================
 
+// Helper: Retry file access with exponential backoff (for locked files)
+async function retryFileAccess(filePath, maxRetries = 3, initialDelay = 100) {
+  const fs = require('fs');
+
+  for (let attempt = 0; attempt < maxRetries; attempt++) {
+    try {
+      // Try to access the file
+      fs.accessSync(filePath, fs.constants.R_OK);
+      return { success: true, filePath };
+    } catch (error) {
+      const isLastAttempt = attempt === maxRetries - 1;
+
+      if (error.code === 'EPERM' || error.code === 'EBUSY' || error.code === 'EACCES') {
+        if (isLastAttempt) {
+          console.error(`[FileAccess] File locked after ${maxRetries} retries: ${filePath}`);
+          return { success: false, error: error.code, filePath };
+        }
+
+        // Wait with exponential backoff
+        const delay = initialDelay * Math.pow(2, attempt);
+        console.log(`[FileAccess] File locked, retrying in ${delay}ms (attempt ${attempt + 1}/${maxRetries}): ${filePath}`);
+        await new Promise(resolve => setTimeout(resolve, delay));
+      } else {
+        // Different error (file not found, etc.) - fail immediately
+        console.error(`[FileAccess] File access error: ${filePath}:`, error);
+        return { success: false, error: error.code, filePath };
+      }
+    }
+  }
+
+  return { success: false, error: 'MAX_RETRIES', filePath };
+}
+
 function setupMediaCacheHandlers() {
   const { ipcMain } = require('electron');
 
@@ -1667,9 +1753,52 @@ function setupMediaCacheHandlers() {
 
     console.log('[Native Drag] Starting drag for', paths.length, 'file(s):', paths);
 
+    // Validate and retry access for all files before starting drag
+    const validatedPaths = [];
+    const failedPaths = [];
+
+    for (const filePath of paths) {
+      const result = await retryFileAccess(filePath, 3, 50);
+      if (result.success) {
+        validatedPaths.push(filePath);
+      } else {
+        console.error(`[Native Drag] Cannot access file: ${filePath} (${result.error})`);
+        failedPaths.push({ path: filePath, error: result.error });
+      }
+    }
+
+    // If all files failed validation, abort drag
+    if (validatedPaths.length === 0) {
+      console.error('[Native Drag] All files are inaccessible, aborting drag');
+      console.error('[Native Drag] Failed files:', failedPaths);
+
+      // Send error back to renderer
+      event.sender.send('drag:error', {
+        message: 'Cannot access selected files. They may be locked by another application.',
+        failedFiles: failedPaths
+      });
+      return;
+    }
+
+    // If some files failed, warn but continue with accessible files
+    if (failedPaths.length > 0) {
+      console.warn(`[Native Drag] ${failedPaths.length} file(s) inaccessible, continuing with ${validatedPaths.length} accessible file(s)`);
+      console.warn('[Native Drag] Failed files:', failedPaths);
+
+      // Notify renderer about partial failure
+      event.sender.send('drag:warning', {
+        message: `${failedPaths.length} file(s) could not be accessed and will be skipped`,
+        accessibleCount: validatedPaths.length,
+        failedCount: failedPaths.length
+      });
+    }
+
+    // Use validated paths for drag operation
+    const dragPaths = validatedPaths;
+
     // Use the actual file as icon if it's an image, extract frame for video, or use audio icon
     let dragIcon;
-    const firstFile = paths[0];
+    const firstFile = dragPaths[0]; // Use validated path
     const ext = path.extname(firstFile).toLowerCase();
 
     if (['.png', '.jpg', '.jpeg', '.gif', '.webp'].includes(ext)) {
@@ -1705,18 +1834,18 @@ function setupMediaCacheHandlers() {
     // Use 'file' for single, 'files' for multiple
     // Note: According to Electron docs, 'files' array should work for multiple files
     // but some apps (Premiere) may not accept it properly
-    if (paths.length === 1) {
+    if (dragPaths.length === 1) {
       event.sender.startDrag({
-        file: paths[0],
+        file: dragPaths[0],
         icon: dragIcon
       });
       console.log('[Native Drag] Single file drag started');
     } else {
       event.sender.startDrag({
-        files: paths,
+        files: dragPaths,
         icon: dragIcon
       });
-      console.log('[Native Drag] Multi-file drag started');
+      console.log(`[Native Drag] Multi-file drag started (${dragPaths.length} files)`);
     }
   });
 
