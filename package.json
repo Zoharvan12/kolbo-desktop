@@ -81,7 +81,12 @@
       "allowToChangeInstallationDirectory": true,
       "createDesktopShortcut": true,
       "createStartMenuShortcut": true,
-      "shortcutName": "${productName}"
+      "shortcutName": "${productName}",
+      "perMachine": false,
+      "allowElevation": true,
+      "runAfterFinish": true,
+      "deleteAppDataOnUninstall": false,
+      "include": "installer-scripts/installer.nsh"
     },
     "mac": {
       "target": [
