@@ -34,3 +34,12 @@ Thumbs.db
 # Auto-generated build environment config (created during builds)
 src/renderer/build-env.js
 nul
+
+# Code signing certificates (NEVER commit!)
+certs/
+*.pfx
+*.p12
+*.pem
+
+# Claude settings (may contain tokens)
+.claude/settings.local.json
