@@ -109,7 +109,6 @@
     "dmg": {
       "title": "${productName} ${version}",
       "icon": "assets/icon.icns",
-      "background": "assets/images/dmg-background.jpg",
       "window": {
         "width": 540,
         "height": 380
