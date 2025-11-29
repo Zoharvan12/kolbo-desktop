@@ -496,16 +496,17 @@ function setupUpdaterHandlers() {
 
       let fileName;
       if (platform === 'darwin') {
-        // Mac: Kolbo Studio-1.0.1-arm64.dmg or Kolbo Studio-1.0.1-x64.dmg
+        // Mac: Kolbo.Studio-1.0.1-arm64.dmg or Kolbo.Studio-1.0.1-x64.dmg
+        // GitHub converts spaces to dots in filenames
         // Detect architecture: arm64 for Apple Silicon, x64 for Intel
         const arch = process.arch === 'arm64' ? 'arm64' : 'x64';
-        fileName = `Kolbo Studio-${version}-${arch}.dmg`;
+        fileName = `Kolbo.Studio-${version}-${arch}.dmg`;
       } else if (platform === 'win32') {
-        // Windows: Kolbo Studio-Setup-1.0.1.exe
-        fileName = `Kolbo Studio-Setup-${version}.exe`;
+        // Windows: Kolbo.Studio-Setup-1.0.1.exe
+        fileName = `Kolbo.Studio-Setup-${version}.exe`;
       } else {
         // Linux (future support)
-        fileName = `Kolbo Studio-${version}.AppImage`;
+        fileName = `Kolbo.Studio-${version}.AppImage`;
       }
 
       const downloadUrl = `https://github.com/Zoharvan12/kolbo-desktop/releases/download/v${version}/${fileName}`;
