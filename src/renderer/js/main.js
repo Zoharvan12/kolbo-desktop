@@ -75,6 +75,7 @@ class KolboApp {
     this.abortController = null;
     this.filterDebounceTimer = null;
     this.filterDebounceDelay = 300;
+    this.preloadAbortController = null; // Controls cancellation of preload operations
 
     // Memory leak prevention
     this.activeTimeouts = new Set();
@@ -712,6 +713,12 @@ class KolboApp {
       console.log('[Filter] Previous filter:', previousFilter, '-> New filter:', this.currentFilter);
     }
 
+    // CRITICAL: Cancel any in-progress preload operations to prevent request storms
+    if (this.preloadAbortController) {
+      this.preloadAbortController.abort();
+    }
+    this.preloadAbortController = new AbortController();
+
     // Reset loading states when changing filters
     this.loadingMore = false;
     const loadingMoreEl = this.getElement('loading-more');
@@ -775,6 +782,12 @@ class KolboApp {
     }
 
     this.currentSubcategory = subcategory;
+
+    // CRITICAL: Cancel any in-progress preload operations to prevent request storms
+    if (this.preloadAbortController) {
+      this.preloadAbortController.abort();
+    }
+    this.preloadAbortController = new AbortController();
 
     // Reset loading states when changing subcategories
     this.loadingMore = false;
@@ -986,8 +999,9 @@ class KolboApp {
     this.setupMediaItemListeners();
     this.updateBatchMenu();
 
-    // AGGRESSIVE CACHING: Preload ALL thumbnails immediately (they're tiny!)
-    this.preloadAllThumbnails(filtered);
+    // Preload thumbnails for visible items only (first 30) to prevent request storms
+    // More thumbnails will load on-demand as user scrolls
+    this.preloadAllThumbnails(filtered.slice(0, 30));
 
     // Preload first 20 items to cache for drag-and-drop (async, don't wait)
     this.preloadVisibleMediaToCache(filtered.slice(0, 20));
@@ -995,6 +1009,9 @@ class KolboApp {
 
   async preloadVisibleMediaToCache(items) {
     if (!items || items.length === 0) return;
+
+    // Check if operation was cancelled before starting
+    if (this.preloadAbortController?.signal.aborted) return;
 
     console.log(`[Cache] Preloading ${items.length} visible items...`);
 
@@ -1012,6 +1029,9 @@ class KolboApp {
     try {
       // Start preloading (fire and forget)
       window.kolboDesktop.preloadCache(cacheItems).then(result => {
+        // Check if cancelled before processing result
+        if (this.preloadAbortController?.signal.aborted) return;
+
         if (result.success) {
           console.log(`[Cache] Preloaded ${result.successful}/${result.total} items`);
 
@@ -1028,22 +1048,32 @@ class KolboApp {
     // Initialize dragCacheStatus map if not exists
     this.dragCacheStatus = this.dragCacheStatus || new Map();
 
-    for (const item of items) {
-      try {
-        const result = await window.kolboDesktop.getCachedFilePath(item.id);
+    // Check if operation was cancelled
+    if (this.preloadAbortController?.signal.aborted) return;
 
-        if (result.cached && result.filePath) {
-          // Update cache status map for drag-and-drop
-          this.dragCacheStatus.set(item.id, result.filePath);
+    // FIXED: Use Promise.all instead of sequential awaits to prevent request storms
+    const results = await Promise.all(
+      items.map(item =>
+        window.kolboDesktop.getCachedFilePath(item.id)
+          .then(result => ({ id: item.id, result }))
+          .catch(() => ({ id: item.id, result: null }))
+      )
+    );
 
-          // Show visual indicator
-          const cacheStatus = document.querySelector(`.cache-status[data-id="${item.id}"]`);
-          if (cacheStatus) {
-            cacheStatus.style.display = 'block';
-          }
+    // Check again after async operation
+    if (this.preloadAbortController?.signal.aborted) return;
+
+    // Process all results
+    for (const { id, result } of results) {
+      if (result?.cached && result?.filePath) {
+        // Update cache status map for drag-and-drop
+        this.dragCacheStatus.set(id, result.filePath);
+
+        // Show visual indicator
+        const cacheStatus = document.querySelector(`.cache-status[data-id="${id}"]`);
+        if (cacheStatus) {
+          cacheStatus.style.display = 'block';
         }
-      } catch (error) {
-        // Silently ignore errors
       }
     }
   }
@@ -1051,6 +1081,9 @@ class KolboApp {
   async preloadAllThumbnails(items) {
     if (!items || items.length === 0) return;
     if (!window.kolboDesktop || !window.kolboDesktop.preloadThumbnails) return;
+
+    // Check if operation was cancelled before starting
+    if (this.preloadAbortController?.signal.aborted) return;
 
     console.log(`[ThumbnailCache] Preloading ${items.length} thumbnails...`);
 
@@ -1068,8 +1101,11 @@ class KolboApp {
     }
 
     try {
-      // Start aggressive thumbnail preloading (fire and forget)
+      // Start thumbnail preloading (fire and forget)
       window.kolboDesktop.preloadThumbnails(thumbnailItems).then(result => {
+        // Check if cancelled before processing result
+        if (this.preloadAbortController?.signal.aborted) return;
+
         if (result.success) {
           console.log(`[ThumbnailCache] Preloaded ${result.successful}/${result.total} thumbnails`);
 
@@ -1085,25 +1121,35 @@ class KolboApp {
   async updateThumbnailsWithCachedPaths(items) {
     if (!window.kolboDesktop || !window.kolboDesktop.getCachedThumbnailPath) return;
 
-    for (const item of items) {
-      try {
-        const result = await window.kolboDesktop.getCachedThumbnailPath(item.id);
+    // Check if operation was cancelled
+    if (this.preloadAbortController?.signal.aborted) return;
 
-        if (result.cached && result.filePath) {
-          // Update image src to use file:// protocol for cached thumbnail
-          const imgEl = document.querySelector(`[data-id="${item.id}"] img, [data-id="${item.id}"] video`);
-          if (imgEl) {
-            const cachedUrl = `file://${result.filePath.replace(/\\/g, '/')}`;
-            if (imgEl.tagName === 'IMG') {
-              imgEl.src = cachedUrl;
-            } else if (imgEl.tagName === 'VIDEO') {
-              imgEl.poster = cachedUrl;
-            }
-            console.log(`[ThumbnailCache] Updated thumbnail for ${item.id}`);
+    // FIXED: Use Promise.all instead of sequential awaits to prevent request storms
+    const results = await Promise.all(
+      items.map(item =>
+        window.kolboDesktop.getCachedThumbnailPath(item.id)
+          .then(result => ({ id: item.id, result }))
+          .catch(() => ({ id: item.id, result: null }))
+      )
+    );
+
+    // Check again after async operation
+    if (this.preloadAbortController?.signal.aborted) return;
+
+    // Process all results
+    for (const { id, result } of results) {
+      if (result?.cached && result?.filePath) {
+        // Update image src to use file:// protocol for cached thumbnail
+        const imgEl = document.querySelector(`[data-id="${id}"] img, [data-id="${id}"] video`);
+        if (imgEl) {
+          const cachedUrl = `file://${result.filePath.replace(/\\/g, '/')}`;
+          if (imgEl.tagName === 'IMG') {
+            imgEl.src = cachedUrl;
+          } else if (imgEl.tagName === 'VIDEO') {
+            imgEl.poster = cachedUrl;
           }
+          console.log(`[ThumbnailCache] Updated thumbnail for ${id}`);
         }
-      } catch (error) {
-        // Silently ignore errors
       }
     }
   }

@@ -173,6 +173,96 @@ function createTray() {
   console.log('[Main] System tray created');
 }
 
+// macOS Application Menu - enables Cmd+C/V/X, Cmd+Q, etc.
+function createApplicationMenu() {
+  const isMac = process.platform === 'darwin';
+
+  const template = [
+    // App menu (macOS only)
+    ...(isMac ? [{
+      label: app.name,
+      submenu: [
+        { role: 'about' },
+        { type: 'separator' },
+        {
+          label: 'Settings',
+          accelerator: 'Cmd+,',
+          click: () => {
+            if (mainWindow) {
+              mainWindow.show();
+              mainWindow.webContents.send('navigate-to-settings');
+            }
+          }
+        },
+        { type: 'separator' },
+        { role: 'services' },
+        { type: 'separator' },
+        { role: 'hide' },
+        { role: 'hideOthers' },
+        { role: 'unhide' },
+        { type: 'separator' },
+        { role: 'quit' }
+      ]
+    }] : []),
+    // Edit menu - IMPORTANT for copy/paste to work!
+    {
+      label: 'Edit',
+      submenu: [
+        { role: 'undo' },
+        { role: 'redo' },
+        { type: 'separator' },
+        { role: 'cut' },
+        { role: 'copy' },
+        { role: 'paste' },
+        ...(isMac ? [
+          { role: 'pasteAndMatchStyle' },
+          { role: 'delete' },
+          { role: 'selectAll' },
+        ] : [
+          { role: 'delete' },
+          { type: 'separator' },
+          { role: 'selectAll' }
+        ])
+      ]
+    },
+    // View menu
+    {
+      label: 'View',
+      submenu: [
+        { role: 'reload' },
+        { role: 'forceReload' },
+        { role: 'toggleDevTools' },
+        { type: 'separator' },
+        { role: 'resetZoom' },
+        { role: 'zoomIn' },
+        { role: 'zoomOut' },
+        { type: 'separator' },
+        { role: 'togglefullscreen' }
+      ]
+    },
+    // Window menu
+    {
+      label: 'Window',
+      submenu: [
+        { role: 'minimize' },
+        { role: 'zoom' },
+        ...(isMac ? [
+          { type: 'separator' },
+          { role: 'front' },
+          { type: 'separator' },
+          { role: 'window' }
+        ] : [
+          { role: 'close' }
+        ])
+      ]
+    }
+  ];
+
+  const menu = Menu.buildFromTemplate(template);
+  Menu.setApplicationMenu(menu);
+  console.log('[Main] Application menu created');
+}
+
 // Window control handlers
 function setupWindowHandlers() {
   const { ipcMain, shell } = require('electron');
@@ -1705,6 +1795,7 @@ app.whenReady().then(() => {
 
   createWindow();
   createTray();
+  createApplicationMenu();
 
   // Setup IPC handlers
   AuthManager.setupHandlers();
@@ -1741,9 +1832,11 @@ app.on('window-all-closed', () => {
   }
 });
 
-// Activate (macOS)
+// Activate (macOS) - Re-show window when clicking dock icon
 app.on('activate', () => {
-  if (BrowserWindow.getAllWindows().length === 0) {
+  if (mainWindow) {
+    mainWindow.show();
+  } else if (BrowserWindow.getAllWindows().length === 0) {
     createWindow();
   }
 });
