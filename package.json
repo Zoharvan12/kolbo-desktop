@@ -109,23 +109,7 @@
     "dmg": {
       "title": "${productName} ${version}",
       "icon": "assets/icon.icns",
-      "window": {
-        "width": 540,
-        "height": 380
-      },
-      "contents": [
-        {
-          "x": 140,
-          "y": 200,
-          "type": "file"
-        },
-        {
-          "x": 400,
-          "y": 200,
-          "type": "link",
-          "path": "/Applications"
-        }
-      ]
+      "background": null
     },
     "publish": {
       "provider": "github",
