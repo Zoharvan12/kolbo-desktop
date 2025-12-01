@@ -335,8 +335,20 @@ class KolboApp {
     }
 
     const slider = document.getElementById('grid-size-slider');
+    const sliderContainer = slider?.parentElement;
     const valueDisplay = document.getElementById('grid-size-value');
-    if (slider) slider.value = size;
+    if (slider) {
+      slider.value = size;
+      // Update slider progress for blue glow effect
+      const min = parseInt(slider.min) || 1;
+      const max = parseInt(slider.max) || 8;
+      const progress = ((size - min) / (max - min)) * 100;
+      slider.style.setProperty('--slider-progress', `${progress}%`);
+      // Also update container for glow pseudo-element
+      if (sliderContainer) {
+        sliderContainer.style.setProperty('--slider-progress', `${progress}%`);
+      }
+    }
     if (valueDisplay) valueDisplay.textContent = size;
   }
 
