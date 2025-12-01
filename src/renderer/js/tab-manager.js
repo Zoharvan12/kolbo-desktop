@@ -44,6 +44,16 @@ class TabManager {
     this.refreshBtn = document.getElementById('webapp-refresh-btn');
     this.zoomInBtn = document.getElementById('webapp-zoom-in-btn');
     this.zoomOutBtn = document.getElementById('webapp-zoom-out-btn');
+    this.screenshotBtn = document.getElementById('webapp-screenshot-btn');
+
+    // Screenshot state
+    this.screenshotMode = false;
+    this.screenshotDragging = false;
+    this.screenshotStartX = 0;
+    this.screenshotStartY = 0;
+    this.screenshotOverlay = null;
+    this.screenshotSelection = null;
+    this.screenshotContextMenu = null;
 
     // Default Kolbo.ai URLs
     this.defaultUrls = {
@@ -206,6 +216,19 @@ class TabManager {
       this.zoomOutBtn.addEventListener('click', () => this.zoomOut());
     }
 
+    // Screenshot button
+    if (this.screenshotBtn) {
+      this.screenshotBtn.addEventListener('click', () => this.startScreenshot());
+    }
+
+    // Screenshot keyboard shortcut (Ctrl+Shift+5)
+    document.addEventListener('keydown', (e) => {
+      if (e.ctrlKey && e.shiftKey && e.key === '%') { // % is Shift+5
+        e.preventDefault();
+        this.startScreenshot();
+      }
+    });
+
     // Load saved tabs or create default tab (MUST AWAIT!)
     await this.loadSavedTabs();
 
@@ -286,6 +309,20 @@ class TabManager {
           this.updateTabTitle(tab.id, title);
         }
       }
+
+      // Check for context menu messages from iframes
+      if (event.data && event.data.type === 'CONTEXT_MENU') {
+        const contextData = event.data.data;
+
+        if (this.DEBUG_MODE) {
+          console.log('[TabManager] Context menu message received from iframe:', contextData);
+        }
+
+        // Show context menu using Electron API
+        if (window.kolboDesktop && window.kolboDesktop.showWebappContextMenu) {
+          window.kolboDesktop.showWebappContextMenu(contextData);
+        }
+      }
     });
   }
 
@@ -330,6 +367,125 @@ class TabManager {
         if (this.DEBUG_MODE) {
           console.log('[TabManager] Cannot inject title listener (cross-origin):', tabId);
         }
+      }
+    });
+  }
+
+  setupIframeContextMenu(iframe) {
+    // Inject context menu script into iframe that communicates via postMessage
+    iframe.addEventListener('load', () => {
+      try {
+        const iframeDoc = iframe.contentDocument;
+        if (!iframeDoc) {
+          console.log('[TabManager] Cannot access iframe document (cross-origin)');
+          return;
+        }
+
+        // Inject context menu handler script
+        const script = iframeDoc.createElement('script');
+        script.textContent = `
+          (function() {
+            console.log('[Kolbo Context Menu] Script injected into iframe');
+
+            document.addEventListener('contextmenu', function(e) {
+              e.preventDefault();
+              e.stopPropagation();
+
+              const target = e.target;
+              let linkURL = '';
+              let srcURL = '';
+              let mediaType = 'none';
+              let selectionText = '';
+
+              // Get selection text
+              if (window.getSelection) {
+                selectionText = window.getSelection().toString();
+              }
+
+              // Check if target is a link
+              const linkElement = target.closest('a');
+              if (linkElement && linkElement.href) {
+                linkURL = linkElement.href;
+              }
+
+              // Check if target is an image
+              if (target.tagName === 'IMG' && target.src) {
+                srcURL = target.src;
+                mediaType = 'image';
+              }
+              // Check if target is a video
+              else if (target.tagName === 'VIDEO') {
+                const video = target;
+                srcURL = video.src || video.currentSrc || '';
+                // Also check for source elements
+                if (!srcURL && video.querySelector('source')) {
+                  srcURL = video.querySelector('source').src;
+                }
+                mediaType = 'video';
+              }
+              // Check if target is audio
+              else if (target.tagName === 'AUDIO') {
+                const audio = target;
+                srcURL = audio.src || audio.currentSrc || '';
+                // Also check for source elements
+                if (!srcURL && audio.querySelector('source')) {
+                  srcURL = audio.querySelector('source').src;
+                }
+                mediaType = 'audio';
+              }
+              // Check if target is inside a video or audio element
+              else if (target.closest('video')) {
+                const video = target.closest('video');
+                srcURL = video.src || video.currentSrc || '';
+                if (!srcURL && video.querySelector('source')) {
+                  srcURL = video.querySelector('source').src;
+                }
+                mediaType = 'video';
+              }
+              else if (target.closest('audio')) {
+                const audio = target.closest('audio');
+                srcURL = audio.src || audio.currentSrc || '';
+                if (!srcURL && audio.querySelector('source')) {
+                  srcURL = audio.querySelector('source').src;
+                }
+                mediaType = 'audio';
+              }
+
+              // Send context menu data to parent window
+              window.parent.postMessage({
+                type: 'CONTEXT_MENU',
+                iframeId: '${iframe.id}',
+                data: {
+                  x: e.clientX,
+                  y: e.clientY,
+                  linkURL: linkURL,
+                  srcURL: srcURL,
+                  mediaType: mediaType,
+                  selectionText: selectionText,
+                  pageURL: window.location.href
+                }
+              }, '*');
+
+              console.log('[Kolbo Context Menu] Context menu requested:', {
+                mediaType: mediaType,
+                srcURL: srcURL,
+                linkURL: linkURL
+              });
+            }, true); // Use capture phase to catch all events
+
+            console.log('[Kolbo Context Menu] Listener registered');
+          })();
+        `;
+
+        iframeDoc.head.appendChild(script);
+
+        if (this.DEBUG_MODE) {
+          console.log('[TabManager] Context menu script injected into iframe');
+        }
+      } catch (e) {
+        // Cross-origin iframe, can't inject script
+        console.warn('[TabManager] Cannot inject context menu script (cross-origin):', e.message);
+        // For cross-origin, we can't intercept context menus
       }
     });
   }
@@ -670,6 +826,9 @@ class TabManager {
 
     // Listen for title updates from iframe via postMessage
     this.setupTitleListener(iframe, tabId);
+
+    // Setup context menu for iframe content
+    this.setupIframeContextMenu(iframe);
 
     // Add to DOM - insert tab BEFORE the new-tab button
     const newTabBtn = document.getElementById('new-tab-btn');
@@ -1079,6 +1238,211 @@ class TabManager {
 
     // Save tabs to persist zoom level
     this.saveTabs();
+  }
+
+  // Screenshot Methods
+  startScreenshot() {
+    try {
+      if (this.screenshotMode) return;
+
+      this.screenshotMode = true;
+
+      // Create overlay
+      this.screenshotOverlay = document.createElement('div');
+      this.screenshotOverlay.className = 'screenshot-overlay active';
+      document.body.appendChild(this.screenshotOverlay);
+
+      // Create selection rectangle
+      this.screenshotSelection = document.createElement('div');
+      this.screenshotSelection.className = 'screenshot-selection';
+      this.screenshotOverlay.appendChild(this.screenshotSelection);
+
+      // Mouse events
+      this.screenshotOverlay.addEventListener('mousedown', this.onScreenshotMouseDown.bind(this));
+      this.screenshotOverlay.addEventListener('mousemove', this.onScreenshotMouseMove.bind(this));
+      this.screenshotOverlay.addEventListener('mouseup', this.onScreenshotMouseUp.bind(this));
+
+      // ESC to cancel
+      this.screenshotEscHandler = (e) => {
+        if (e.key === 'Escape') {
+          this.cancelScreenshot();
+        }
+      };
+      document.addEventListener('keydown', this.screenshotEscHandler);
+
+      if (this.DEBUG_MODE) {
+        console.log('[TabManager] Screenshot mode started');
+      }
+    } catch (error) {
+      console.error('[TabManager] Error starting screenshot:', error);
+    }
+  }
+
+  onScreenshotMouseDown(e) {
+    this.screenshotDragging = true;
+    this.screenshotStartX = e.clientX;
+    this.screenshotStartY = e.clientY;
+    this.screenshotSelection.style.left = `${this.screenshotStartX}px`;
+    this.screenshotSelection.style.top = `${this.screenshotStartY}px`;
+    this.screenshotSelection.style.width = '0px';
+    this.screenshotSelection.style.height = '0px';
+    this.screenshotSelection.style.display = 'block';
+  }
+
+  onScreenshotMouseMove(e) {
+    // Only update selection while dragging
+    if (!this.screenshotDragging) return;
+    if (!this.screenshotSelection.style.display || this.screenshotSelection.style.display === 'none') return;
+
+    const currentX = e.clientX;
+    const currentY = e.clientY;
+
+    const width = Math.abs(currentX - this.screenshotStartX);
+    const height = Math.abs(currentY - this.screenshotStartY);
+    const left = Math.min(currentX, this.screenshotStartX);
+    const top = Math.min(currentY, this.screenshotStartY);
+
+    this.screenshotSelection.style.left = `${left}px`;
+    this.screenshotSelection.style.top = `${top}px`;
+    this.screenshotSelection.style.width = `${width}px`;
+    this.screenshotSelection.style.height = `${height}px`;
+  }
+
+  onScreenshotMouseUp(e) {
+    // Stop dragging
+    this.screenshotDragging = false;
+
+    const width = parseInt(this.screenshotSelection.style.width);
+    const height = parseInt(this.screenshotSelection.style.height);
+
+    // If selection is too small, cancel
+    if (width < 10 || height < 10) {
+      this.cancelScreenshot();
+      return;
+    }
+
+    // Get selection bounds
+    const bounds = {
+      x: parseInt(this.screenshotSelection.style.left),
+      y: parseInt(this.screenshotSelection.style.top),
+      width: width,
+      height: height
+    };
+
+    // Show context menu
+    this.showScreenshotContextMenu(e.clientX, e.clientY, bounds);
+  }
+
+  showScreenshotContextMenu(x, y, bounds) {
+    // Create context menu
+    this.screenshotContextMenu = document.createElement('div');
+    this.screenshotContextMenu.className = 'screenshot-context-menu active';
+
+    this.screenshotContextMenu.innerHTML = `
+      <button class="screenshot-context-menu-item" data-action="copy">
+        <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
+          <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
+        </svg>
+        Copy to Clipboard
+      </button>
+      <button class="screenshot-context-menu-item" data-action="save-png">
+        <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"></path>
+          <polyline points="17 21 17 13 7 13 7 21"></polyline>
+          <polyline points="7 3 7 8 15 8"></polyline>
+        </svg>
+        Save as PNG
+      </button>
+      <button class="screenshot-context-menu-item" data-action="save-jpg">
+        <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"></path>
+          <polyline points="17 21 17 13 7 13 7 21"></polyline>
+          <polyline points="7 3 7 8 15 8"></polyline>
+        </svg>
+        Save as JPG
+      </button>
+      <div class="screenshot-context-menu-separator"></div>
+      <button class="screenshot-context-menu-item" data-action="cancel">
+        <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <line x1="18" y1="6" x2="6" y2="18"></line>
+          <line x1="6" y1="6" x2="18" y2="18"></line>
+        </svg>
+        Cancel
+      </button>
+    `;
+
+    // Position menu
+    this.screenshotContextMenu.style.left = `${x + 10}px`;
+    this.screenshotContextMenu.style.top = `${y}px`;
+
+    document.body.appendChild(this.screenshotContextMenu);
+
+    // Add click handlers
+    this.screenshotContextMenu.querySelectorAll('.screenshot-context-menu-item').forEach(item => {
+      item.addEventListener('click', async () => {
+        const action = item.dataset.action;
+        await this.handleScreenshotAction(action, bounds);
+      });
+    });
+  }
+
+  async handleScreenshotAction(action, bounds) {
+    try {
+      if (action === 'cancel') {
+        this.cancelScreenshot();
+        return;
+      }
+
+      // Capture screenshot with bounds
+      if (window.kolboDesktop && window.kolboDesktop.captureScreenshot) {
+        const result = await window.kolboDesktop.captureScreenshot(bounds);
+
+        if (action === 'copy') {
+          await window.kolboDesktop.copyScreenshotToClipboard(result.dataUrl);
+          console.log('[TabManager] Screenshot copied to clipboard');
+        } else if (action === 'save-png' || action === 'save-jpg') {
+          const format = action === 'save-png' ? 'png' : 'jpg';
+          await window.kolboDesktop.saveScreenshot(result.dataUrl, format);
+          console.log('[TabManager] Screenshot saved as', format);
+        }
+      } else {
+        console.warn('[TabManager] Screenshot API not available');
+      }
+
+      this.cancelScreenshot();
+    } catch (error) {
+      console.error('[TabManager] Error handling screenshot action:', error);
+      this.cancelScreenshot();
+    }
+  }
+
+  cancelScreenshot() {
+    this.screenshotMode = false;
+    this.screenshotDragging = false;
+
+    if (this.screenshotOverlay) {
+      this.screenshotOverlay.remove();
+      this.screenshotOverlay = null;
+    }
+
+    if (this.screenshotSelection) {
+      this.screenshotSelection = null;
+    }
+
+    if (this.screenshotContextMenu) {
+      this.screenshotContextMenu.remove();
+      this.screenshotContextMenu = null;
+    }
+
+    if (this.screenshotEscHandler) {
+      document.removeEventListener('keydown', this.screenshotEscHandler);
+      this.screenshotEscHandler = null;
+    }
+
+    if (this.DEBUG_MODE) {
+      console.log('[TabManager] Screenshot mode cancelled');
+    }
   }
 
   setupTabDrag(tabElement, tab) {

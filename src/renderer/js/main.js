@@ -197,6 +197,9 @@ class KolboApp {
 
     // Setup update listeners on app startup (not just when settings page opens)
     this.setupUpdateListeners();
+
+    // Setup context menu manager
+    this.contextMenuManager = new ContextMenuManager(this);
   }
 
   bindEvents() {
@@ -1301,6 +1304,11 @@ class KolboApp {
       gridEl.removeEventListener('click', oldHandler);
     }
 
+    const oldContextHandler = gridEl._contextmenuHandler;
+    if (oldContextHandler) {
+      gridEl.removeEventListener('contextmenu', oldContextHandler);
+    }
+
     // Create new click handler
     const clickHandler = (e) => {
       // Check if click is on a play button first (priority)
@@ -1332,8 +1340,27 @@ class KolboApp {
       }
     };
 
+    // Create context menu handler
+    const contextmenuHandler = (e) => {
+      const mediaItem = e.target.closest('.media-item');
+      if (mediaItem) {
+        const mediaId = mediaItem.dataset.id;
+
+        // Auto-select the item if not already selected
+        if (!this.selectedItems.has(mediaId)) {
+          this.toggleSelection(mediaId);
+        }
+
+        if (this.contextMenuManager) {
+          this.contextMenuManager.showMediaItemContextMenu(e, mediaId);
+        }
+      }
+    };
+
     gridEl._clickHandler = clickHandler;
+    gridEl._contextmenuHandler = contextmenuHandler;
     gridEl.addEventListener('click', clickHandler);
+    gridEl.addEventListener('contextmenu', contextmenuHandler);
 
     // Add drag-and-drop handlers
     this.setupDragAndDrop(gridEl);

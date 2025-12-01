@@ -10,6 +10,7 @@ const { autoUpdater } = require('electron-updater');
 const AuthManager = require('./auth-manager');
 const FileManager = require('./file-manager');
 const DragHandler = require('./drag-handler');
+const ContextMenuHandler = require('./context-menu-handler');
 
 // Persistent settings store
 const store = new Store();
@@ -40,8 +41,9 @@ const userDataPath = path.join(app.getPath('appData'), 'kolbo-desktop');
 app.setPath('userData', userDataPath);
 console.log('[Main] User data path:', userDataPath);
 
-// Allow multiple instances - users can open as many windows as they want
-// No single instance lock needed
+// Single instance lock removed - allow multiple instances
+// Users can now open multiple windows of the app simultaneously
+console.log('[Main] Multiple instances allowed');
 
 function createWindow() {
   // Get primary display dimensions
@@ -76,7 +78,11 @@ function createWindow() {
         console.log('[Main] Preload exists:', require('fs').existsSync(preloadPath));
         return preloadPath;
       })(),
-      webSecurity: process.env.NODE_ENV === 'development' ? false : true  // Enabled in production
+      webSecurity: process.env.NODE_ENV === 'development' ? false : true,  // Enabled in production
+      // CSP for iframes - allow unsafe-eval in dev mode and WebSocket connections
+      contentSecurityPolicy: process.env.NODE_ENV === 'development'
+        ? "default-src 'self' http: https: ws: wss: data: blob: 'unsafe-inline' 'unsafe-eval'; connect-src 'self' http: https: ws: wss:;"
+        : "default-src 'self' http: https: wss: data: blob: 'unsafe-inline'; connect-src 'self' https: wss:;"
     },
     show: true // Show immediately for debugging
   });
@@ -114,12 +120,17 @@ function createWindow() {
     console.log('[Renderer]', message);
   });
 
-  // Minimize to tray on close (don't quit)
+  // On Windows: Close = quit the app
+  // On macOS: Close = minimize to tray (keep running in background)
   mainWindow.on('close', (event) => {
-    if (!app.isQuitting) {
+    if (process.platform === 'darwin' && !app.isQuitting) {
+      // macOS: minimize to tray
       event.preventDefault();
       mainWindow.hide();
-      console.log('[Main] Window hidden to tray');
+      console.log('[Main] Window hidden to tray (macOS)');
+    } else {
+      // Windows/Linux: actually quit
+      console.log('[Main] Window closing, app will quit');
     }
   });
 
@@ -747,6 +758,103 @@ function setupUpdaterHandlers() {
   });
 
   console.log('[Updater] IPC handlers registered');
+}
+
+// ============================================================================
+// SCREENSHOT HANDLERS
+// ============================================================================
+
+function setupScreenshotHandlers() {
+  const { ipcMain, dialog, clipboard, nativeImage } = require('electron');
+  const fs = require('fs').promises;
+  const path = require('path');
+
+  // Capture screenshot
+  ipcMain.handle('screenshot:capture', async (event, bounds) => {
+    try {
+      const win = mainWindow;
+      if (!win) {
+        throw new Error('No window available');
+      }
+
+      // Capture the entire window
+      const image = await win.webContents.capturePage();
+
+      // If bounds are provided, crop the image
+      if (bounds && bounds.width > 0 && bounds.height > 0) {
+        const croppedImage = image.crop({
+          x: Math.floor(bounds.x),
+          y: Math.floor(bounds.y),
+          width: Math.floor(bounds.width),
+          height: Math.floor(bounds.height)
+        });
+
+        return {
+          success: true,
+          dataUrl: croppedImage.toDataURL()
+        };
+      }
+
+      return {
+        success: true,
+        dataUrl: image.toDataURL()
+      };
+    } catch (error) {
+      console.error('[Screenshot] Error capturing:', error);
+      return { success: false, error: error.message };
+    }
+  });
+
+  // Copy screenshot to clipboard
+  ipcMain.handle('screenshot:copy-to-clipboard', async (event, dataUrl) => {
+    try {
+      const image = nativeImage.createFromDataURL(dataUrl);
+      clipboard.writeImage(image);
+      console.log('[Screenshot] Copied to clipboard');
+      return { success: true };
+    } catch (error) {
+      console.error('[Screenshot] Error copying to clipboard:', error);
+      return { success: false, error: error.message };
+    }
+  });
+
+  // Save screenshot
+  ipcMain.handle('screenshot:save', async (event, dataUrl, format = 'png') => {
+    try {
+      const { canceled, filePath } = await dialog.showSaveDialog(mainWindow, {
+        title: 'Save Screenshot',
+        defaultPath: `screenshot-${Date.now()}.${format}`,
+        filters: [
+          { name: 'Images', extensions: [format] }
+        ]
+      });
+
+      if (canceled || !filePath) {
+        return { success: false, canceled: true };
+      }
+
+      // Convert data URL to buffer
+      const base64Data = dataUrl.replace(/^data:image\/\w+;base64,/, '');
+      const buffer = Buffer.from(base64Data, 'base64');
+
+      // For JPG, we need to convert from PNG
+      if (format === 'jpg') {
+        const image = nativeImage.createFromDataURL(dataUrl);
+        const jpgBuffer = image.toJPEG(90); // 90% quality
+        await fs.writeFile(filePath, jpgBuffer);
+      } else {
+        await fs.writeFile(filePath, buffer);
+      }
+
+      console.log('[Screenshot] Saved to:', filePath);
+      return { success: true, filePath };
+    } catch (error) {
+      console.error('[Screenshot] Error saving:', error);
+      return { success: false, error: error.message };
+    }
+  });
+
+  console.log('[Screenshot] IPC handlers registered');
 }
 
 // ============================================================================
@@ -1951,10 +2059,17 @@ app.whenReady().then(() => {
   setupPremiereImportHandler();
   setupMediaCacheHandlers();
 
+  // Setup context menu handler
+  const contextMenuHandler = new ContextMenuHandler(mainWindow, store);
+  contextMenuHandler.setupHandlers(require('electron').ipcMain);
+
   console.log('[Main] IPC handlers registered');
 
   // Setup download handler for webapp downloads
   setupDownloadHandler();
+
+  // Setup screenshot handlers
+  setupScreenshotHandlers();
 
   // Setup auto-updater (only in production)
   // TEMPORARY: Enable in development for testing

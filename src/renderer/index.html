@@ -352,6 +352,12 @@
                 <path d="M21 21l-4.35-4.35M11 8v6M8 11h6"/>
               </svg>
             </button>
+            <button id="webapp-screenshot-btn" class="webapp-nav-btn" title="Take Screenshot (Ctrl+Shift+5)">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/>
+                <circle cx="12" cy="13" r="4"/>
+              </svg>
+            </button>
           </div>
           <div id="tab-list" class="tab-list">
             <!-- Tabs will be inserted here dynamically -->
@@ -757,6 +763,7 @@
   <script src="../config.js?v=5"></script> <!-- Load config second -->
   <script src="js/electron-bridge.js?v=5"></script>
   <script src="js/api.js?v=5"></script>
+  <script src="js/context-menu-manager.js?v=5"></script>
   <script src="js/tab-manager.js?v=5"></script>
   <script src="js/main.js?v=5"></script>
 </body>

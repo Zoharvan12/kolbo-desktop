@@ -225,7 +225,31 @@ contextBridge.exposeInMainWorld('kolboDesktop', {
     ipcRenderer.on('drag:error', (event, data) => callback(data)),
 
   onDragWarning: (callback) =>
-    ipcRenderer.on('drag:warning', (event, data) => callback(data))
+    ipcRenderer.on('drag:warning', (event, data) => callback(data)),
+
+  // Context Menu
+  showMediaItemContextMenu: (params) =>
+    ipcRenderer.invoke('context-menu:show-media-item', params),
+
+  showWebappContextMenu: (params) =>
+    ipcRenderer.invoke('context-menu:show-webapp', params),
+
+  downloadFileFromContextMenu: (url, type) =>
+    ipcRenderer.invoke('context-menu:download-file', url, type),
+
+  // Context menu action events
+  onContextMenuAction: (callback) =>
+    ipcRenderer.on('context-menu-action', (event, data) => callback(data)),
+
+  // Screenshot
+  captureScreenshot: (bounds) =>
+    ipcRenderer.invoke('screenshot:capture', bounds),
+
+  copyScreenshotToClipboard: (dataUrl) =>
+    ipcRenderer.invoke('screenshot:copy-to-clipboard', dataUrl),
+
+  saveScreenshot: (dataUrl, format) =>
+    ipcRenderer.invoke('screenshot:save', dataUrl, format)
 });
 
 console.log('[Preload] Context bridge established');
