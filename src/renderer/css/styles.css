@@ -1520,6 +1520,8 @@ body.is-mac .window-controls {
   position: relative;
   margin: 0;
   padding: 0;
+  /* Dynamic gradient set via JS --slider-progress variable */
+  --slider-progress: 50%;
 }
 
 /* Slider Thumb - WebKit (Chrome, Safari, Edge) */
@@ -1570,12 +1572,41 @@ body.is-mac .window-controls {
   box-shadow: 0 0 0 6px rgb(var(--primary) / 0.25), 0 2px 6px rgba(0, 0, 0, 0.3);
 }
 
-/* Slider Track Progress (WebKit) */
+/* Slider Track Progress (WebKit) - with blue glow on filled area */
 .grid-size-slider::-webkit-slider-runnable-track {
   height: 6px;
   border-radius: 3px;
-  background: rgba(255, 255, 255, 0.1);
+  background: linear-gradient(
+    to right,
+    rgb(var(--primary)) 0%,
+    rgb(var(--primary)) var(--slider-progress),
+    rgba(255, 255, 255, 0.1) var(--slider-progress),
+    rgba(255, 255, 255, 0.1) 100%
+  );
   border: none;
+}
+
+/* Glow effect container for slider */
+.slider-container::before {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 0;
+  transform: translateY(-50%);
+  height: 6px;
+  width: var(--slider-progress, 50%);
+  border-radius: 3px;
+  background: transparent;
+  box-shadow: 0 0 10px rgb(var(--primary) / 0.7),
+              0 0 20px rgb(var(--primary) / 0.4),
+              0 0 30px rgb(var(--primary) / 0.2);
+  pointer-events: none;
+  z-index: 0;
+  transition: width 0.1s ease;
+}
+
+.slider-container {
+  --slider-progress: 50%;
 }
 
 /* Slider Track Progress (Firefox) */
@@ -1584,6 +1615,14 @@ body.is-mac .window-controls {
   border-radius: 3px;
   background: rgba(255, 255, 255, 0.1);
   border: none;
+}
+
+/* Filled Progress Area (Firefox) */
+.grid-size-slider::-moz-range-progress {
+  height: 6px;
+  border-radius: 3px;
+  background: linear-gradient(90deg, rgb(var(--primary)), rgb(var(--primary) / 0.8));
+  box-shadow: 0 0 8px rgb(var(--primary) / 0.6), 0 0 16px rgb(var(--primary) / 0.3);
 }
 
 /* Value Badge */

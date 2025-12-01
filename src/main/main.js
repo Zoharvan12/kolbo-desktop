@@ -449,8 +449,8 @@ let updateInfo = null; // Store update info for renderer access
 
 function setupAutoUpdater() {
   // Configure auto-updater
-  autoUpdater.autoDownload = false; // Manual download via UI
-  autoUpdater.autoInstallOnAppQuit = true; // Install when app quits
+  autoUpdater.autoDownload = true; // Automatically download updates in background
+  autoUpdater.autoInstallOnAppQuit = true; // Install when app quits if user chose "Later"
   autoUpdater.allowDowngrade = false; // Only allow upgrades, not downgrades
   autoUpdater.allowPrerelease = false; // Only stable releases
 
@@ -541,6 +541,23 @@ function setupAutoUpdater() {
         releaseNotes: info.releaseNotes
       });
     }
+
+    // Show dialog asking user to restart now or later
+    dialog.showMessageBox(mainWindow, {
+      type: 'info',
+      title: 'Update Ready',
+      message: `Version ${info.version} has been downloaded`,
+      detail: 'Would you like to restart the app now to install the update, or install it the next time you launch the app?',
+      buttons: ['Restart Now', 'Later'],
+      defaultId: 0,
+      cancelId: 1
+    }).then(({ response }) => {
+      if (response === 0) {
+        // User chose "Restart Now" - quit and install
+        autoUpdater.quitAndInstall();
+      }
+      // If "Later" (response === 1), do nothing - will install on next launch
+    });
   });
 
   // Check for updates on startup (after 3 seconds)
