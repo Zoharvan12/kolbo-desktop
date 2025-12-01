@@ -1650,8 +1650,8 @@ body.is-mac .window-controls {
   border-radius: 3px;
   background: linear-gradient(
     to right,
-    rgb(var(--primary)) 0%,
-    rgb(var(--primary)) var(--slider-progress),
+    #3b82f6 0%,
+    #3b82f6 var(--slider-progress),
     rgba(255, 255, 255, 0.1) var(--slider-progress),
     rgba(255, 255, 255, 0.1) 100%
   );
@@ -1669,9 +1669,9 @@ body.is-mac .window-controls {
   width: var(--slider-progress, 50%);
   border-radius: 3px;
   background: transparent;
-  box-shadow: 0 0 10px rgb(var(--primary) / 0.7),
-              0 0 20px rgb(var(--primary) / 0.4),
-              0 0 30px rgb(var(--primary) / 0.2);
+  box-shadow: 0 0 10px rgba(59, 130, 246, 0.7),
+              0 0 20px rgba(59, 130, 246, 0.4),
+              0 0 30px rgba(59, 130, 246, 0.2);
   pointer-events: none;
   z-index: 0;
   transition: width 0.1s ease;
@@ -1693,8 +1693,8 @@ body.is-mac .window-controls {
 .grid-size-slider::-moz-range-progress {
   height: 6px;
   border-radius: 3px;
-  background: linear-gradient(90deg, rgb(var(--primary)), rgb(var(--primary) / 0.8));
-  box-shadow: 0 0 8px rgb(var(--primary) / 0.6), 0 0 16px rgb(var(--primary) / 0.3);
+  background: linear-gradient(90deg, #3b82f6, #60a5fa);
+  box-shadow: 0 0 8px rgba(59, 130, 246, 0.6), 0 0 16px rgba(59, 130, 246, 0.3);
 }
 
 /* Value Badge */
