@@ -1,0 +1,233 @@
+/* Kolbo Studio - Custom Context Menu Styles */
+/* Beautiful, elegant context menu with icons */
+
+.context-menu {
+  position: fixed;
+  z-index: 99999;
+  min-width: 220px;
+  background: rgba(26, 26, 26, 0.95);
+  backdrop-filter: blur(20px) saturate(180%);
+  -webkit-backdrop-filter: blur(20px) saturate(180%);
+  border: 1px solid rgba(71, 71, 71, 0.5);
+  border-radius: 12px;
+  padding: 6px;
+  box-shadow:
+    0 8px 32px rgba(0, 0, 0, 0.4),
+    0 0 0 1px rgba(255, 255, 255, 0.05) inset,
+    0 2px 8px rgba(0, 0, 0, 0.2);
+  opacity: 0;
+  transform: scale(0.95) translateY(-10px);
+  transform-origin: top left;
+  animation: contextMenuFadeIn 0.15s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  pointer-events: all;
+}
+
+@keyframes contextMenuFadeIn {
+  to {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
+}
+
+.context-menu.closing {
+  animation: contextMenuFadeOut 0.1s cubic-bezier(0.4, 0, 1, 1) forwards;
+}
+
+@keyframes contextMenuFadeOut {
+  to {
+    opacity: 0;
+    transform: scale(0.95) translateY(-5px);
+  }
+}
+
+.context-menu-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 12px;
+  margin: 2px 0;
+  border-radius: 8px;
+  cursor: pointer;
+  position: relative;
+  overflow: hidden;
+  transition: all 0.15s cubic-bezier(0.4, 0, 0.2, 1);
+  font-size: 13px;
+  font-weight: 450;
+  color: rgba(255, 255, 255, 0.95);
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+.context-menu-item::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: linear-gradient(135deg,
+    rgba(255, 255, 255, 0.08) 0%,
+    rgba(255, 255, 255, 0.04) 100%);
+  opacity: 0;
+  transition: opacity 0.15s ease;
+  border-radius: 8px;
+}
+
+.context-menu-item:hover::before {
+  opacity: 1;
+}
+
+.context-menu-item:hover {
+  background: rgba(255, 255, 255, 0.08);
+  transform: translateX(2px);
+}
+
+.context-menu-item:active {
+  transform: translateX(1px) scale(0.98);
+  background: rgba(255, 255, 255, 0.12);
+}
+
+.context-menu-item.disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+  pointer-events: none;
+}
+
+.context-menu-item.destructive {
+  color: rgba(239, 68, 68, 0.95);
+}
+
+.context-menu-item.destructive:hover {
+  background: rgba(239, 68, 68, 0.12);
+}
+
+.context-menu-item.destructive .context-menu-icon {
+  color: rgba(239, 68, 68, 0.95);
+}
+
+.context-menu-icon {
+  width: 18px;
+  height: 18px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  color: rgba(255, 255, 255, 0.7);
+  transition: all 0.15s ease;
+}
+
+.context-menu-item:hover .context-menu-icon {
+  color: rgba(255, 255, 255, 0.95);
+  transform: scale(1.1);
+}
+
+.context-menu-icon svg {
+  width: 100%;
+  height: 100%;
+  stroke-width: 2;
+}
+
+.context-menu-label {
+  flex: 1;
+  white-space: nowrap;
+  position: relative;
+  z-index: 1;
+}
+
+.context-menu-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(255, 255, 255, 0.1);
+  color: rgba(255, 255, 255, 0.8);
+  font-size: 11px;
+  font-weight: 600;
+  padding: 2px 8px;
+  border-radius: 6px;
+  margin-left: 8px;
+  position: relative;
+  z-index: 1;
+}
+
+.context-menu-separator {
+  height: 1px;
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    rgba(255, 255, 255, 0.1) 20%,
+    rgba(255, 255, 255, 0.1) 80%,
+    transparent 100%
+  );
+  margin: 6px 0;
+}
+
+/* Keyboard Shortcut Display */
+.context-menu-shortcut {
+  font-size: 11px;
+  color: rgba(255, 255, 255, 0.4);
+  font-weight: 400;
+  position: relative;
+  z-index: 1;
+}
+
+.context-menu-item:hover .context-menu-shortcut {
+  color: rgba(255, 255, 255, 0.6);
+}
+
+/* Submenu indicator */
+.context-menu-submenu-indicator {
+  width: 16px;
+  height: 16px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: rgba(255, 255, 255, 0.4);
+  transition: all 0.15s ease;
+}
+
+.context-menu-item:hover .context-menu-submenu-indicator {
+  color: rgba(255, 255, 255, 0.8);
+  transform: translateX(2px);
+}
+
+/* Special styling for batch operations */
+.context-menu-item.batch-operation .context-menu-badge {
+  background: linear-gradient(135deg,
+    rgba(59, 130, 246, 0.3) 0%,
+    rgba(147, 51, 234, 0.3) 100%);
+  color: rgba(147, 197, 253, 1);
+  border: 1px solid rgba(59, 130, 246, 0.3);
+}
+
+/* Glow effect on hover for important items */
+.context-menu-item.primary:hover {
+  box-shadow:
+    0 0 20px rgba(59, 130, 246, 0.2),
+    0 0 40px rgba(59, 130, 246, 0.1);
+}
+
+/* Context menu backdrop */
+.context-menu-backdrop {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 99998;
+  background: transparent;
+}
+
+/* Smooth transitions for all context menu animations */
+.context-menu * {
+  transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* Add subtle gradient border on hover */
+.context-menu-item:hover {
+  border: 1px solid transparent;
+  background-image:
+    linear-gradient(rgba(255, 255, 255, 0.08), rgba(255, 255, 255, 0.08)),
+    linear-gradient(135deg, rgba(255, 255, 255, 0.1), rgba(255, 255, 255, 0.05));
+  background-origin: border-box;
+  background-clip: padding-box, border-box;
+}

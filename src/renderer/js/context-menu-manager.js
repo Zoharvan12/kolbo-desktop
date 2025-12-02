@@ -4,6 +4,7 @@
 class ContextMenuManager {
   constructor(app) {
     this.app = app; // Reference to main KolboApp instance
+    this.customMenu = new CustomContextMenu();
     this.setupContextMenuActionListener();
   }
 
@@ -71,13 +72,13 @@ class ContextMenuManager {
     // Check if this is a batch selection
     const isMultiSelect = this.app.selectedItems.size > 1 && this.app.selectedItems.has(mediaId);
 
+    const params = {};
+
     if (isMultiSelect) {
       // Batch selection menu
-      await window.kolboDesktop.showMediaItemContextMenu({
-        isMultiSelect: true,
-        selectedCount: this.app.selectedItems.size,
-        selectedIds: Array.from(this.app.selectedItems)
-      });
+      params.isMultiSelect = true;
+      params.selectedCount = this.app.selectedItems.size;
+      params.selectedIds = Array.from(this.app.selectedItems);
     } else {
       // Single item menu
       const mediaItem = this.app.media.find(m => m.id === mediaId);
@@ -86,19 +87,35 @@ class ContextMenuManager {
       // Check if cached
       const cacheResult = await window.kolboDesktop.getCachedFilePath(mediaId);
 
-      await window.kolboDesktop.showMediaItemContextMenu({
-        isMultiSelect: false,
-        selectedCount: 1,
-        mediaItem: {
-          id: mediaItem.id,
-          type: mediaItem.type,
-          url: mediaItem.url,
-          fileName: mediaItem.file_name || `media_${mediaItem.id}`,
-          cached: cacheResult.cached,
-          cachePath: cacheResult.filePath
-        }
-      });
+      params.isMultiSelect = false;
+      params.selectedCount = 1;
+      params.mediaItem = {
+        id: mediaItem.id,
+        type: mediaItem.type,
+        url: mediaItem.url,
+        fileName: mediaItem.file_name || `media_${mediaItem.id}`,
+        cached: cacheResult.cached,
+        cachePath: cacheResult.filePath
+      };
     }
+
+    // Define handlers for context menu actions
+    const handlers = {
+      download: (p) => this.handleDownload(p),
+      downloadBatch: (p) => this.handleBatchDownload(p),
+      copyImage: (item) => this.copyImageToClipboard(item),
+      copyUrl: (item) => this.copyUrlToClipboard(item),
+      openExternal: (item) => this.openInBrowser(item),
+      revealCache: (p) => this.handleRevealCache(p),
+      clearSelection: () => this.handleClearSelection(),
+      copyUrlsBatch: (p) => this.handleCopyUrlsBatch(p)
+    };
+
+    // Build menu items
+    const menuItems = this.customMenu.buildMediaItemMenu(params, handlers);
+
+    // Show custom context menu
+    this.customMenu.show(menuItems, event.clientX, event.clientY);
   }
 
   /**
@@ -285,6 +302,58 @@ class ContextMenuManager {
         const currentSrc = activeTab.iframe.src;
         activeTab.iframe.src = currentSrc;
       }
+    }
+  }
+
+  /**
+   * Copy image to clipboard
+   */
+  async copyImageToClipboard(mediaItem) {
+    try {
+      // Use the existing copy image functionality from main process
+      const response = await fetch(mediaItem.url);
+      const blob = await response.blob();
+      const item = new ClipboardItem({ [blob.type]: blob });
+      await navigator.clipboard.write([item]);
+
+      if (this.app.showToast) {
+        this.app.showToast('Image copied to clipboard', 'success');
+      }
+    } catch (error) {
+      console.error('[Context Menu] Failed to copy image:', error);
+      if (this.app.showToast) {
+        this.app.showToast('Failed to copy image', 'error');
+      }
+    }
+  }
+
+  /**
+   * Copy URL to clipboard
+   */
+  copyUrlToClipboard(item) {
+    const url = item.url || item;
+    const textarea = document.createElement('textarea');
+    textarea.value = url;
+    textarea.style.position = 'fixed';
+    textarea.style.opacity = '0';
+    document.body.appendChild(textarea);
+    textarea.select();
+    document.execCommand('copy');
+    document.body.removeChild(textarea);
+
+    if (this.app.showToast) {
+      this.app.showToast('URL copied to clipboard', 'success');
+    }
+  }
+
+  /**
+   * Open in browser
+   */
+  openInBrowser(mediaItem) {
+    if (window.kolboDesktop && window.kolboDesktop.openExternal) {
+      window.kolboDesktop.openExternal(mediaItem.url);
+    } else {
+      window.open(mediaItem.url, '_blank');
     }
   }
 }
