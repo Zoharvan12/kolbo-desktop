@@ -248,8 +248,15 @@ contextBridge.exposeInMainWorld('kolboDesktop', {
   copyScreenshotToClipboard: (dataUrl) =>
     ipcRenderer.invoke('screenshot:copy-to-clipboard', dataUrl),
 
+  writeClipboardText: (text) =>
+    ipcRenderer.invoke('clipboard:write-text', text),
+
   saveScreenshot: (dataUrl, format) =>
-    ipcRenderer.invoke('screenshot:save', dataUrl, format)
+    ipcRenderer.invoke('screenshot:save', dataUrl, format),
+
+  // Copy image from URL to clipboard
+  copyImageToClipboard: (imageUrl) =>
+    ipcRenderer.invoke('clipboard:copy-image', imageUrl)
 });
 
 console.log('[Preload] Context bridge established');

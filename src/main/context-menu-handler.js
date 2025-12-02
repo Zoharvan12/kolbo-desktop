@@ -30,12 +30,16 @@ class ContextMenuHandler {
             event.sender.send('context-menu-action', { action: 'download-batch', params });
           }
         },
+        // Import to Premiere option is hidden
+        // Uncomment below to re-enable:
+        /*
         {
           label: `Import to Premiere (${selectedCount} items)`,
           click: () => {
             event.sender.send('context-menu-action', { action: 'premiere-batch', params });
           }
         },
+        */
         { type: 'separator' },
         {
           label: 'Copy All URLs',
@@ -114,7 +118,9 @@ class ContextMenuHandler {
         }
       );
 
-      // Add Import to Premiere for videos
+      // Import to Premiere option is hidden
+      // Uncomment below to re-enable:
+      /*
       if (itemType === 'video') {
         template.push(
           { type: 'separator' },
@@ -126,6 +132,7 @@ class ContextMenuHandler {
           }
         );
       }
+      */
 
       // If cached, show reveal option
       if (mediaItem.cached) {

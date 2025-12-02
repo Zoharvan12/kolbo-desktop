@@ -3366,3 +3366,40 @@ body.dragging-active * {
   background: var(--bg-hover, #404040);
   color: var(--danger-color, #ff4444);
 }
+
+/* Different colored outlines for each download action button */
+.download-btn.open-file-btn {
+  background: var(--bg-tertiary, #333);
+  border: 2px solid #10b981;
+  color: #10b981;
+}
+
+.download-btn.open-file-btn:hover {
+  background: rgba(16, 185, 129, 0.1);
+  border-color: #059669;
+  color: #059669;
+}
+
+.download-btn.show-folder-btn {
+  background: var(--bg-tertiary, #333);
+  border: 2px solid #3b82f6;
+  color: #3b82f6;
+}
+
+.download-btn.show-folder-btn:hover {
+  background: rgba(59, 130, 246, 0.1);
+  border-color: #2563eb;
+  color: #2563eb;
+}
+
+.download-btn.change-folder-btn {
+  background: var(--bg-tertiary, #333);
+  border: 2px solid #f59e0b;
+  color: #f59e0b;
+}
+
+.download-btn.change-folder-btn:hover {
+  background: rgba(245, 158, 11, 0.1);
+  border-color: #d97706;
+  color: #d97706;
+}

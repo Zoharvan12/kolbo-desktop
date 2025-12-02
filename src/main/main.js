@@ -78,11 +78,7 @@ function createWindow() {
         console.log('[Main] Preload exists:', require('fs').existsSync(preloadPath));
         return preloadPath;
       })(),
-      webSecurity: process.env.NODE_ENV === 'development' ? false : true,  // Enabled in production
-      // CSP for iframes - allow unsafe-eval in dev mode and WebSocket connections
-      contentSecurityPolicy: process.env.NODE_ENV === 'development'
-        ? "default-src 'self' http: https: ws: wss: data: blob: 'unsafe-inline' 'unsafe-eval'; connect-src 'self' http: https: ws: wss:;"
-        : "default-src 'self' http: https: wss: data: blob: 'unsafe-inline'; connect-src 'self' https: wss:;"
+      webSecurity: process.env.NODE_ENV === 'development' ? false : true  // Disabled in dev for CORS/CSP
     },
     show: true // Show immediately for debugging
   });
@@ -831,6 +827,100 @@ function setupScreenshotHandlers() {
       return { success: true };
     } catch (error) {
       console.error('[Screenshot] Error copying to clipboard:', error);
+      return { success: false, error: error.message };
+    }
+  });
+
+  // Copy image from URL to clipboard
+  ipcMain.handle('clipboard:copy-image', async (event, imageUrl) => {
+    try {
+      console.log('[Clipboard] Copying image from URL:', imageUrl);
+
+      const https = require('https');
+      const http = require('http');
+
+      // Helper function to download image (handles redirects)
+      const downloadImage = (url) => {
+        return new Promise((resolve, reject) => {
+          const protocol = url.startsWith('https') ? https : http;
+
+          protocol.get(url, (response) => {
+            // Handle redirects
+            if (response.statusCode === 301 || response.statusCode === 302) {
+              const redirectUrl = response.headers.location;
+              console.log('[Clipboard] Following redirect to:', redirectUrl);
+              // Recursively download from redirect URL
+              return downloadImage(redirectUrl).then(resolve).catch(reject);
+            }
+
+            if (response.statusCode !== 200) {
+              reject(new Error(`HTTP ${response.statusCode}: ${response.statusMessage}`));
+              return;
+            }
+
+            const chunks = [];
+            response.on('data', (chunk) => chunks.push(chunk));
+            response.on('end', () => {
+              try {
+                const buffer = Buffer.concat(chunks);
+                resolve(buffer);
+              } catch (error) {
+                reject(error);
+              }
+            });
+            response.on('error', reject);
+          }).on('error', reject);
+        });
+      };
+
+      // Download the image
+      const buffer = await downloadImage(imageUrl);
+      console.log('[Clipboard] Downloaded image, buffer size:', buffer.length, 'bytes');
+
+      // Detect if it's WebP format
+      const isWebP = imageUrl.toLowerCase().endsWith('.webp') ||
+                     buffer[0] === 0x52 && buffer[1] === 0x49 && buffer[2] === 0x46 && buffer[3] === 0x46; // RIFF header
+
+      let imageBuffer = buffer;
+
+      // Convert WebP to PNG using Sharp (Electron doesn't support WebP well)
+      if (isWebP) {
+        console.log('[Clipboard] WebP format detected, converting to PNG...');
+        const sharp = require('sharp');
+        imageBuffer = await sharp(buffer)
+          .png()
+          .toBuffer();
+        console.log('[Clipboard] Converted to PNG, new buffer size:', imageBuffer.length, 'bytes');
+      }
+
+      // Create native image from buffer
+      const image = nativeImage.createFromBuffer(imageBuffer);
+      console.log('[Clipboard] Created image from buffer, isEmpty:', image.isEmpty());
+
+      if (image.isEmpty()) {
+        throw new Error('Failed to create image from buffer - image may be corrupted');
+      }
+
+      // Copy to clipboard
+      clipboard.writeImage(image);
+      console.log('[Clipboard] ✅ Image copied to clipboard successfully');
+
+      return { success: true };
+
+    } catch (error) {
+      console.error('[Clipboard] ❌ Error copying image:', error);
+      return { success: false, error: error.message };
+    }
+  });
+
+  // Write text to clipboard
+  ipcMain.handle('clipboard:write-text', async (event, text) => {
+    try {
+      clipboard.writeText(text);
+      console.log('[Clipboard] Text written to clipboard');
+      return { success: true };
+    } catch (error) {
+      console.error('[Clipboard] Error writing text:', error);
       return { success: false, error: error.message };
     }
   });

@@ -2716,6 +2716,7 @@ function setupDownloadNotifications() {
   const notification = document.getElementById("download-notification");
   const filenameEl = notification.querySelector(".download-filename");
   const folderEl = notification.querySelector(".download-folder");
+  const openFileBtn = document.getElementById("open-file-btn");
   const showFolderBtn = document.getElementById("show-folder-btn");
   const changeFolderBtn = document.getElementById("change-folder-btn");
   const closeBtn = document.getElementById("close-notification-btn");
@@ -2749,6 +2750,14 @@ function setupDownloadNotifications() {
       showToast(`Download failed: ${data.fileName}`, "error");
     });
   }
+
+  // Open file button
+  openFileBtn.addEventListener("click", () => {
+    if (currentFilePath && window.kolboDesktop && window.kolboDesktop.openExternal) {
+      window.kolboDesktop.openExternal(currentFilePath);
+      notification.classList.add("hidden");
+    }
+  });
 
   // Show folder button
   showFolderBtn.addEventListener("click", () => {

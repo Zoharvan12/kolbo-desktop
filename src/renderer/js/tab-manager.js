@@ -22,6 +22,7 @@ class TabManager {
     this.MAX_TABS = 10;
     this.DEBUG_MODE = window.KOLBO_CONFIG ? window.KOLBO_CONFIG.debug : false;
     this.initialized = false; // Track initialization state
+    this.isRestoring = false; // Flag to indicate we're restoring tabs from saved state
 
     // Cache webapp URL to avoid multiple calls
     this._cachedWebappUrl = null;
@@ -298,6 +299,11 @@ class TabManager {
 
   setupGlobalMessageListener() {
     window.addEventListener('message', (event) => {
+      // Log all messages for debugging
+      if (event.data && event.data.type) {
+        console.log('[TabManager] Received postMessage:', event.data.type, event.data);
+      }
+
       // Check for title update messages from iframes
       if (event.data && event.data.type === 'PAGE_TITLE_UPDATE') {
         const iframeId = event.data.iframeId;
@@ -314,13 +320,89 @@ class TabManager {
       if (event.data && event.data.type === 'CONTEXT_MENU') {
         const contextData = event.data.data;
 
-        if (this.DEBUG_MODE) {
-          console.log('[TabManager] Context menu message received from iframe:', contextData);
-        }
+        console.log('[TabManager] ✅ Context menu message received from iframe:', contextData);
 
         // Show context menu using Electron API
         if (window.kolboDesktop && window.kolboDesktop.showWebappContextMenu) {
+          console.log('[TabManager] Showing webapp context menu...');
           window.kolboDesktop.showWebappContextMenu(contextData);
+        } else {
+          console.error('[TabManager] ❌ showWebappContextMenu not available!');
+        }
+      }
+
+      if (event.data && event.data.type === 'CLIPBOARD_WRITE_TEXT') {
+        const clipboardText = event.data.text || '';
+        if (window.kolboDesktop && window.kolboDesktop.writeClipboardText) {
+          window.kolboDesktop.writeClipboardText(clipboardText);
+        } else {
+          console.warn('[TabManager] writeClipboardText API not available');
+        }
+      }
+
+      // Check for copy image messages from iframes
+      if (event.data && event.data.type === 'COPY_IMAGE') {
+        const imageUrl = event.data.imageUrl;
+        console.log('[TabManager] Copy image request received:', imageUrl);
+
+        if (window.kolboDesktop && window.kolboDesktop.copyImageToClipboard) {
+          window.kolboDesktop.copyImageToClipboard(imageUrl)
+            .then(result => {
+              if (result.success) {
+                console.log('[TabManager] ✅ Image copied to clipboard');
+              } else {
+                console.error('[TabManager] ❌ Failed to copy image:', result.error);
+              }
+            })
+            .catch(err => {
+              console.error('[TabManager] ❌ Error copying image:', err);
+            });
+        } else {
+          console.error('[TabManager] ❌ copyImageToClipboard API not available');
+        }
+      }
+
+      // Check for download file messages from iframes
+      if (event.data && event.data.type === 'DOWNLOAD_FILE') {
+        const { url, filename, mediaType } = event.data;
+        console.log('[TabManager] Download file request received:', { url, filename, mediaType });
+
+        if (window.kolboDesktop && window.kolboDesktop.downloadFileFromContextMenu) {
+          window.kolboDesktop.downloadFileFromContextMenu(url, mediaType)
+            .then(result => {
+              if (result.success) {
+                console.log('[TabManager] ✅ Download started:', filename);
+              } else if (!result.canceled) {
+                console.error('[TabManager] ❌ Download failed:', result.error);
+              }
+            })
+            .catch(err => {
+              console.error('[TabManager] ❌ Error downloading file:', err);
+            });
+        } else {
+          console.error('[TabManager] ❌ downloadFileFromContextMenu API not available');
+        }
+      }
+
+      // Check for open external URL messages from iframes
+      if (event.data && event.data.type === 'OPEN_EXTERNAL_URL') {
+        const { url, reason } = event.data;
+        console.log('[TabManager] Open external URL request received:', { url, reason });
+
+        if (window.kolboDesktop && window.kolboDesktop.openExternal) {
+          window.kolboDesktop.openExternal(url)
+            .then(result => {
+              if (result && result.success === false) {
+                console.error('[TabManager] ❌ Failed to open URL:', result.error);
+              } else {
+                console.log('[TabManager] ✅ Opened URL in browser:', url);
+              }
+            })
+            .catch(err => {
+              console.error('[TabManager] ❌ Error opening URL:', err);
+            });
+        } else {
+          console.error('[TabManager] ❌ openExternal API not available');
         }
       }
     });
@@ -372,20 +454,26 @@ class TabManager {
   }
 
   setupIframeContextMenu(iframe) {
-    // Inject context menu script into iframe that communicates via postMessage
+    // Note: For cross-origin iframes (like kolbo.ai), we CANNOT inject scripts
+    // The web app (kolbo-map) should handle context menus and send postMessage
+    // We listen for those messages in setupGlobalMessageListener()
+
+    // Only try to inject for same-origin iframes (like localhost during development)
     iframe.addEventListener('load', () => {
       try {
         const iframeDoc = iframe.contentDocument;
         if (!iframeDoc) {
-          console.log('[TabManager] Cannot access iframe document (cross-origin)');
+          if (this.DEBUG_MODE) {
+            console.log('[TabManager] Cross-origin iframe detected - relying on web app postMessage for context menus');
+          }
           return;
         }
 
-        // Inject context menu handler script
+        // If we can access the document, it's same-origin - inject the script
         const script = iframeDoc.createElement('script');
         script.textContent = `
           (function() {
-            console.log('[Kolbo Context Menu] Script injected into iframe');
+            console.log('[Kolbo Desktop] Context menu script injected into same-origin iframe');
 
             document.addEventListener('contextmenu', function(e) {
               e.preventDefault();
@@ -417,7 +505,6 @@ class TabManager {
               else if (target.tagName === 'VIDEO') {
                 const video = target;
                 srcURL = video.src || video.currentSrc || '';
-                // Also check for source elements
                 if (!srcURL && video.querySelector('source')) {
                   srcURL = video.querySelector('source').src;
                 }
@@ -427,7 +514,6 @@ class TabManager {
               else if (target.tagName === 'AUDIO') {
                 const audio = target;
                 srcURL = audio.src || audio.currentSrc || '';
-                // Also check for source elements
                 if (!srcURL && audio.querySelector('source')) {
                   srcURL = audio.querySelector('source').src;
                 }
@@ -466,26 +552,28 @@ class TabManager {
                 }
               }, '*');
 
-              console.log('[Kolbo Context Menu] Context menu requested:', {
+              console.log('[Kolbo Desktop] Context menu requested:', {
                 mediaType: mediaType,
                 srcURL: srcURL,
                 linkURL: linkURL
               });
             }, true); // Use capture phase to catch all events
 
-            console.log('[Kolbo Context Menu] Listener registered');
+            console.log('[Kolbo Desktop] Context menu listener registered');
           })();
         `;
 
         iframeDoc.head.appendChild(script);
 
         if (this.DEBUG_MODE) {
-          console.log('[TabManager] Context menu script injected into iframe');
+          console.log('[TabManager] Context menu script injected into same-origin iframe');
         }
       } catch (e) {
-        // Cross-origin iframe, can't inject script
-        console.warn('[TabManager] Cannot inject context menu script (cross-origin):', e.message);
-        // For cross-origin, we can't intercept context menus
+        // Cross-origin iframe - this is EXPECTED for production kolbo.ai
+        // The web app itself handles context menus and sends postMessage
+        if (this.DEBUG_MODE) {
+          console.log('[TabManager] Cross-origin iframe - context menus handled by web app via postMessage');
+        }
       }
     });
   }
@@ -500,10 +588,19 @@ class TabManager {
         // Try to load new state format first
         const savedState = localStorage.getItem('kolbo_tabs_state');
 
+        console.log('[TabManager] 🔍 Checking for saved tabs...');
+        console.log('[TabManager] Saved state exists:', !!savedState);
+
         if (savedState) {
           const state = JSON.parse(savedState);
+          console.log('[TabManager] 📦 Parsed state:', state);
 
           if (state.tabs && Array.isArray(state.tabs) && state.tabs.length > 0) {
+            console.log('[TabManager] ✅ Found', state.tabs.length, 'saved tabs. Starting restoration...');
+
+            // CRITICAL: Set restoration flag to prevent renumbering during restore
+            this.isRestoring = true;
+
             const currentWebappUrl = this.getWebappUrl();
             const tabIdMap = new Map(); // Map old IDs to new IDs
 
@@ -614,12 +711,23 @@ class TabManager {
               this.switchTab(this.tabs[0].id);
             }
 
+            // CRITICAL: Clear restoration flag and do one final renumber
+            this.isRestoring = false;
+            this.renumberTabs();
+
+            console.log('[TabManager] ✅ Tab restoration complete!');
+            console.log('[TabManager] 📊 Restored tabs:', this.tabs.map(t => ({ id: t.id, title: t.title, url: t.url })));
+
             if (this.DEBUG_MODE) {
               console.log('[TabManager] State restored successfully');
             }
 
             return;
+          } else {
+            console.log('[TabManager] ❌ No valid tabs in saved state');
           }
+        } else {
+          console.log('[TabManager] ℹ️ No saved state found, creating default tab');
         }
 
         // Fallback: Try old format (backward compatibility)
@@ -659,6 +767,11 @@ class TabManager {
 
   saveTabs() {
     try {
+      // Don't save during restoration to avoid conflicts
+      if (this.isRestoring) {
+        return;
+      }
+
       // Only save tabs for the main window to avoid conflicts
       const isMainWindow = !window.opener;
       if (isMainWindow) {
@@ -692,12 +805,14 @@ class TabManager {
 
         localStorage.setItem('kolbo_tabs_state', JSON.stringify(state));
 
+        console.log('[TabManager] 💾 Saved', tabsData.length, 'tabs to localStorage');
+
         if (this.DEBUG_MODE) {
           console.log('[TabManager] Saved state:', state);
         }
       }
     } catch (error) {
-      console.error('[TabManager] Error saving tabs:', error);
+      console.error('[TabManager] ❌ Error saving tabs:', error);
     }
   }
 
@@ -724,6 +839,12 @@ class TabManager {
     iframe.className = 'tab-iframe';
     // Note: 'allow-downloads-without-user-activation' is not valid in Electron 28, removed
     iframe.setAttribute('sandbox', 'allow-same-origin allow-scripts allow-forms allow-popups allow-modals allow-downloads');
+    // Enable all necessary permissions for the iframe to work properly
+    // clipboard-read/write: for copy/paste operations
+    // autoplay: for video/audio playback without user interaction
+    // fullscreen: for media player fullscreen mode
+    // web-share: for sharing content (if used)
+    iframe.setAttribute('allow', 'clipboard-read; clipboard-write; autoplay; fullscreen; web-share');
 
     // Add authentication token to URL
     // NOTE: Web app iframe has its own localStorage that persists the token,
@@ -847,6 +968,12 @@ class TabManager {
       this.switchTab(tabId);
     }
 
+    // Renumber tabs to ensure sequential numbering
+    // Skip renumbering if we're restoring tabs (will renumber once at the end)
+    if (!this.isRestoring) {
+      this.renumberTabs();
+    }
+
     // Update split view button state
     this.updateSplitViewButtonState();
 
@@ -877,28 +1004,81 @@ class TabManager {
 
       if (this.DEBUG_MODE) {
         console.log('[TabManager] Closing merged tab, restoring original tabs:', tab.leftTabId, tab.rightTabId);
+        console.log('[TabManager] Left tab:', leftTab ? leftTab.id : 'null');
+        console.log('[TabManager] Right tab:', rightTab ? rightTab.id : 'null');
       }
 
-      // Remove CSS classes from iframes to restore normal layout (NO DOM MOVING!)
+      // CRITICAL: Fully restore iframes to their pre-split state
       if (mergedData) {
-        if (mergedData.leftIframe) {
-          mergedData.leftIframe.classList.remove('split-left-iframe', 'split-active');
+        // Restore left iframe
+        if (mergedData.leftIframe && leftTab) {
+          if (this.DEBUG_MODE) {
+            console.log('[TabManager] Restoring left iframe:', leftTab.id);
+          }
+
+          // Remove ALL split-view CSS classes
+          mergedData.leftIframe.classList.remove('split-left-iframe', 'split-right-iframe', 'split-active');
+
+          // Clear ALL split-view inline styles (but preserve zoom styles)
+          const currentTransform = mergedData.leftIframe.style.transform;
+          const currentTransformOrigin = mergedData.leftIframe.style.transformOrigin;
+
           mergedData.leftIframe.style.width = '';
+          mergedData.leftIframe.style.height = '';
           mergedData.leftIframe.style.left = '';
           mergedData.leftIframe.style.right = '';
-          mergedData.leftIframe.classList.remove('active');
-          if (this.DEBUG_MODE) {
-            console.log('[TabManager] Restored left iframe CSS:', leftTab.id);
+          mergedData.leftIframe.style.top = '';
+          mergedData.leftIframe.style.bottom = '';
+          mergedData.leftIframe.style.position = '';
+          mergedData.leftIframe.style.display = '';
+
+          // Restore transform if it was set (for zoom)
+          if (currentTransform) {
+            mergedData.leftIframe.style.transform = currentTransform;
+          }
+          if (currentTransformOrigin) {
+            mergedData.leftIframe.style.transformOrigin = currentTransformOrigin;
+          }
+
+          // Reapply zoom if tab has custom zoom level
+          if (leftTab.zoomLevel && leftTab.zoomLevel !== 1.0) {
+            this.applyZoom(leftTab);
           }
         }
-        if (mergedData.rightIframe) {
-          mergedData.rightIframe.classList.remove('split-right-iframe', 'split-active');
+
+        // Restore right iframe
+        if (mergedData.rightIframe && rightTab) {
+          if (this.DEBUG_MODE) {
+            console.log('[TabManager] Restoring right iframe:', rightTab.id);
+          }
+
+          // Remove ALL split-view CSS classes
+          mergedData.rightIframe.classList.remove('split-left-iframe', 'split-right-iframe', 'split-active');
+
+          // Clear ALL split-view inline styles (but preserve zoom styles)
+          const currentTransform = mergedData.rightIframe.style.transform;
+          const currentTransformOrigin = mergedData.rightIframe.style.transformOrigin;
+
           mergedData.rightIframe.style.width = '';
+          mergedData.rightIframe.style.height = '';
           mergedData.rightIframe.style.left = '';
           mergedData.rightIframe.style.right = '';
-          mergedData.rightIframe.classList.remove('active');
-          if (this.DEBUG_MODE) {
-            console.log('[TabManager] Restored right iframe CSS:', rightTab.id);
+          mergedData.rightIframe.style.top = '';
+          mergedData.rightIframe.style.bottom = '';
+          mergedData.rightIframe.style.position = '';
+          mergedData.rightIframe.style.display = '';
+
+          // Restore transform if it was set (for zoom)
+          if (currentTransform) {
+            mergedData.rightIframe.style.transform = currentTransform;
+          }
+          if (currentTransformOrigin) {
+            mergedData.rightIframe.style.transformOrigin = currentTransformOrigin;
+          }
+
+          // Reapply zoom if tab has custom zoom level
+          if (rightTab.zoomLevel && rightTab.zoomLevel !== 1.0) {
+            this.applyZoom(rightTab);
           }
         }
       }
@@ -907,7 +1087,7 @@ class TabManager {
       tab.element.remove();
       tab.iframe.remove();
 
-      // Remove from array
+      // Remove from array BEFORE switching tabs (important for proper state)
       this.tabs.splice(tabIndex, 1);
 
       // Remove from merged tabs map
@@ -921,12 +1101,30 @@ class TabManager {
         rightTab.element.style.display = '';
       }
 
-      // Switch to left tab (which will properly show its iframe)
-      if (leftTab) {
-        this.switchTab(leftTab.id);
-      } else if (rightTab) {
-        this.switchTab(rightTab.id);
+      // Determine which tab to switch to
+      let tabToActivate = null;
+      if (leftTab && this.tabs.includes(leftTab)) {
+        tabToActivate = leftTab;
+      } else if (rightTab && this.tabs.includes(rightTab)) {
+        tabToActivate = rightTab;
       }
+
+      // Switch to the selected tab (this will handle active class properly)
+      if (tabToActivate) {
+        if (this.DEBUG_MODE) {
+          console.log('[TabManager] Switching to restored tab:', tabToActivate.id);
+        }
+        this.switchTab(tabToActivate.id);
+      } else {
+        console.error('[TabManager] No valid tab to switch to after closing merged tab!');
+        // Fallback: switch to first available tab
+        if (this.tabs.length > 0) {
+          this.switchTab(this.tabs[0].id);
+        }
+      }
+
+      // Renumber tabs after closing merged tab
+      this.renumberTabs();
 
       // Update split view button state
       this.updateSplitViewButtonState();
@@ -964,6 +1162,9 @@ class TabManager {
     // Remove from array
     this.tabs.splice(tabIndex, 1);
 
+    // Renumber tabs after closing
+    this.renumberTabs();
+
     // Update split view button state
     this.updateSplitViewButtonState();
 
@@ -973,47 +1174,78 @@ class TabManager {
 
   switchTab(tabId) {
     const tab = this.tabs.find(t => t.id === tabId);
-    if (!tab) return;
+    if (!tab) {
+      console.error('[TabManager] Cannot switch to non-existent tab:', tabId);
+      return;
+    }
 
     if (this.DEBUG_MODE) {
-      console.log('[TabManager] Switching to tab:', tabId);
+      console.log('[TabManager] Switching to tab:', tabId, tab.title);
     }
 
     // Update active tab ID
     this.activeTabId = tabId;
 
-    // Update UI - only visible tabs
+    // CRITICAL: Update UI - manage active states for ALL tabs and iframes
     this.tabs.forEach(t => {
+      const isActiveTab = t.id === tabId;
+
+      // Update tab element active state (only for visible tabs)
       if (t.element.style.display !== 'none') {
-        t.element.classList.toggle('active', t.id === tabId);
+        if (isActiveTab) {
+          t.element.classList.add('active');
+        } else {
+          t.element.classList.remove('active');
+        }
       }
-      t.iframe.classList.toggle('active', t.id === tabId);
+
+      // Update iframe active state
+      // For merged tabs, we handle their iframes separately below
+      if (!t.isMerged) {
+        if (isActiveTab) {
+          t.iframe.classList.add('active');
+          if (this.DEBUG_MODE) {
+            console.log('[TabManager] Activated iframe for tab:', t.id);
+          }
+        } else {
+          t.iframe.classList.remove('active');
+        }
+      }
     });
+
+    // Handle merged tab - ensure both iframes are visible and active
+    if (tab.isMerged) {
+      const mergedData = this.mergedTabs.get(tabId);
+      if (mergedData) {
+        // Show and activate both split iframes
+        mergedData.leftIframe.classList.add('active');
+        mergedData.leftIframe.style.display = 'block';
+
+        mergedData.rightIframe.classList.add('active');
+        mergedData.rightIframe.style.display = 'block';
+
+        if (this.DEBUG_MODE) {
+          console.log('[TabManager] Activated split iframes for merged tab:', tabId);
+        }
+      }
+    } else {
+      // For regular tabs, ensure we deactivate any iframes from merged tabs
+      this.mergedTabs.forEach((data, mergedId) => {
+        if (mergedId !== tabId) {
+          // Deactivate iframes from other merged tabs
+          if (data.leftIframe) {
+            data.leftIframe.classList.remove('active');
+          }
+          if (data.rightIframe) {
+            data.rightIframe.classList.remove('active');
+          }
+        }
+      });
+    }
 
     // Apply zoom for the active tab
     if (tab.zoomLevel && tab.zoomLevel !== 1.0) {
       this.applyZoom(tab);
-    }
-
-    // Handle merged tab - ensure both iframes are visible
-    if (tab.isMerged) {
-      const mergedData = this.mergedTabs.get(tabId);
-      if (mergedData) {
-        // Show both split iframes
-        mergedData.leftIframe.style.display = 'block';
-        mergedData.rightIframe.style.display = 'block';
-
-        if (this.DEBUG_MODE) {
-          console.log('[TabManager] Showing split iframes for merged tab:', tabId);
-        }
-      }
-    } else {
-      // Hide any split iframes from other merged tabs
-      this.mergedTabs.forEach((data, mergedId) => {
-        if (mergedId !== tabId) {
-          // Don't hide them, let the normal active class handle it
-        }
-      });
     }
 
     // Show/hide loading based on tab loaded state
@@ -1030,6 +1262,10 @@ class TabManager {
 
     // Save tabs
     this.saveTabs();
+
+    if (this.DEBUG_MODE) {
+      console.log('[TabManager] Successfully switched to tab:', tabId);
+    }
   }
 
   updateTabTitle(tabId, newTitle) {
@@ -1044,6 +1280,76 @@ class TabManager {
 
     // Save tabs
     this.saveTabs();
+  }
+
+  /**
+   * Renumber all tabs with default "Kolbo.AI X" naming based on their current position
+   * This ensures tabs are always numbered sequentially (1, 2, 3...) regardless of which tabs were closed
+   *
+   * IMPORTANT: Only renumbers tabs with default naming pattern.
+   * - Skips hidden tabs (used in merged/split views)
+   * - Skips merged tabs (they have "Tab1 | Tab2" naming)
+   * - Preserves custom titles from the web app (like "Chat", "Image Tools", etc.)
+   */
+  renumberTabs() {
+    let visibleTabNumber = 1;
+    const defaultNamePattern = /^Kolbo\.AI \d+$/;
+
+    // First pass: collect all visible, non-merged tabs that need renumbering
+    const tabsToRenumber = [];
+
+    this.tabs.forEach((tab) => {
+      // Skip hidden tabs (these are tabs hidden when used in merged views)
+      if (tab.element.style.display === 'none') {
+        if (this.DEBUG_MODE) {
+          console.log(`[TabManager] Skipping hidden tab: ${tab.id} (${tab.title})`);
+        }
+        return;
+      }
+
+      // Skip merged/split view tabs - they have special naming like "Tab1 | Tab2"
+      if (tab.isMerged) {
+        if (this.DEBUG_MODE) {
+          console.log(`[TabManager] Skipping merged tab: ${tab.id} (${tab.title})`);
+        }
+        return;
+      }
+
+      // Check if this tab has the default "Kolbo.AI X" naming pattern
+      if (defaultNamePattern.test(tab.title)) {
+        tabsToRenumber.push(tab);
+      } else {
+        // This is a custom-named tab (from web app), preserve it
+        if (this.DEBUG_MODE) {
+          console.log(`[TabManager] Preserving custom-named tab: ${tab.id} (${tab.title})`);
+        }
+      }
+    });
+
+    // Second pass: renumber only the tabs with default naming
+    tabsToRenumber.forEach((tab) => {
+      const newTitle = `Kolbo.AI ${visibleTabNumber}`;
+
+      // Only update if the number actually changed (avoid unnecessary DOM updates)
+      if (tab.title !== newTitle) {
+        tab.title = newTitle;
+
+        const titleElement = tab.element.querySelector('.tab-title');
+        if (titleElement) {
+          titleElement.textContent = newTitle;
+        }
+
+        if (this.DEBUG_MODE) {
+          console.log(`[TabManager] Renumbered tab ${tab.id} to: ${newTitle}`);
+        }
+      }
+
+      visibleTabNumber++;
+    });
+
+    if (this.DEBUG_MODE) {
+      console.log(`[TabManager] Renumbering complete. Total default-named tabs: ${tabsToRenumber.length}`);
+    }
   }
 
   getActiveTab() {
@@ -1593,16 +1899,36 @@ class TabManager {
       splitRatio: 0.5
     });
 
+    if (this.DEBUG_MODE) {
+      console.log('[TabManager] Setting up split view CSS for iframes');
+      console.log('[TabManager] Left iframe:', leftTab.id);
+      console.log('[TabManager] Right iframe:', rightTab.id);
+    }
+
+    // CRITICAL: First, remove any existing split classes and reset inline styles
+    // This ensures a clean state if the iframe was previously in a split view
+    leftIframe.classList.remove('split-left-iframe', 'split-right-iframe', 'split-active');
+    rightIframe.classList.remove('split-left-iframe', 'split-right-iframe', 'split-active');
+
     // Apply CSS classes to iframes for split positioning (NO DOM MOVING!)
+    // Position left iframe
     leftIframe.classList.add('split-left-iframe');
     leftIframe.style.width = '50%';
     leftIframe.style.left = '0';
-    leftIframe.classList.add('active');
+    leftIframe.style.right = '';
+    leftIframe.style.position = '';
+    leftIframe.style.display = 'block';
 
+    // Position right iframe
     rightIframe.classList.add('split-right-iframe');
     rightIframe.style.width = '50%';
     rightIframe.style.left = '50%';
-    rightIframe.classList.remove('active');
+    rightIframe.style.right = '';
+    rightIframe.style.position = '';
+    rightIframe.style.display = 'block';
+
+    // NOTE: Don't manually set 'active' class here - let switchTab() handle it
+    // This prevents conflicts and ensures consistent state management
 
     // Add event listeners
     tabElement.addEventListener('click', (e) => {
@@ -1641,6 +1967,11 @@ class TabManager {
 
     // Switch to merged tab
     this.switchTab(mergedTabId);
+
+    // Renumber remaining visible tabs after hiding the merged ones
+    // This ensures if we merged "Kolbo.AI 1" and "Kolbo.AI 2", and have "Kolbo.AI 3",
+    // the "Kolbo.AI 3" becomes "Kolbo.AI 1" since it's now the only visible default-named tab
+    this.renumberTabs();
 
     // Update split view button state
     this.updateSplitViewButtonState();
