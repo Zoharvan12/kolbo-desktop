@@ -92,17 +92,17 @@ jobs:
           sed -i '' 's/Kolbo-Studio/Kolbo.Studio/g' dist/latest-mac.yml
           cat dist/latest-mac.yml
 
-      - name: Create backward compatible DMG (universal)
+      - name: Create renamed DMG copy
         run: |
-          cp "dist/Kolbo Studio-${{ needs.prepare-release.outputs.version }}-arm64.dmg" "dist/Kolbo.Studio-${{ needs.prepare-release.outputs.version }}.dmg"
+          cp "dist/Kolbo Studio-${{ needs.prepare-release.outputs.version }}.dmg" "dist/Kolbo.Studio-${{ needs.prepare-release.outputs.version }}.dmg"
 
       - name: Upload macOS artifacts
         uses: actions/upload-artifact@v4
         with:
           name: macos-artifacts
           path: |
-            dist/Kolbo Studio-${{ needs.prepare-release.outputs.version }}-arm64.dmg
-            dist/Kolbo Studio-${{ needs.prepare-release.outputs.version }}-x64.dmg
+            dist/Kolbo Studio-${{ needs.prepare-release.outputs.version }}.dmg
+            dist/Kolbo Studio-${{ needs.prepare-release.outputs.version }}-mac.zip
             dist/Kolbo.Studio-${{ needs.prepare-release.outputs.version }}.dmg
             dist/latest-mac.yml
 
@@ -132,19 +132,12 @@ jobs:
 
             ### Downloads
             - **Windows**: Kolbo.Studio-Setup-${{ needs.prepare-release.outputs.version }}.exe
-            - **macOS (Apple Silicon)**: Kolbo.Studio-${{ needs.prepare-release.outputs.version }}-arm64.dmg
-            - **macOS (Intel)**: Kolbo.Studio-${{ needs.prepare-release.outputs.version }}-x64.dmg
-            - **macOS (Universal)**: Kolbo.Studio-${{ needs.prepare-release.outputs.version }}.dmg
+            - **macOS (Universal)**: Kolbo.Studio-${{ needs.prepare-release.outputs.version }}.dmg (works on both Intel and Apple Silicon)
 
             ### Installation
             **Windows**: Download the .exe installer and run it. Follow the setup wizard.
 
-            **macOS**: Download the appropriate .dmg file for your Mac:
-            - Apple Silicon (M1/M2/M3): Download the arm64 version
-            - Intel Mac: Download the x64 version
-            - Not sure? Download the Universal version
-
-            Open the DMG and drag Kolbo Studio to Applications.
+            **macOS**: Download the .dmg file. It's a universal binary that works on both Intel and Apple Silicon Macs. Open the DMG and drag Kolbo Studio to Applications.
 
             ### Auto-Update
             Existing users will be notified automatically within the app. Click "Download Update" to get the latest version.
