@@ -115,12 +115,6 @@
       "title": "${productName} ${version}",
       "icon": "assets/icon.icns",
       "background": null
-    },
-    "publish": {
-      "provider": "github",
-      "owner": "Zoharvan12",
-      "repo": "kolbo-desktop",
-      "releaseType": "release"
     }
   }
 }
