@@ -107,11 +107,12 @@ jobs:
           echo "=== Original latest-mac.yml ==="
           cat dist/latest-mac.yml
           # Replace dashes in product name with spaces: Kolbo-Studio -> Kolbo Studio
-          sed -i 's/Kolbo-Studio/Kolbo Studio/g' dist/latest-mac.yml
+          # macOS sed requires -i '' (empty backup extension)
+          sed -i '' 's/Kolbo-Studio/Kolbo Studio/g' dist/latest-mac.yml
           # Remove -universal-mac suffix from ZIP filename
-          sed -i 's/-universal-mac\.zip/.zip/g' dist/latest-mac.yml
+          sed -i '' 's/-universal-mac\.zip/.zip/g' dist/latest-mac.yml
           # Remove -universal suffix from DMG filename
-          sed -i 's/-universal\.dmg/.dmg/g' dist/latest-mac.yml
+          sed -i '' 's/-universal\.dmg/.dmg/g' dist/latest-mac.yml
           echo "=== Fixed latest-mac.yml ==="
           cat dist/latest-mac.yml
 
