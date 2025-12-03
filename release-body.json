@@ -1,5 +1,5 @@
 {
-  "tag_name": "v1.0.0",
-  "name": "Kolbo Studio v1.0.0 - Official Launch",
-  "body": "## Kolbo Studio v1.0.0 - Official Launch\n\n### Features\n- Split View: View two tabs side-by-side with 50/50 and 70/30 presets\n- State Persistence: Your tabs and layout are saved between sessions\n- Auto-Updates: Manual download updater - downloads installer to your Downloads folder\n- Cross-Platform: Windows and Mac support\n\n### Installation\n1. Download the installer below\n2. Run the installer\n3. Launch Kolbo Studio\n\n### System Requirements\n- Windows: Windows 10 or later (64-bit)\n- Mac: macOS 10.13 or later (Intel and Apple Silicon)\n\n### What's New\nThis is the first official release of Kolbo Studio!"
+  "tag_name": "v1.0.1",
+  "name": "Kolbo Studio v1.0.1",
+  "body": "## Kolbo Studio v1.0.1\n\n### What's New\n- Bug fixes and improvements\n\n### Features\n- Split View: View two tabs side-by-side with 50/50 and 70/30 presets\n- State Persistence: Your tabs and layout are saved between sessions\n- Auto-Updates: Manual download updater - downloads installer to your Downloads folder\n- Cross-Platform: Windows and Mac support\n\n### Installation\n1. Download the installer below\n2. Run the installer\n3. Launch Kolbo Studio\n\n### System Requirements\n- Windows: Windows 10 or later (64-bit)\n- Mac: macOS 10.13 or later (Intel and Apple Silicon)"
 }
