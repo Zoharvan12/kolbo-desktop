@@ -120,12 +120,18 @@ jobs:
               mv -v "$file" "${file// /-}"
             fi
           done
+          # Update latest.yml to reflect renamed files
+          sed -i 's/Kolbo Studio/Kolbo-Studio/g' latest.yml
+          sed -i 's/Kolbo\.Studio/Kolbo-Studio/g' latest.yml
           cd ../dist-macos
           for file in *\ *; do
             if [ -f "$file" ]; then
               mv -v "$file" "${file// /-}"
             fi
           done
+          # Update latest-mac.yml to reflect renamed files
+          sed -i 's/Kolbo Studio/Kolbo-Studio/g' latest-mac.yml
+          sed -i 's/Kolbo\.Studio/Kolbo-Studio/g' latest-mac.yml
           cd ..
 
       - name: Consolidate all artifacts into single directory
