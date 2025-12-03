@@ -625,12 +625,26 @@ function setupUpdaterHandlers() {
       const os = require('os');
       const platform = os.platform();
 
+      // ⚠️ CRITICAL: Filename Convention ⚠️
+      //
+      // GitHub automatically converts SPACES to DOTS when uploading files:
+      // electron-builder creates: "Kolbo Studio-Setup-1.0.2.exe" (with spaces)
+      // GitHub uploads it as: "Kolbo.Studio-Setup-1.0.2.exe" (spaces become dots)
+      //
+      // Therefore, we MUST use DOTS in filenames here to match GitHub's behavior.
+      //
+      // DO NOT change to dashes or any other format - it will break downloads for
+      // ALL existing users who have this code running on their machines!
+      //
+      // If you change electron-builder's output format (productName, artifactName),
+      // you MUST update these filenames to match what GitHub will create.
+      //
       let fileName;
       if (platform === 'darwin') {
-        // Mac: Kolbo.Studio-1.0.2.dmg (universal binary, GitHub converts spaces to dots)
+        // Mac: Kolbo.Studio-1.0.2.dmg (universal binary)
         fileName = `Kolbo.Studio-${version}.dmg`;
       } else if (platform === 'win32') {
-        // Windows: Kolbo.Studio-Setup-1.0.2.exe (GitHub converts spaces to dots)
+        // Windows: Kolbo.Studio-Setup-1.0.2.exe
         fileName = `Kolbo.Studio-Setup-${version}.exe`;
       } else {
         // Linux (future support)

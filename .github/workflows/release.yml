@@ -112,6 +112,44 @@ jobs:
           name: macos-artifacts
           path: ./dist-macos
 
+      # ⚠️ CRITICAL: DO NOT RENAME FILES! ⚠️
+      # GitHub automatically converts spaces to dots in uploaded filenames:
+      # "Kolbo Studio-Setup-1.0.2.exe" becomes "Kolbo.Studio-Setup-1.0.2.exe"
+      #
+      # The app code (main.js) expects filenames with DOTS to match GitHub's behavior.
+      # If you rename files here (e.g., spaces->dashes), it will break auto-updates
+      # for ALL existing users because their app expects the dot notation.
+      #
+      # The latest.yml file created by electron-builder will have the original
+      # filename with spaces, but when users download from GitHub, spaces become dots.
+      # This is expected and correct behavior - DO NOT "fix" it!
+
+      - name: Validate filenames before consolidation
+        run: |
+          echo "=== Validating Windows artifacts ==="
+          ls ./dist-windows/
+          if ! ls ./dist-windows/ | grep -q "Kolbo Studio-Setup"; then
+            echo "❌ ERROR: Windows installer not found with expected 'Kolbo Studio-Setup' name"
+            exit 1
+          fi
+          if ! ls ./dist-windows/latest.yml >/dev/null 2>&1; then
+            echo "❌ ERROR: latest.yml not found in Windows artifacts"
+            exit 1
+          fi
+
+          echo "=== Validating Mac artifacts ==="
+          ls ./dist-macos/
+          if ! ls ./dist-macos/ | grep -q "Kolbo Studio-.*\.dmg"; then
+            echo "❌ ERROR: Mac DMG not found with expected 'Kolbo Studio-*.dmg' name"
+            exit 1
+          fi
+          if ! ls ./dist-macos/latest-mac.yml >/dev/null 2>&1; then
+            echo "❌ ERROR: latest-mac.yml not found in Mac artifacts"
+            exit 1
+          fi
+
+          echo "✅ All filenames validated successfully"
+
       - name: Consolidate all artifacts into single directory
         run: |
           mkdir -p ./release-artifacts
