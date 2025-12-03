@@ -87,15 +87,6 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: npm run build:prod:mac
 
-      - name: Fix filename format in latest-mac.yml
-        run: |
-          sed -i '' 's/Kolbo-Studio/Kolbo.Studio/g' dist/latest-mac.yml
-          cat dist/latest-mac.yml
-
-      - name: Create renamed DMG copy
-        run: |
-          cp "dist/Kolbo Studio-${{ needs.prepare-release.outputs.version }}.dmg" "dist/Kolbo.Studio-${{ needs.prepare-release.outputs.version }}.dmg"
-
       - name: Upload macOS artifacts
         uses: actions/upload-artifact@v4
         with:
@@ -103,7 +94,6 @@ jobs:
           path: |
             dist/Kolbo Studio-${{ needs.prepare-release.outputs.version }}.dmg
             dist/Kolbo Studio-${{ needs.prepare-release.outputs.version }}.zip
-            dist/Kolbo.Studio-${{ needs.prepare-release.outputs.version }}.dmg
             dist/latest-mac.yml
 
   create-release:
