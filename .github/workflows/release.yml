@@ -96,6 +96,20 @@ jobs:
           fi
           echo "✅ Mac build completed successfully"
 
+      - name: Fix filename format in latest-mac.yml
+        shell: bash
+        run: |
+          echo "=== Original latest-mac.yml ==="
+          cat dist/latest-mac.yml
+          # Replace dashes in product name with spaces: Kolbo-Studio -> Kolbo Studio
+          sed -i 's/Kolbo-Studio/Kolbo Studio/g' dist/latest-mac.yml
+          # Remove -universal-mac suffix from ZIP filename
+          sed -i 's/-universal-mac\.zip/.zip/g' dist/latest-mac.yml
+          # Remove -universal suffix from DMG filename
+          sed -i 's/-universal\.dmg/.dmg/g' dist/latest-mac.yml
+          echo "=== Fixed latest-mac.yml ==="
+          cat dist/latest-mac.yml
+
       - name: Debug - List Mac dist files
         run: |
           echo "=== Contents of dist directory ==="
