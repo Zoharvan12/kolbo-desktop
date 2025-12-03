@@ -1,6 +1,6 @@
 {
   "name": "kolbo-desktop",
-  "version": "1.0.3",
+  "version": "1.0.4",
   "description": "Kolbo Studio - AI Creative Platform for Video Editors",
   "main": "src/main/main.js",
   "author": {
@@ -93,13 +93,15 @@
         {
           "target": "dmg",
           "arch": [
-            "universal"
+            "arm64",
+            "x64"
           ]
         },
         {
           "target": "zip",
           "arch": [
-            "universal"
+            "arm64",
+            "x64"
           ]
         }
       ],
