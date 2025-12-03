@@ -102,7 +102,7 @@ jobs:
           name: macos-artifacts
           path: |
             dist/Kolbo Studio-${{ needs.prepare-release.outputs.version }}.dmg
-            dist/Kolbo Studio-${{ needs.prepare-release.outputs.version }}-mac.zip
+            dist/Kolbo Studio-${{ needs.prepare-release.outputs.version }}.zip
             dist/Kolbo.Studio-${{ needs.prepare-release.outputs.version }}.dmg
             dist/latest-mac.yml
 
