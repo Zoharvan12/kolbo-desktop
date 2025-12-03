@@ -108,8 +108,7 @@
       "hardenedRuntime": true,
       "gatekeeperAssess": false,
       "entitlements": null,
-      "entitlementsInherit": null,
-      "artifactName": "${productName}-${version}.${ext}"
+      "entitlementsInherit": null
     },
     "dmg": {
       "title": "${productName} ${version}",
