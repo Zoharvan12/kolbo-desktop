@@ -108,8 +108,8 @@ jobs:
         with:
           name: macos-artifacts
           path: |
-            dist/Kolbo Studio-${{ needs.prepare-release.outputs.version }}.dmg
-            dist/Kolbo Studio-${{ needs.prepare-release.outputs.version }}.zip
+            dist/Kolbo Studio-${{ needs.prepare-release.outputs.version }}-universal.dmg
+            dist/Kolbo Studio-${{ needs.prepare-release.outputs.version }}-universal-mac.zip
             dist/latest-mac.yml
 
   create-release:
@@ -155,8 +155,12 @@ jobs:
 
           echo "=== Validating Mac artifacts ==="
           ls ./dist-macos/
-          if ! ls ./dist-macos/ | grep -q "Kolbo Studio-.*\.dmg"; then
-            echo "❌ ERROR: Mac DMG not found with expected 'Kolbo Studio-*.dmg' name"
+          if ! ls ./dist-macos/ | grep -q "Kolbo Studio-.*-universal\.dmg"; then
+            echo "❌ ERROR: Mac DMG not found with expected 'Kolbo Studio-*-universal.dmg' name"
+            exit 1
+          fi
+          if ! ls ./dist-macos/ | grep -q "Kolbo Studio-.*-universal-mac\.zip"; then
+            echo "❌ ERROR: Mac ZIP not found with expected 'Kolbo Studio-*-universal-mac.zip' name"
             exit 1
           fi
           if ! ls ./dist-macos/latest-mac.yml >/dev/null 2>&1; then
@@ -165,6 +169,27 @@ jobs:
           fi
 
           echo "✅ All filenames validated successfully"
+
+      # Mac files are created with -universal suffix by electron-builder because we build
+      # universal binaries (Intel + Apple Silicon). However, the app code (main.js) expects
+      # clean filenames without the suffix. We rename here to match what the app expects.
+      - name: Rename Mac files to remove -universal suffix
+        run: |
+          echo "=== Renaming Mac files ==="
+          cd ./dist-macos
+          # Rename DMG: remove -universal suffix
+          if [ -f "Kolbo Studio-${{ needs.prepare-release.outputs.version }}-universal.dmg" ]; then
+            mv "Kolbo Studio-${{ needs.prepare-release.outputs.version }}-universal.dmg" "Kolbo Studio-${{ needs.prepare-release.outputs.version }}.dmg"
+            echo "✅ Renamed DMG file"
+          fi
+          # Rename ZIP: remove -universal-mac suffix
+          if [ -f "Kolbo Studio-${{ needs.prepare-release.outputs.version }}-universal-mac.zip" ]; then
+            mv "Kolbo Studio-${{ needs.prepare-release.outputs.version }}-universal-mac.zip" "Kolbo Studio-${{ needs.prepare-release.outputs.version }}.zip"
+            echo "✅ Renamed ZIP file"
+          fi
+          echo "=== Mac files after rename ==="
+          ls -lah
+          cd ..
 
       - name: Consolidate all artifacts into single directory
         run: |
