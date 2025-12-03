@@ -45,8 +45,10 @@ jobs:
       - name: Build Windows installer
         env:
           KOLBO_ENV: production
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: npm run build:prod:win
+        run: |
+          # Use --publish never to prevent electron-builder from publishing to GitHub
+          # The workflow handles uploading to the release instead
+          cross-env KOLBO_ENV=production node build-env.js && electron-builder --win --publish never
 
       - name: Fix filename format in latest.yml
         shell: bash
@@ -84,10 +86,11 @@ jobs:
       - name: Build macOS DMG
         env:
           KOLBO_ENV: production
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           echo "=== Starting Mac build ==="
-          npm run build:prod:mac
+          # Use --publish never to prevent electron-builder from publishing to GitHub
+          # The workflow handles uploading to the release instead
+          cross-env KOLBO_ENV=production node build-env.js && electron-builder --mac --publish never
           BUILD_EXIT_CODE=$?
           echo "=== Build exit code: $BUILD_EXIT_CODE ==="
           if [ $BUILD_EXIT_CODE -ne 0 ]; then
