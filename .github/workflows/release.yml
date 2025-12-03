@@ -85,7 +85,23 @@ jobs:
         env:
           KOLBO_ENV: production
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: npm run build:prod:mac
+        run: |
+          echo "=== Starting Mac build ==="
+          npm run build:prod:mac
+          BUILD_EXIT_CODE=$?
+          echo "=== Build exit code: $BUILD_EXIT_CODE ==="
+          if [ $BUILD_EXIT_CODE -ne 0 ]; then
+            echo "❌ Mac build failed with exit code $BUILD_EXIT_CODE"
+            exit $BUILD_EXIT_CODE
+          fi
+          echo "✅ Mac build completed successfully"
+
+      - name: Debug - List Mac dist files
+        run: |
+          echo "=== Contents of dist directory ==="
+          ls -lah dist/ || echo "dist directory not found"
+          echo "=== Looking for DMG files ==="
+          find dist/ -name "*.dmg" -o -name "*.zip" -o -name "*.yml" || echo "No matching files found"
 
       - name: Upload macOS artifacts
         uses: actions/upload-artifact@v4
