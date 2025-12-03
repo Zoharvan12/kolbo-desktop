@@ -995,12 +995,17 @@ class TabManager {
 
     // Handle merged tab closing
     if (tab.isMerged) {
-      // Get the original tabs
-      const leftTab = this.tabs.find(t => t.id === tab.leftTabId);
-      const rightTab = this.tabs.find(t => t.id === tab.rightTabId);
-
-      // Get the merged tab data to access the iframes
+      // Get the merged tab data to access the original tabs and iframes
       const mergedData = this.mergedTabs.get(tabId);
+
+      if (!mergedData) {
+        console.error('[TabManager] No merged data found for tab:', tabId);
+        return;
+      }
+
+      // Get the original tabs from stored data (not from this.tabs, since we removed them)
+      const leftTab = mergedData.leftTab;
+      const rightTab = mergedData.rightTab;
 
       if (this.DEBUG_MODE) {
         console.log('[TabManager] Closing merged tab, restoring original tabs:', tab.leftTabId, tab.rightTabId);
@@ -1093,35 +1098,36 @@ class TabManager {
       // Remove from merged tabs map
       this.mergedTabs.delete(tabId);
 
-      // Restore original tabs visibility
-      if (leftTab) {
-        leftTab.element.style.display = '';
-      }
-      if (rightTab) {
-        rightTab.element.style.display = '';
-      }
-
-      // Determine which tab to switch to
-      let tabToActivate = null;
-      if (leftTab && this.tabs.includes(leftTab)) {
-        tabToActivate = leftTab;
-      } else if (rightTab && this.tabs.includes(rightTab)) {
-        tabToActivate = rightTab;
-      }
-
-      // Switch to the selected tab (this will handle active class properly)
-      if (tabToActivate) {
-        if (this.DEBUG_MODE) {
-          console.log('[TabManager] Switching to restored tab:', tabToActivate.id);
-        }
-        this.switchTab(tabToActivate.id);
+      // CRITICAL: Re-add the original tabs back to the DOM and tabs array
+      // Insert left tab at the position where the merged tab was
+      const newTabBtn = document.getElementById('new-tab-btn');
+      if (newTabBtn && newTabBtn.parentNode === this.tabList) {
+        // Insert before the new tab button
+        this.tabList.insertBefore(leftTab.element, newTabBtn);
       } else {
-        console.error('[TabManager] No valid tab to switch to after closing merged tab!');
-        // Fallback: switch to first available tab
-        if (this.tabs.length > 0) {
-          this.switchTab(this.tabs[0].id);
-        }
+        this.tabList.appendChild(leftTab.element);
       }
+
+      // Insert right tab after left tab
+      if (leftTab.element.nextSibling) {
+        this.tabList.insertBefore(rightTab.element, leftTab.element.nextSibling);
+      } else {
+        this.tabList.appendChild(rightTab.element);
+      }
+
+      // Add tabs back to the tabs array at the position where merged tab was
+      this.tabs.splice(tabIndex, 0, leftTab, rightTab);
+
+      if (this.DEBUG_MODE) {
+        console.log('[TabManager] Restored original tabs to DOM and tabs array');
+      }
+
+      // Restore original tabs visibility
+      leftTab.element.style.display = '';
+      rightTab.element.style.display = '';
+
+      // Switch to the left tab (first of the restored tabs)
+      this.switchTab(leftTab.id);
 
       // Renumber tabs after closing merged tab
       this.renumberTabs();
@@ -1217,27 +1223,89 @@ class TabManager {
     if (tab.isMerged) {
       const mergedData = this.mergedTabs.get(tabId);
       if (mergedData) {
-        // Show and activate both split iframes
-        mergedData.leftIframe.classList.add('active');
+        // CRITICAL: First, hide ALL other merged tab overlays and iframes
+        this.mergedTabs.forEach((data, mergedId) => {
+          if (mergedId !== tabId) {
+            // CRITICAL: Hide iframes from other merged tabs
+            if (data.leftIframe) {
+              data.leftIframe.classList.remove('active', 'split-left-iframe', 'split-right-iframe');
+              data.leftIframe.style.display = 'none'; // HIDE IT!
+            }
+            if (data.rightIframe) {
+              data.rightIframe.classList.remove('active', 'split-left-iframe', 'split-right-iframe');
+              data.rightIframe.style.display = 'none'; // HIDE IT!
+            }
+          }
+        });
+
+        // Hide all other merged tab overlay containers
+        this.tabs.forEach(t => {
+          if (t.isMerged && t.id !== tabId) {
+            t.iframe.style.display = 'none';
+          }
+        });
+
+        // Now show and activate THIS merged tab's iframes
+        // First, ensure split classes are applied correctly
+        mergedData.leftIframe.classList.remove('split-right-iframe'); // Remove wrong class if any
+        mergedData.leftIframe.classList.add('active', 'split-left-iframe');
         mergedData.leftIframe.style.display = 'block';
 
-        mergedData.rightIframe.classList.add('active');
+        mergedData.rightIframe.classList.remove('split-left-iframe'); // Remove wrong class if any
+        mergedData.rightIframe.classList.add('active', 'split-right-iframe');
         mergedData.rightIframe.style.display = 'block';
+
+        // Show this merged tab's overlay container
+        tab.iframe.style.display = 'block';
 
         if (this.DEBUG_MODE) {
           console.log('[TabManager] Activated split iframes for merged tab:', tabId);
         }
       }
     } else {
-      // For regular tabs, ensure we deactivate any iframes from merged tabs
+      // For regular tabs, hide ALL merged tab overlays and their split iframes
+      // CRITICAL: This ensures when switching from split view to single tab,
+      // the split view is completely hidden
       this.mergedTabs.forEach((data, mergedId) => {
-        if (mergedId !== tabId) {
-          // Deactivate iframes from other merged tabs
-          if (data.leftIframe) {
-            data.leftIframe.classList.remove('active');
-          }
-          if (data.rightIframe) {
-            data.rightIframe.classList.remove('active');
+        // CRITICAL: Deactivate AND HIDE iframes from all merged tabs
+        if (data.leftIframe) {
+          data.leftIframe.classList.remove('active', 'split-left-iframe', 'split-right-iframe');
+          // Remove from display completely
+          data.leftIframe.style.display = 'none';
+        }
+        if (data.rightIframe) {
+          data.rightIframe.classList.remove('active', 'split-left-iframe', 'split-right-iframe');
+          // Remove from display completely
+          data.rightIframe.style.display = 'none';
+        }
+      });
+
+      // Hide the merged overlay container for ALL merged tabs
+      // This ensures the split divider and overlay are not visible
+      this.tabs.forEach(t => {
+        if (t.isMerged) {
+          t.iframe.style.display = 'none';
+        }
+      });
+
+      // CRITICAL FIX: When switching to a regular tab, reset split-view styles
+      // and ensure ONLY the active tab's iframe is visible
+      this.tabs.forEach(t => {
+        if (!t.isMerged && t.iframe) {
+          // Remove split-view CSS classes from all regular tabs
+          t.iframe.classList.remove('split-left-iframe', 'split-right-iframe');
+
+          if (t.id === tabId) {
+            // Active regular tab - reset to full width, normal positioning
+            t.iframe.style.width = '';
+            t.iframe.style.left = '';
+            t.iframe.style.right = '';
+            t.iframe.style.position = '';
+            // Ensure it's visible
+            t.iframe.style.display = '';
+          } else {
+            // Inactive regular tabs should be hidden
+            // (handled by the active class logic above)
           }
         }
       });
@@ -1888,10 +1956,14 @@ class TabManager {
       rightTabId: rightTab.id
     };
 
-    // Store merged tab info including iframe references
+    // Store merged tab info including iframe references AND original tab objects
+    // CRITICAL: We need to store the original tab objects so we can restore them
+    // when the merged tab is closed (since we remove them from this.tabs array)
     this.mergedTabs.set(mergedTabId, {
       leftTabId: leftTab.id,
       rightTabId: rightTab.id,
+      leftTab: leftTab,   // Store full tab object
+      rightTab: rightTab, // Store full tab object
       divider,
       leftIframe,  // Store iframe reference
       rightIframe, // Store iframe reference
@@ -1958,20 +2030,37 @@ class TabManager {
     // Add to tabs array
     this.tabs.push(mergedTab);
 
-    // Hide original tabs (but keep their iframe references intact)
-    // Note: The iframes have been moved to the merged container's panes,
-    // but the tab objects still maintain their references for restoration
-    leftTab.element.style.display = 'none';
-    rightTab.element.style.display = 'none';
-    // The iframes are now inside the panes, so they're still accessible via leftTab.iframe and rightTab.iframe
+    // CRITICAL: Remove original tab elements from DOM (not just hide them)
+    // This ensures the tab bar only shows the merged tab, not the original tabs
+    leftTab.element.remove();
+    rightTab.element.remove();
+
+    // Remove original tabs from the tabs array
+    const leftTabIndex = this.tabs.indexOf(leftTab);
+    const rightTabIndex = this.tabs.indexOf(rightTab);
+
+    // Remove from array (remove higher index first to avoid index shifting issues)
+    if (leftTabIndex > rightTabIndex) {
+      if (leftTabIndex !== -1) this.tabs.splice(leftTabIndex, 1);
+      if (rightTabIndex !== -1) this.tabs.splice(rightTabIndex, 1);
+    } else {
+      if (rightTabIndex !== -1) this.tabs.splice(rightTabIndex, 1);
+      if (leftTabIndex !== -1) this.tabs.splice(leftTabIndex, 1);
+    }
+
+    if (this.DEBUG_MODE) {
+      console.log('[TabManager] Removed original tabs from array. Tabs remaining:', this.tabs.length);
+    }
 
     // Switch to merged tab
     this.switchTab(mergedTabId);
 
-    // Renumber remaining visible tabs after hiding the merged ones
-    // This ensures if we merged "Kolbo.AI 1" and "Kolbo.AI 2", and have "Kolbo.AI 3",
-    // the "Kolbo.AI 3" becomes "Kolbo.AI 1" since it's now the only visible default-named tab
-    this.renumberTabs();
+    // DON'T renumber tabs after creating split view!
+    // We want to preserve the original tab numbers so the merged tab name makes sense
+    // Example: If we merge "Kolbo.AI 2" and "Kolbo.AI 3", and "Kolbo.AI 1" remains,
+    // we want to see "Kolbo.AI 1" and "Kolbo.AI 2 | Kolbo.AI 3" (not "Kolbo.AI 1" and "Kolbo.AI 1 | Kolbo.AI 2")
+    // Renumbering only happens when tabs are closed, not when merged
+    // this.renumberTabs(); // REMOVED - don't renumber after merge
 
     // Update split view button state
     this.updateSplitViewButtonState();
@@ -2076,6 +2165,28 @@ class TabManager {
     if (!this.splitViewBtn) return;
 
     const activeTab = this.tabs.find(t => t.id === this.activeTabId);
+
+    // CRITICAL: Check if ANY merged tab already exists
+    // We only allow ONE split view at a time to prevent iframe conflicts
+    const hasMergedTab = this.tabs.some(t => t.isMerged);
+
+    // If a merged tab exists and we're NOT currently viewing it, disable the split button
+    // This prevents creating multiple split views which would cause display conflicts
+    if (hasMergedTab && activeTab && !activeTab.isMerged) {
+      this.splitViewBtn.disabled = true;
+      this.splitViewBtn.classList.remove('active');
+
+      // Hide preset buttons
+      if (this.splitPresetsContainer) {
+        this.splitPresetsContainer.classList.add('hidden');
+      }
+
+      if (this.DEBUG_MODE) {
+        console.log('[TabManager] Split button disabled - a split view already exists');
+      }
+
+      return; // Exit early - don't allow creating another split view
+    }
 
     // If current tab is merged, show "active" state and preset buttons
     if (activeTab && activeTab.isMerged) {
