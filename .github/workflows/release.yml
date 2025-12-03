@@ -122,6 +122,21 @@ jobs:
           name: macos-artifacts
           path: ./dist-macos
 
+      - name: Debug - List all files
+        run: |
+          echo "=== Windows artifacts ==="
+          ls -lah ./dist-windows/
+          echo ""
+          echo "=== macOS artifacts ==="
+          ls -lah ./dist-macos/
+          echo ""
+          echo "=== File patterns that will be uploaded ==="
+          ls -lah ./dist-windows/* ./dist-macos/* || echo "Pattern failed"
+          echo ""
+          echo "=== Current directory ==="
+          pwd
+          ls -la
+
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v1
         with:
