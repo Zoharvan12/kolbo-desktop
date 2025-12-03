@@ -122,6 +122,13 @@ jobs:
           name: macos-artifacts
           path: ./dist-macos
 
+      - name: List downloaded files (debug)
+        run: |
+          echo "Windows artifacts:"
+          ls -la ./dist-windows || ls -la ./dist-windows/dist || echo "No files found"
+          echo "macOS artifacts:"
+          ls -la ./dist-macos || ls -la ./dist-macos/dist || echo "No files found"
+
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v1
         with:
@@ -147,7 +154,7 @@ jobs:
           draft: false
           prerelease: false
           files: |
-            dist-windows/*
-            dist-macos/*
+            dist-windows/dist/*
+            dist-macos/dist/*
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
