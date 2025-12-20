@@ -710,8 +710,9 @@ function setupUpdaterHandlers() {
       //
       let fileName;
       if (platform === 'darwin') {
-        // Mac: Kolbo.Studio-1.0.2.dmg (universal binary)
-        fileName = `Kolbo.Studio-${version}.dmg`;
+        // Mac: Kolbo.Studio-1.0.8-universal.dmg (universal binary)
+        // CRITICAL: Must include -universal suffix to match actual filename
+        fileName = `Kolbo.Studio-${version}-universal.dmg`;
       } else if (platform === 'win32') {
         // Windows: Kolbo.Studio-Setup-1.0.2.exe
         fileName = `Kolbo.Studio-Setup-${version}.exe`;
