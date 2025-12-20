@@ -106,9 +106,11 @@ jobs:
         run: |
           echo "=== Original latest-mac.yml ==="
           cat dist/latest-mac.yml
-          # Replace dashes in product name with spaces: Kolbo-Studio -> Kolbo Studio
+          # CRITICAL: GitHub converts spaces to dots in uploaded filenames
+          # Must use dots (Kolbo.Studio) not spaces (Kolbo Studio) to match GitHub's actual files
+          # Replace dashes with DOTS: Kolbo-Studio -> Kolbo.Studio
           # macOS sed requires -i '' (empty backup extension)
-          sed -i '' 's/Kolbo-Studio/Kolbo Studio/g' dist/latest-mac.yml
+          sed -i '' 's/Kolbo-Studio/Kolbo.Studio/g' dist/latest-mac.yml
           # Remove -mac suffix from ZIP filenames for universal builds
           sed -i '' 's/-universal-mac\.zip/-universal.zip/g' dist/latest-mac.yml
           echo "=== Fixed latest-mac.yml ==="
