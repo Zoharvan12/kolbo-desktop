@@ -241,6 +241,16 @@ contextBridge.exposeInMainWorld('kolboDesktop', {
   onContextMenuAction: (callback) =>
     ipcRenderer.on('context-menu-action', (event, data) => callback(data)),
 
+  // Memory Monitoring
+  onMemoryStatus: (callback) =>
+    ipcRenderer.on('memory:status', (event, status) => callback(status)),
+
+  onMemoryAutoCleanup: (callback) =>
+    ipcRenderer.on('memory:auto-cleanup', () => callback()),
+
+  onMemoryForceCleanup: (callback) =>
+    ipcRenderer.on('memory:force-cleanup', () => callback()),
+
   // Screenshot
   captureScreenshot: (bounds) =>
     ipcRenderer.invoke('screenshot:capture', bounds),

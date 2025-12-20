@@ -35,6 +35,7 @@
     "release:mac": "cross-env KOLBO_ENV=production node build-env.js && electron-builder --mac --publish always"
   },
   "dependencies": {
+    "check-disk-space": "^3.4.0",
     "electron-store": "^8.1.0",
     "electron-updater": "^6.6.2"
   },
@@ -107,8 +108,8 @@
       "category": "public.app-category.video",
       "hardenedRuntime": true,
       "gatekeeperAssess": false,
-      "entitlements": null,
-      "entitlementsInherit": null
+      "entitlements": "entitlements.mac.plist",
+      "entitlementsInherit": "entitlements.mac.inherit.plist"
     },
     "dmg": {
       "title": "${productName} ${version}",

@@ -245,6 +245,9 @@ class TabManager {
     // Auto-save state on window close/blur to preserve user's work
     this.setupAutoSave();
 
+    // Setup memory monitoring listeners
+    this.setupMemoryMonitoringListeners();
+
     if (this.DEBUG_MODE) {
       console.log('[TabManager] Initialized with', this.tabs.length, 'tabs');
     }
@@ -268,9 +271,103 @@ class TabManager {
       }
     });
 
+    // MEMORY MANAGEMENT: Periodic cleanup of inactive tabs
+    // Run every 5 minutes to prevent memory accumulation
+    setInterval(() => {
+      this.performMemoryCleanup();
+    }, 5 * 60 * 1000); // 5 minutes
+
     if (this.DEBUG_MODE) {
-      console.log('[TabManager] Auto-save enabled (30s interval + beforeunload)');
+      console.log('[TabManager] Auto-save and memory cleanup enabled');
     }
+  }
+
+  /**
+   * Perform memory cleanup on inactive tabs
+   * This helps prevent grey screen crashes during continuous usage
+   */
+  performMemoryCleanup() {
+    if (this.DEBUG_MODE) {
+      console.log('[TabManager] Running periodic memory cleanup...');
+    }
+
+    let cleanedCount = 0;
+
+    // Only cleanup inactive tabs (not the currently visible one)
+    this.tabs.forEach(tab => {
+      if (tab.id !== this.activeTabId && tab.iframe && !tab.isMerged) {
+        try {
+          // For inactive tabs, we can reload them to free memory
+          // Their state will be restored when user switches back
+          const currentSrc = tab.iframe.src;
+
+          // Only reload if it's been loaded (not blank)
+          if (currentSrc && currentSrc !== 'about:blank' && tab.loaded) {
+            // Set src to blank to unload content
+            tab.iframe.src = 'about:blank';
+
+            // Store the original URL so we can reload when needed
+            if (!tab.originalUrl) {
+              tab.originalUrl = currentSrc;
+            }
+
+            // Mark as needing reload
+            tab.needsReload = true;
+            tab.loaded = false;
+
+            cleanedCount++;
+
+            if (this.DEBUG_MODE) {
+              console.log('[TabManager] Cleaned inactive tab:', tab.id, tab.title);
+            }
+          }
+        } catch (error) {
+          console.error('[TabManager] Error cleaning up inactive tab:', error);
+        }
+      }
+    });
+
+    if (cleanedCount > 0) {
+      console.log(`[TabManager] Memory cleanup complete: cleaned ${cleanedCount} inactive tab(s)`);
+    }
+  }
+
+  /**
+   * Setup listeners for memory monitoring events from main process
+   */
+  setupMemoryMonitoringListeners() {
+    if (!window.kolboDesktop) {
+      console.warn('[TabManager] kolboDesktop not available, memory monitoring disabled');
+      return;
+    }
+
+    // Listen for memory status updates
+    window.kolboDesktop.onMemoryStatus((status) => {
+      if (this.DEBUG_MODE) {
+        console.log('[TabManager] Memory status:', status);
+      }
+      // Store current memory status for potential UI display
+      this.currentMemoryStatus = status;
+    });
+
+    // Listen for auto-cleanup requests (80%+ threshold)
+    window.kolboDesktop.onMemoryAutoCleanup(() => {
+      console.log('[TabManager] 🧹 Auto-cleanup requested by memory monitor');
+      this.performMemoryCleanup();
+    });
+
+    // Listen for forced cleanup requests (90%+ threshold)
+    window.kolboDesktop.onMemoryForceCleanup(() => {
+      console.warn('[TabManager] ⚠️ Forced cleanup requested - memory usage high');
+
+      // Perform aggressive cleanup
+      this.performMemoryCleanup();
+
+      // Show toast notification to user
+      this.showToast('Memory usage high. Cleaning up inactive tabs...', 'warning');
+    });
+
+    console.log('[TabManager] Memory monitoring listeners enabled');
   }
 
   setupNewWindowTabListener() {
@@ -1197,9 +1294,45 @@ class TabManager {
       this.switchTab(newActiveTab.id);
     }
 
-    // Remove from DOM
-    tab.element.remove();
-    tab.iframe.remove();
+    // MEMORY CLEANUP: Properly cleanup iframe to prevent memory leaks
+    if (tab.iframe) {
+      try {
+        // Stop any ongoing loads
+        if (tab.iframe.contentWindow) {
+          tab.iframe.contentWindow.stop();
+        }
+
+        // Clear src to unload content and free memory
+        tab.iframe.src = 'about:blank';
+
+        // Remove all event listeners by cloning and replacing
+        const iframeClone = tab.iframe.cloneNode(false);
+        if (tab.iframe.parentNode) {
+          tab.iframe.parentNode.replaceChild(iframeClone, tab.iframe);
+        }
+
+        // Remove the cloned iframe from DOM
+        iframeClone.remove();
+
+        // Clear reference to help garbage collection
+        tab.iframe = null;
+
+        if (this.DEBUG_MODE) {
+          console.log('[TabManager] Iframe memory cleaned up for tab:', tabId);
+        }
+      } catch (error) {
+        console.error('[TabManager] Error cleaning up iframe:', error);
+        // Fallback: just remove it
+        tab.iframe.remove();
+        tab.iframe = null;
+      }
+    }
+
+    // Remove tab element from DOM
+    if (tab.element) {
+      tab.element.remove();
+      tab.element = null;
+    }
 
     // Remove from array
     this.tabs.splice(tabIndex, 1);
@@ -1223,6 +1356,17 @@ class TabManager {
 
     if (this.DEBUG_MODE) {
       console.log('[TabManager] Switching to tab:', tabId, tab.title);
+    }
+
+    // MEMORY MANAGEMENT: Reload tab if it was unloaded to save memory
+    if (tab.needsReload && tab.iframe) {
+      const urlToReload = tab.originalUrl || tab.url;
+      if (this.DEBUG_MODE) {
+        console.log('[TabManager] Reloading previously unloaded tab:', tab.id, urlToReload);
+      }
+      tab.iframe.src = urlToReload;
+      tab.needsReload = false;
+      tab.loaded = true;
     }
 
     // Update active tab ID
@@ -1570,6 +1714,7 @@ class TabManager {
   /**
    * Refresh/reload the active tab's iframe current page
    * Uses postMessage to communicate with the iframe since direct access is blocked by CORS
+   * If active tab is a merged/split view, refreshes BOTH panes
    */
   refresh() {
     const activeTab = this.getActiveTab();
@@ -1579,13 +1724,34 @@ class TabManager {
     }
 
     try {
-      // Send postMessage to iframe to reload current page
-      activeTab.iframe.contentWindow.postMessage({
-        type: 'RELOAD_PAGE'
-      }, '*');
+      // Check if this is a merged tab (split view)
+      if (activeTab.isMerged) {
+        // Refresh both panes in split view
+        const mergedData = this.mergedTabs.get(activeTab.id);
+        if (mergedData && mergedData.leftIframe && mergedData.rightIframe) {
+          // Refresh left pane
+          mergedData.leftIframe.contentWindow.postMessage({
+            type: 'RELOAD_PAGE'
+          }, '*');
 
-      if (this.DEBUG_MODE) {
-        console.log('[TabManager] Sent reload message to tab:', activeTab.id);
+          // Refresh right pane
+          mergedData.rightIframe.contentWindow.postMessage({
+            type: 'RELOAD_PAGE'
+          }, '*');
+
+          if (this.DEBUG_MODE) {
+            console.log('[TabManager] Sent reload message to both panes in split view:', activeTab.id);
+          }
+        }
+      } else {
+        // Regular tab - refresh single iframe
+        activeTab.iframe.contentWindow.postMessage({
+          type: 'RELOAD_PAGE'
+        }, '*');
+
+        if (this.DEBUG_MODE) {
+          console.log('[TabManager] Sent reload message to tab:', activeTab.id);
+        }
       }
     } catch (error) {
       console.error('[TabManager] Error refreshing:', error);
@@ -1817,11 +1983,34 @@ class TabManager {
       </button>
     `;
 
-    // Position menu
-    this.screenshotContextMenu.style.left = `${x + 10}px`;
-    this.screenshotContextMenu.style.top = `${y}px`;
-
     document.body.appendChild(this.screenshotContextMenu);
+
+    // Calculate menu dimensions and position dynamically
+    const menuHeight = this.screenshotContextMenu.offsetHeight;
+    const menuWidth = this.screenshotContextMenu.offsetWidth;
+    const viewportHeight = window.innerHeight;
+    const viewportWidth = window.innerWidth;
+
+    // Determine if menu should open upward or downward
+    const spaceBelow = viewportHeight - y;
+    const spaceAbove = y;
+    const openUpward = spaceBelow < menuHeight && spaceAbove > spaceBelow;
+
+    // Calculate horizontal position (ensure it stays within viewport)
+    let leftPos = x + 10;
+    if (leftPos + menuWidth > viewportWidth) {
+      leftPos = viewportWidth - menuWidth - 10;
+    }
+
+    // Calculate vertical position
+    let topPos = openUpward ? y - menuHeight : y;
+
+    // Ensure menu doesn't go off top or bottom
+    if (topPos < 0) topPos = 0;
+    if (topPos + menuHeight > viewportHeight) topPos = viewportHeight - menuHeight;
+
+    this.screenshotContextMenu.style.left = `${leftPos}px`;
+    this.screenshotContextMenu.style.top = `${topPos}px`;
 
     // Add click handlers
     this.screenshotContextMenu.querySelectorAll('.screenshot-context-menu-item').forEach(item => {
@@ -1841,7 +2030,13 @@ class TabManager {
 
       // Capture screenshot with bounds
       if (window.kolboDesktop && window.kolboDesktop.captureScreenshot) {
-        const result = await window.kolboDesktop.captureScreenshot(bounds);
+        // Include device pixel ratio in bounds for accurate capture
+        const boundsWithDPR = {
+          ...bounds,
+          devicePixelRatio: window.devicePixelRatio || 1
+        };
+
+        const result = await window.kolboDesktop.captureScreenshot(boundsWithDPR);
 
         if (action === 'copy') {
           await window.kolboDesktop.copyScreenshotToClipboard(result.dataUrl);

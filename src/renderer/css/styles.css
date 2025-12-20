@@ -789,14 +789,15 @@ body.is-mac .window-controls {
 
 .screenshot-context-menu {
   position: absolute;
-  background: rgb(var(--bg-secondary));
-  border: 1px solid rgb(var(--border));
+  background: #2a2a2a;
+  border: 1px solid #444;
   border-radius: 8px;
-  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.3);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.5);
   padding: 8px 0;
   min-width: 180px;
   z-index: 10001;
   display: none;
+  backdrop-filter: blur(10px);
 }
 
 .screenshot-context-menu.active {
@@ -1201,7 +1202,7 @@ body.is-mac .window-controls {
 /* Split pane refresh buttons */
 .split-pane-refresh-btn {
   position: absolute;
-  top: 60px;
+  top: 8px;
   right: 12px;
   width: 36px;
   height: 36px;

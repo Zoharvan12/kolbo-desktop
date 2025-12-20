@@ -5,6 +5,7 @@ const { app, BrowserWindow, Tray, Menu, nativeImage, screen, dialog } = require(
 const path = require('path');
 const Store = require('electron-store');
 const { autoUpdater } = require('electron-updater');
+const checkDiskSpace = require('check-disk-space').default;
 
 // Import IPC handlers
 const AuthManager = require('./auth-manager');
@@ -29,6 +30,22 @@ app.commandLine.appendSwitch('disable-dev-shm-usage');
 // app.commandLine.appendSwitch('disable-gpu');
 // app.commandLine.appendSwitch('disable-gpu-compositing');
 // app.commandLine.appendSwitch('disable-gpu-sandbox');
+
+// Memory management flags to prevent crashes during continuous usage
+// Dynamic V8 heap limit based on system RAM (50% of total)
+const os = require('os');
+const totalRAM = os.totalmem() / (1024 * 1024 * 1024); // Convert to GB
+const heapSizeGB = Math.floor(totalRAM * 0.5); // Use 50% of system RAM
+const heapSizeMB = heapSizeGB * 1024;
+
+// Apply the dynamic limit
+app.commandLine.appendSwitch('js-flags', `--max-old-space-size=${heapSizeMB}`);
+// Enable memory optimization
+app.commandLine.appendSwitch('js-flags', '--optimize-for-size');
+
+console.log('[Main] System RAM:', totalRAM.toFixed(2), 'GB');
+console.log('[Main] V8 heap limit (50% of RAM):', heapSizeGB, 'GB (', heapSizeMB, 'MB)');
+console.log('[Main] Remaining RAM for native memory, GPU, OS:', (totalRAM - heapSizeGB).toFixed(2), 'GB');
 
 // Ignore certificate errors ONLY in development
 if (process.env.NODE_ENV === 'development') {
@@ -78,7 +95,11 @@ function createWindow() {
         console.log('[Main] Preload exists:', require('fs').existsSync(preloadPath));
         return preloadPath;
       })(),
-      webSecurity: process.env.NODE_ENV === 'development' ? false : true  // Disabled in dev for CORS/CSP
+      webSecurity: process.env.NODE_ENV === 'development' ? false : true,  // Disabled in dev for CORS/CSP
+      // Memory optimization settings to prevent crashes
+      v8CacheOptions: 'code',      // Cache compiled code for better memory efficiency
+      enableWebSQL: false,         // Disable unused WebSQL to save memory
+      spellcheck: false            // Disable spellcheck to reduce memory overhead
     },
     show: true // Show immediately for debugging
   });
@@ -114,6 +135,54 @@ function createWindow() {
   // Log console messages from renderer
   mainWindow.webContents.on('console-message', (event, level, message, line, sourceId) => {
     console.log('[Renderer]', message);
+  });
+
+  // Crash detection and recovery handlers
+  // Handle renderer process crashes (grey screen, out of memory, etc.)
+  mainWindow.webContents.on('render-process-gone', (event, details) => {
+    console.error('[Main] Renderer process crashed:', details);
+    console.error('[Main] Reason:', details.reason);
+    console.error('[Main] Exit code:', details.exitCode);
+
+    // Show error dialog to user
+    const { dialog } = require('electron');
+    dialog.showMessageBox(mainWindow, {
+      type: 'error',
+      title: 'App Crashed',
+      message: 'Kolbo Studio encountered an error and needs to reload',
+      detail: `Reason: ${details.reason}\n\nThe app will reload automatically to recover.`,
+      buttons: ['Reload Now']
+    }).then(() => {
+      // Reload the app
+      mainWindow.reload();
+      console.log('[Main] App reloaded after crash');
+    });
+  });
+
+  // Handle unresponsive window (frozen UI)
+  mainWindow.on('unresponsive', () => {
+    console.warn('[Main] Window became unresponsive');
+
+    const { dialog } = require('electron');
+    dialog.showMessageBox(mainWindow, {
+      type: 'warning',
+      title: 'App Not Responding',
+      message: 'Kolbo Studio is not responding',
+      detail: 'The app may have run out of memory or encountered an error. Do you want to reload?',
+      buttons: ['Wait', 'Reload'],
+      defaultId: 1
+    }).then(({ response }) => {
+      if (response === 1) {
+        // User chose to reload
+        mainWindow.reload();
+        console.log('[Main] App reloaded after becoming unresponsive');
+      }
+    });
+  });
+
+  // Handle when window becomes responsive again
+  mainWindow.on('responsive', () => {
+    console.log('[Main] Window became responsive again');
   });
 
   // On Windows: Close = quit the app
@@ -801,16 +870,41 @@ function setupScreenshotHandlers() {
         throw new Error('No window available');
       }
 
-      // Capture the entire window
+      // Check window state
+      const isMinimized = win.isMinimized();
+
+      // Don't capture if window is minimized
+      if (isMinimized) {
+        throw new Error('Cannot capture screenshot while window is minimized');
+      }
+
+      // Capture the entire window content area (excluding window chrome)
       const image = await win.webContents.capturePage();
 
       // If bounds are provided, crop the image
       if (bounds && bounds.width > 0 && bounds.height > 0) {
+        // Get device pixel ratio from bounds (passed from renderer)
+        // Default to 1 if not provided for backwards compatibility
+        const dpr = bounds.devicePixelRatio || 1;
+
+        console.log('[Screenshot] Capture details:', {
+          originalBounds: { x: bounds.x, y: bounds.y, width: bounds.width, height: bounds.height },
+          devicePixelRatio: dpr,
+          imageSize: { width: image.getSize().width, height: image.getSize().height }
+        });
+
         const croppedImage = image.crop({
-          x: Math.floor(bounds.x),
-          y: Math.floor(bounds.y),
-          width: Math.floor(bounds.width),
-          height: Math.floor(bounds.height)
+          x: Math.floor(bounds.x * dpr),
+          y: Math.floor(bounds.y * dpr),
+          width: Math.floor(bounds.width * dpr),
+          height: Math.floor(bounds.height * dpr)
+        });
+
+        console.log('[Screenshot] Cropped to:', {
+          x: Math.floor(bounds.x * dpr),
+          y: Math.floor(bounds.y * dpr),
+          width: Math.floor(bounds.width * dpr),
+          height: Math.floor(bounds.height * dpr)
         });
 
         return {
@@ -939,17 +1033,18 @@ function setupScreenshotHandlers() {
   // Save screenshot
   ipcMain.handle('screenshot:save', async (event, dataUrl, format = 'png') => {
     try {
-      const { canceled, filePath } = await dialog.showSaveDialog(mainWindow, {
-        title: 'Save Screenshot',
-        defaultPath: `screenshot-${Date.now()}.${format}`,
-        filters: [
-          { name: 'Images', extensions: [format] }
-        ]
-      });
+      // Get download folder (custom or OS default)
+      let downloadFolder = store.get('defaultDownloadFolder');
 
-      if (canceled || !filePath) {
-        return { success: false, canceled: true };
+      if (!downloadFolder) {
+        // Use OS default downloads folder
+        downloadFolder = app.getPath('downloads');
       }
+
+      // Generate filename with timestamp
+      const timestamp = new Date().toISOString().replace(/[:.]/g, '-').substring(0, 19);
+      const fileName = `Screenshot-${timestamp}.${format}`;
+      const filePath = path.join(downloadFolder, fileName);
 
       // Convert data URL to buffer
       const base64Data = dataUrl.replace(/^data:image\/\w+;base64,/, '');
@@ -965,9 +1060,30 @@ function setupScreenshotHandlers() {
       }
 
       console.log('[Screenshot] Saved to:', filePath);
+
+      // Send download notification to renderer for banner display
+      const targetWindow = BrowserWindow.getFocusedWindow() || mainWindow;
+      if (targetWindow && !targetWindow.isDestroyed()) {
+        targetWindow.webContents.send('download-complete', {
+          fileName: fileName,
+          filePath: filePath,
+          folderPath: downloadFolder
+        });
+      }
+
       return { success: true, filePath };
     } catch (error) {
       console.error('[Screenshot] Error saving:', error);
+
+      // Send error notification to renderer
+      const targetWindow = BrowserWindow.getFocusedWindow() || mainWindow;
+      if (targetWindow && !targetWindow.isDestroyed()) {
+        targetWindow.webContents.send('download-failed', {
+          fileName: `screenshot.${format}`,
+          error: error.message
+        });
+      }
+
       return { success: false, error: error.message };
     }
   });
@@ -1298,8 +1414,9 @@ function detectAdobePlugin() {
 class MediaCache {
   constructor() {
     const path = require('path');
-    this.cachePath = path.join(app.getPath('appData'), 'Kolbo.AI', 'MediaCache');
-    this.thumbnailCachePath = path.join(app.getPath('appData'), 'Kolbo.AI', 'ThumbnailCache');
+    // Use unified cache location under app.getPath('userData') for consistency with FileManager
+    this.cachePath = path.join(app.getPath('userData'), 'MediaCache');
+    this.thumbnailCachePath = path.join(app.getPath('userData'), 'ThumbnailCache');
     this.cacheIndex = new Map(); // id -> { filePath, lastAccessed, size, type }
     this.thumbnailIndex = new Map(); // id -> { filePath, lastAccessed, size }
     this.maxCacheSize = 5 * 1024 * 1024 * 1024; // 5GB
@@ -1553,6 +1670,16 @@ class MediaCache {
         } catch (unlinkErr) {
           console.warn('[Download] Could not delete partial file (may be locked):', unlinkErr.message);
         }
+
+        // Check if it's a disk space error
+        if (err.code === 'ENOSPC') {
+          const fileName = require('path').basename(outputPath);
+          dialog.showErrorBox(
+            'Disk Full',
+            `Your disk is full. Cannot download ${fileName}.\n\nPlease free up disk space and try again, or clear cached files in Settings.`
+          );
+        }
+
         reject(err);
       });
     });
@@ -2226,6 +2353,110 @@ function setupFirstTimeDefaults() {
   }
 }
 
+// ============================================================================
+// MEMORY MONITORING SYSTEM
+// ============================================================================
+
+/**
+ * Proactive memory monitoring to prevent crashes before they happen
+ * Monitors V8 heap usage and triggers cleanup at safe thresholds
+ */
+function setupMemoryMonitoring() {
+  const MEMORY_CHECK_INTERVAL = 60 * 1000; // Check every 60 seconds
+  const CLEANUP_THRESHOLD = 80; // Start cleanup at 80%
+  const WARNING_THRESHOLD = 90; // Warn user at 90%
+  const CRITICAL_THRESHOLD = 95; // Critical warning at 95%
+
+  let lastWarningTime = 0;
+  const WARNING_COOLDOWN = 5 * 60 * 1000; // Only warn every 5 minutes
+
+  setInterval(() => {
+    if (!mainWindow || mainWindow.isDestroyed()) {
+      return;
+    }
+
+    try {
+      const memUsage = process.memoryUsage();
+      const heapUsedMB = memUsage.heapUsed / (1024 * 1024);
+      const heapUsedGB = heapUsedMB / 1024;
+      const heapLimitGB = heapSizeGB; // From our dynamic calculation
+      const usagePercent = (heapUsedGB / heapLimitGB) * 100;
+
+      // Log detailed stats every check (only in debug)
+      if (process.env.NODE_ENV === 'development') {
+        console.log('[Memory Monitor]', {
+          heapUsed: `${heapUsedGB.toFixed(2)} GB`,
+          heapLimit: `${heapLimitGB} GB`,
+          percentage: `${usagePercent.toFixed(1)}%`,
+          rss: `${(memUsage.rss / 1024 / 1024 / 1024).toFixed(2)} GB`,
+          external: `${(memUsage.external / 1024 / 1024).toFixed(0)} MB`
+        });
+      }
+
+      // Send memory status to renderer for display
+      mainWindow.webContents.send('memory:status', {
+        heapUsedGB: parseFloat(heapUsedGB.toFixed(2)),
+        heapLimitGB: heapLimitGB,
+        usagePercent: parseFloat(usagePercent.toFixed(1)),
+        rss: parseFloat((memUsage.rss / 1024 / 1024 / 1024).toFixed(2))
+      });
+
+      // CRITICAL: 95%+ - Show dialog and offer to reload
+      if (usagePercent >= CRITICAL_THRESHOLD) {
+        const now = Date.now();
+        if (now - lastWarningTime > WARNING_COOLDOWN) {
+          lastWarningTime = now;
+
+          console.error(`[Memory Monitor] 🚨 CRITICAL: Memory at ${usagePercent.toFixed(1)}%`);
+
+          // Force cleanup first
+          mainWindow.webContents.send('memory:force-cleanup');
+
+          // Show dialog
+          dialog.showMessageBox(mainWindow, {
+            type: 'warning',
+            title: 'Memory Critically High',
+            message: `Memory usage is at ${usagePercent.toFixed(0)}% (${heapUsedGB.toFixed(1)}GB / ${heapLimitGB}GB)`,
+            detail: 'The app has cleaned up inactive tabs, but memory is still very high. Reloading will free all memory.\n\nDo you want to reload now?',
+            buttons: ['Reload Now', 'Continue'],
+            defaultId: 0,
+            cancelId: 1
+          }).then(({ response }) => {
+            if (response === 0) {
+              // User chose to reload
+              console.log('[Memory Monitor] User chose to reload app');
+              mainWindow.reload();
+            }
+          });
+        }
+      }
+      // WARNING: 90%+ - Notify user and force cleanup
+      else if (usagePercent >= WARNING_THRESHOLD) {
+        const now = Date.now();
+        if (now - lastWarningTime > WARNING_COOLDOWN) {
+          lastWarningTime = now;
+
+          console.warn(`[Memory Monitor] ⚠️ WARNING: Memory at ${usagePercent.toFixed(1)}%`);
+
+          // Trigger forced cleanup
+          mainWindow.webContents.send('memory:force-cleanup');
+        }
+      }
+      // CLEANUP: 80%+ - Silent auto-cleanup
+      else if (usagePercent >= CLEANUP_THRESHOLD) {
+        console.log(`[Memory Monitor] 🧹 Auto-cleanup triggered at ${usagePercent.toFixed(1)}%`);
+
+        // Trigger cleanup in renderer
+        mainWindow.webContents.send('memory:auto-cleanup');
+      }
+    } catch (error) {
+      console.error('[Memory Monitor] Error checking memory:', error);
+    }
+  }, MEMORY_CHECK_INTERVAL);
+
+  console.log('[Memory Monitor] Monitoring enabled (check every 60s, cleanup at 80%, warn at 90%, critical at 95%)');
+}
+
 // App ready
 app.whenReady().then(() => {
   console.log('[Main] App ready, creating window and tray');
@@ -2273,6 +2504,9 @@ app.whenReady().then(() => {
     setupUpdaterHandlers();
     console.log('[Main] Auto-updater disabled (development mode)');
   }
+
+  // Setup proactive memory monitoring
+  setupMemoryMonitoring();
 });
 
 // Window all closed

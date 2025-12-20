@@ -1,13 +1,14 @@
 // Kolbo Studio - File Manager
 // Handles file downloads to cache with 5GB limit and LRU eviction
 
-const { ipcMain, app } = require('electron');
+const { ipcMain, app, dialog } = require('electron');
 const Store = require('electron-store');
 const config = require('../config');
 const fs = require('fs');
 const path = require('path');
 const https = require('https');
 const http = require('http');
+const checkDiskSpace = require('check-disk-space').default;
 
 const store = new Store(); // Shared store instance
 const CACHE_DIR = path.join(app.getPath('userData'), 'MediaCache');
@@ -44,6 +45,65 @@ class FileManager {
     }
   }
 
+  /**
+   * Check available disk space
+   * @param {string} directoryPath - Path to check disk space for
+   * @returns {Promise<Object>} - { free, size, available } in bytes
+   */
+  static async checkDiskSpace(directoryPath) {
+    try {
+      const diskSpace = await checkDiskSpace(directoryPath);
+      return diskSpace;
+    } catch (error) {
+      console.error('[FileManager] Error checking disk space:', error);
+      // Return null to indicate error, caller should handle gracefully
+      return null;
+    }
+  }
+
+  /**
+   * Check if there's enough disk space for a download
+   * @param {number} requiredBytes - Bytes needed for download
+   * @param {string} targetPath - Target directory path
+   * @returns {Promise<Object>} - { hasSpace: boolean, available: number, required: number, message: string }
+   */
+  static async hasEnoughDiskSpace(requiredBytes, targetPath) {
+    const diskSpace = await this.checkDiskSpace(targetPath);
+
+    if (!diskSpace) {
+      // If we can't check disk space, allow download but warn
+      console.warn('[FileManager] Could not check disk space, proceeding with download');
+      return { hasSpace: true, available: -1, required: requiredBytes };
+    }
+
+    const availableBytes = diskSpace.free;
+    // Keep 500MB buffer for system stability
+    const bufferBytes = 500 * 1024 * 1024;
+    const hasSpace = availableBytes > (requiredBytes + bufferBytes);
+
+    const availableMB = (availableBytes / (1024 * 1024)).toFixed(2);
+    const requiredMB = (requiredBytes / (1024 * 1024)).toFixed(2);
+    const availableGB = (availableBytes / (1024 * 1024 * 1024)).toFixed(2);
+
+    let message = '';
+    if (!hasSpace) {
+      message = `Not enough disk space. Available: ${availableGB} GB, Required: ${requiredMB} MB (plus 500 MB buffer)`;
+    } else if (availableBytes < 2 * 1024 * 1024 * 1024) {
+      // Warn if less than 2GB available
+      message = `Warning: Low disk space (${availableGB} GB remaining)`;
+    }
+
+    return {
+      hasSpace,
+      available: availableBytes,
+      required: requiredBytes,
+      availableMB: parseFloat(availableMB),
+      requiredMB: parseFloat(requiredMB),
+      availableGB: parseFloat(availableGB),
+      message
+    };
+  }
+
   static async downloadFile(event, { url, fileName }) {
     const filePath = path.join(CACHE_DIR, fileName);
 
@@ -55,8 +115,28 @@ class FileManager {
       return { success: true, filePath };
     }
 
-    // No automatic cache size check - users manage cache manually
-    // This prevents automatic deletion which could corrupt NLE projects
+    // Check disk space before downloading (estimate 100MB if size unknown)
+    const estimatedSize = 100 * 1024 * 1024; // 100MB default estimate
+    const spaceCheck = await this.hasEnoughDiskSpace(estimatedSize, CACHE_DIR);
+
+    if (!spaceCheck.hasSpace) {
+      const error = new Error(spaceCheck.message);
+      error.code = 'ENOSPC';
+      console.error('[FileManager] Insufficient disk space:', spaceCheck.message);
+
+      // Show error dialog to user
+      dialog.showErrorBox(
+        'Insufficient Disk Space',
+        `Cannot download ${fileName}.\n\n${spaceCheck.message}\n\nPlease free up disk space and try again, or clear cached files in Settings.`
+      );
+
+      throw error;
+    }
+
+    // Warn user if low disk space
+    if (spaceCheck.message && spaceCheck.hasSpace) {
+      console.warn('[FileManager]', spaceCheck.message);
+    }
 
     // Download file
     return new Promise((resolve, reject) => {
@@ -95,6 +175,37 @@ class FileManager {
       request.on('error', (err) => {
         file.close();
         if (fs.existsSync(filePath)) fs.unlinkSync(filePath);
+
+        // Check if it's a disk space error
+        if (err.code === 'ENOSPC') {
+          dialog.showErrorBox(
+            'Disk Full',
+            `Your disk is full. Cannot download ${fileName}.\n\nPlease free up disk space and try again, or clear cached files in Settings.`
+          );
+        }
+
+        reject(err);
+      });
+
+      // Handle file write errors (including ENOSPC)
+      file.on('error', (err) => {
+        file.close();
+        if (fs.existsSync(filePath)) {
+          try {
+            fs.unlinkSync(filePath);
+          } catch (unlinkErr) {
+            console.warn('[FileManager] Could not delete partial file:', unlinkErr.message);
+          }
+        }
+
+        // Check if it's a disk space error
+        if (err.code === 'ENOSPC') {
+          dialog.showErrorBox(
+            'Disk Full',
+            `Your disk is full. Cannot download ${fileName}.\n\nPlease free up disk space and try again, or clear cached files in Settings.`
+          );
+        }
+
         reject(err);
       });
 
@@ -107,6 +218,34 @@ class FileManager {
 
   static async batchDownload(event, { items, targetFolder }) {
     console.log(`[FileManager] Batch downloading ${items.length} files to:`, targetFolder);
+
+    // Check disk space before starting batch download
+    const estimatedTotalSize = items.length * 100 * 1024 * 1024; // Estimate 100MB per file
+    const spaceCheck = await this.hasEnoughDiskSpace(estimatedTotalSize, targetFolder);
+
+    if (!spaceCheck.hasSpace) {
+      const error = new Error(spaceCheck.message);
+      error.code = 'ENOSPC';
+      console.error('[FileManager] Insufficient disk space for batch download:', spaceCheck.message);
+
+      dialog.showErrorBox(
+        'Insufficient Disk Space',
+        `Cannot download ${items.length} files.\n\n${spaceCheck.message}\n\nPlease free up disk space and try again, or clear cached files in Settings.`
+      );
+
+      return {
+        success: false,
+        error: spaceCheck.message,
+        results: [],
+        successCount: 0,
+        totalCount: items.length
+      };
+    }
+
+    // Warn user if low disk space
+    if (spaceCheck.message && spaceCheck.hasSpace) {
+      console.warn('[FileManager] Batch download:', spaceCheck.message);
+    }
 
     const results = [];
 
@@ -166,6 +305,37 @@ class FileManager {
           request.on('error', (err) => {
             file.close();
             if (fs.existsSync(filePath)) fs.unlinkSync(filePath);
+
+            // Check if it's a disk space error
+            if (err.code === 'ENOSPC') {
+              dialog.showErrorBox(
+                'Disk Full',
+                `Your disk is full. Cannot download ${item.fileName}.\n\nBatch download stopped. Please free up disk space and try again.`
+              );
+            }
+
+            reject(err);
+          });
+
+          // Handle file write errors (including ENOSPC)
+          file.on('error', (err) => {
+            file.close();
+            if (fs.existsSync(filePath)) {
+              try {
+                fs.unlinkSync(filePath);
+              } catch (unlinkErr) {
+                console.warn('[FileManager] Could not delete partial file:', unlinkErr.message);
+              }
+            }
+
+            // Check if it's a disk space error
+            if (err.code === 'ENOSPC') {
+              dialog.showErrorBox(
+                'Disk Full',
+                `Your disk is full. Cannot download ${item.fileName}.\n\nBatch download stopped. Please free up disk space and try again.`
+              );
+            }
+
             reject(err);
           });
 
