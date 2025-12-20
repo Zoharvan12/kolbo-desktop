@@ -75,7 +75,8 @@
       ],
       "icon": "assets/icon.ico",
       "publisherName": "Kolbo.AI",
-      "artifactName": "${productName}-Setup-${version}.${ext}"
+      "artifactName": "${productName}-Setup-${version}.${ext}",
+      "verifyUpdateCodeSignature": false
     },
     "nsis": {
       "oneClick": false,
