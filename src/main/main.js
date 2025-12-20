@@ -1165,6 +1165,74 @@ function setupDownloadHandler() {
 }
 
 // ============================================================================
+// PERMISSION REQUEST HANDLER (Critical for Mac file uploads)
+// ============================================================================
+
+/**
+ * Setup permission request handler to allow file access in iframes
+ * This is CRITICAL for Mac - without this, file uploads crash the app
+ */
+function setupPermissionHandlers() {
+  const { session } = require('electron');
+
+  // Handle permission requests from web content (iframes)
+  session.defaultSession.setPermissionRequestHandler((webContents, permission, callback) => {
+    console.log('[Permissions] Permission requested:', permission);
+
+    // Auto-grant permissions needed for file uploads and media access
+    const allowedPermissions = [
+      'media',              // File input dialogs
+      'mediaKeySystem',     // DRM content
+      'geolocation',        // Location services
+      'notifications',      // Browser notifications
+      'midi',              // MIDI device access
+      'midiSysex',         // MIDI system exclusive
+      'pointerLock',       // Pointer lock API
+      'fullscreen',        // Fullscreen API
+      'openExternal',      // Open external links
+      'clipboard-read',    // Read clipboard
+      'clipboard-write',   // Write clipboard
+      'camera',            // Camera access (for file uploads)
+      'microphone'         // Microphone access (for file uploads)
+    ];
+
+    if (allowedPermissions.includes(permission)) {
+      console.log(`[Permissions] ✅ Granted: ${permission}`);
+      callback(true);
+    } else {
+      console.log(`[Permissions] ❌ Denied: ${permission}`);
+      callback(false);
+    }
+  });
+
+  // Handle permission checks (synchronous version)
+  session.defaultSession.setPermissionCheckHandler((webContents, permission, requestingOrigin, details) => {
+    console.log('[Permissions] Permission check:', permission, 'from', requestingOrigin);
+
+    // Same permissions as above
+    const allowedPermissions = [
+      'media',
+      'mediaKeySystem',
+      'geolocation',
+      'notifications',
+      'midi',
+      'midiSysex',
+      'pointerLock',
+      'fullscreen',
+      'openExternal',
+      'clipboard-read',
+      'clipboard-write',
+      'camera',
+      'microphone'
+    ];
+
+    return allowedPermissions.includes(permission);
+  });
+
+  console.log('[Permissions] Permission handlers registered');
+}
+
+// ============================================================================
 // ADOBE PLUGIN DETECTION
 // ============================================================================
 
@@ -2185,6 +2253,9 @@ app.whenReady().then(() => {
 
   // Setup download handler for webapp downloads
   setupDownloadHandler();
+
+  // Setup permission handlers (CRITICAL for Mac file uploads)
+  setupPermissionHandlers();
 
   // Setup screenshot handlers
   setupScreenshotHandlers();

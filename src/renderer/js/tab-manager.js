@@ -340,6 +340,38 @@ class TabManager {
         }
       }
 
+      // Check for authentication status change messages from web app
+      if (event.data && event.data.type === 'AUTH_STATUS_CHANGED') {
+        const { authenticated, reason } = event.data;
+        console.log(`[TabManager] 🔐 Auth status changed: authenticated=${authenticated}, reason=${reason}`);
+
+        // If user logged out in the web app, log them out of the desktop app too
+        if (!authenticated) {
+          console.log('[TabManager] ⚠️ Web app logged out - triggering desktop app logout');
+
+          // Trigger the logout handler from the main app
+          if (this.onAuthStatusChanged) {
+            this.onAuthStatusChanged(authenticated, reason);
+          } else {
+            console.error('[TabManager] ❌ onAuthStatusChanged callback not set!');
+          }
+        }
+      }
+
+      // Check for login page shown messages from web app
+      if (event.data && event.data.type === 'LOGIN_PAGE_SHOWN') {
+        const { reason } = event.data;
+        console.log(`[TabManager] 🔑 Login page shown in iframe, reason=${reason}`);
+        console.log('[TabManager] 💡 Switching to desktop login screen (Google OAuth will work there)');
+
+        // Trigger the login screen switch from the main app
+        if (this.onLoginPageShown) {
+          this.onLoginPageShown(reason);
+        } else {
+          console.error('[TabManager] ❌ onLoginPageShown callback not set!');
+        }
+      }
+
       // Check for copy image messages from iframes
       if (event.data && event.data.type === 'COPY_IMAGE') {
         const imageUrl = event.data.imageUrl;
@@ -838,13 +870,15 @@ class TabManager {
     iframe.id = `iframe-${tabId}`;
     iframe.className = 'tab-iframe';
     // Note: 'allow-downloads-without-user-activation' is not valid in Electron 28, removed
-    iframe.setAttribute('sandbox', 'allow-same-origin allow-scripts allow-forms allow-popups allow-modals allow-downloads');
+    // CRITICAL FOR MAC: allow-storage-access-by-user-activation prevents crashes when uploading files
+    iframe.setAttribute('sandbox', 'allow-same-origin allow-scripts allow-forms allow-popups allow-modals allow-downloads allow-storage-access-by-user-activation');
     // Enable all necessary permissions for the iframe to work properly
     // clipboard-read/write: for copy/paste operations
     // autoplay: for video/audio playback without user interaction
     // fullscreen: for media player fullscreen mode
     // web-share: for sharing content (if used)
-    iframe.setAttribute('allow', 'clipboard-read; clipboard-write; autoplay; fullscreen; web-share');
+    // camera/microphone: for file input access (critical for Mac file uploads)
+    iframe.setAttribute('allow', 'clipboard-read; clipboard-write; autoplay; fullscreen; web-share; camera; microphone');
 
     // Add authentication token to URL
     // NOTE: Web app iframe has its own localStorage that persists the token,
@@ -1089,13 +1123,15 @@ class TabManager {
       }
 
       // Remove merged tab element and overlay from DOM
+      // Note: tab.iframe is the mergedContainer which includes divider and refresh buttons
+      // All children (divider, leftRefreshBtn, rightRefreshBtn) are automatically removed
       tab.element.remove();
       tab.iframe.remove();
 
       // Remove from array BEFORE switching tabs (important for proper state)
       this.tabs.splice(tabIndex, 1);
 
-      // Remove from merged tabs map
+      // Remove from merged tabs map (cleans up references to buttons, divider, etc.)
       this.mergedTabs.delete(tabId);
 
       // CRITICAL: Re-add the original tabs back to the DOM and tabs array
@@ -1556,6 +1592,41 @@ class TabManager {
     }
   }
 
+  /**
+   * Refresh a specific pane in a split view
+   * @param {string} mergedTabId - ID of the merged tab
+   * @param {string} paneId - Either 'left' or 'right'
+   */
+  refreshSplitPane(mergedTabId, paneId) {
+    const mergedData = this.mergedTabs.get(mergedTabId);
+    if (!mergedData) {
+      console.warn('[TabManager] No merged tab data found for:', mergedTabId);
+      return;
+    }
+
+    try {
+      // Get the appropriate iframe based on pane
+      const iframe = paneId === 'left' ? mergedData.leftIframe : mergedData.rightIframe;
+      const tabName = paneId === 'left' ? mergedData.leftTab.title : mergedData.rightTab.title;
+
+      if (!iframe || !iframe.contentWindow) {
+        console.warn('[TabManager] No iframe found for pane:', paneId);
+        return;
+      }
+
+      // Send postMessage to the specific iframe to reload
+      iframe.contentWindow.postMessage({
+        type: 'RELOAD_PAGE'
+      }, '*');
+
+      if (this.DEBUG_MODE) {
+        console.log(`[TabManager] Sent reload message to ${paneId} pane (${tabName})`);
+      }
+    } catch (error) {
+      console.error(`[TabManager] Error refreshing ${paneId} pane:`, error);
+    }
+  }
+
   zoomIn() {
     try {
       const activeTab = this.tabs.find(t => t.id === this.activeTabId);
@@ -1934,6 +2005,44 @@ class TabManager {
     divider.style.left = '50%'; // Initial position
     mergedContainer.appendChild(divider);
 
+    // Create refresh buttons for each pane
+    const leftRefreshBtn = document.createElement('button');
+    leftRefreshBtn.className = 'split-pane-refresh-btn split-pane-refresh-left';
+    leftRefreshBtn.title = 'Refresh Left Pane';
+    leftRefreshBtn.innerHTML = `
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <path d="M21.5 2v6h-6M2.5 22v-6h6M2 11.5a10 10 0 0 1 18.8-4.3M22 12.5a10 10 0 0 1-18.8 4.2"/>
+      </svg>
+    `;
+    // Initial position for left button (50/50 split)
+    leftRefreshBtn.style.left = 'auto';
+    leftRefreshBtn.style.right = 'calc(50% + 12px)';
+    leftRefreshBtn.addEventListener('click', (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      this.refreshSplitPane(mergedTabId, 'left');
+    });
+
+    const rightRefreshBtn = document.createElement('button');
+    rightRefreshBtn.className = 'split-pane-refresh-btn split-pane-refresh-right';
+    rightRefreshBtn.title = 'Refresh Right Pane';
+    rightRefreshBtn.innerHTML = `
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <path d="M21.5 2v6h-6M2.5 22v-6h6M2 11.5a10 10 0 0 1 18.8-4.3M22 12.5a10 10 0 0 1-18.8 4.2"/>
+      </svg>
+    `;
+    // Initial position for right button (50/50 split)
+    rightRefreshBtn.style.left = 'calc(50% + 12px)';
+    rightRefreshBtn.style.right = 'auto';
+    rightRefreshBtn.addEventListener('click', (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      this.refreshSplitPane(mergedTabId, 'right');
+    });
+
+    mergedContainer.appendChild(leftRefreshBtn);
+    mergedContainer.appendChild(rightRefreshBtn);
+
     // Add to DOM
     const newTabBtn = document.getElementById('new-tab-btn');
     if (newTabBtn && newTabBtn.parentNode === this.tabList) {
@@ -1967,6 +2076,8 @@ class TabManager {
       divider,
       leftIframe,  // Store iframe reference
       rightIframe, // Store iframe reference
+      leftRefreshBtn,  // Store left refresh button reference
+      rightRefreshBtn, // Store right refresh button reference
       activePaneId: 'left',
       splitRatio: 0.5
     });
@@ -2129,6 +2240,19 @@ class TabManager {
 
     // Update stored ratio
     mergedData.splitRatio = ratio;
+
+    // Update refresh button positions based on new split ratio
+    if (mergedData.leftRefreshBtn && mergedData.rightRefreshBtn) {
+      // Left button stays in the left pane (positioned relative to left edge)
+      // It uses the default CSS positioning (top: 12px, right: 12px within its containing area)
+      // But we need to constrain it to the left pane width
+      mergedData.leftRefreshBtn.style.left = 'auto';
+      mergedData.leftRefreshBtn.style.right = `calc(${rightPercent} + 12px)`;
+
+      // Right button positioned in the right pane
+      mergedData.rightRefreshBtn.style.left = `calc(${leftPercent} + 12px)`;
+      mergedData.rightRefreshBtn.style.right = 'auto';
+    }
 
     // Update active state of preset buttons
     if (this.splitPresetsContainer) {

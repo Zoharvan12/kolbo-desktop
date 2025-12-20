@@ -356,6 +356,15 @@ class KolboApp {
     document.getElementById('login-screen').classList.remove('hidden');
     document.getElementById('media-screen').classList.add('hidden');
     document.getElementById('loading-overlay').classList.add('hidden');
+
+    // Re-initialize the background video to ensure it's properly displayed and interactive
+    setTimeout(() => {
+      const video = document.querySelector('.auth-video');
+      if (video) {
+        video.load();
+        video.play().catch(err => console.warn('[Video] Autoplay prevented:', err));
+      }
+    }, 100);
   }
 
   showLoadingOverlay() {
@@ -424,6 +433,11 @@ class KolboApp {
       if (mediaContainer) {
         mediaContainer.scrollTop = 0;
       }
+
+      // Auto-refresh media when navigating to media view
+      if (!skipSave) {
+        this.loadMedia(true);
+      }
     } else if (view === 'webapp') {
       webappView?.classList.remove('hidden');
       webappView?.classList.add('active');
@@ -435,6 +449,22 @@ class KolboApp {
       // Initialize TabManager if not already initialized
       if (!this.tabManager) {
         this.tabManager = new TabManager();
+
+        // Set up callback for auth status changes from web app
+        this.tabManager.onAuthStatusChanged = (authenticated, reason) => {
+          if (!authenticated) {
+            console.log(`[Main] 🔐 Web app logged out (${reason}) - logging out desktop app`);
+            this.handleLogout(true); // Skip confirmation for automatic logout
+          }
+        };
+
+        // Set up callback for login page shown in web app
+        this.tabManager.onLoginPageShown = (reason) => {
+          console.log(`[Main] 🔑 Login page shown in web app (${reason}) - switching to desktop login`);
+          // Auto-logout and show desktop login screen (Google OAuth works there)
+          this.handleLogout(true); // Skip confirmation for automatic logout
+        };
+
         if (this.DEBUG_MODE) {
           console.log('[View] TabManager initialized');
         }
@@ -558,6 +588,21 @@ class KolboApp {
 
       // Recreate TabManager (will rebind to new-tab-btn)
       this.tabManager = new TabManager();
+
+      // Set up callback for auth status changes from web app
+      this.tabManager.onAuthStatusChanged = (authenticated, reason) => {
+        if (!authenticated) {
+          console.log(`[Main] 🔐 Web app logged out (${reason}) - logging out desktop app`);
+          this.handleLogout(true); // Skip confirmation for automatic logout
+        }
+      };
+
+      // Set up callback for login page shown in web app
+      this.tabManager.onLoginPageShown = (reason) => {
+        console.log(`[Main] 🔑 Login page shown in web app (${reason}) - switching to desktop login`);
+        // Auto-logout and show desktop login screen (Google OAuth works there)
+        this.handleLogout(true); // Skip confirmation for automatic logout
+      };
 
       if (this.DEBUG_MODE) {
         console.log('[Refresh] Webapp view relaunched successfully');
@@ -702,21 +747,31 @@ class KolboApp {
     }, this.filterDebounceDelay);
   }
 
-  handleLogout() {
-    if (confirm('Are you sure you want to logout?')) {
-      this.cleanup();
-      kolboAPI.logout();
-      this.media = [];
-      this.selectedItems.clear();
-      this.showLoginScreen();
-
-      const emailInput = document.getElementById('email');
-      const passwordInput = document.getElementById('password');
-      const errorEl = document.getElementById('login-error');
-      if (emailInput) emailInput.value = '';
-      if (passwordInput) passwordInput.value = '';
-      if (errorEl) errorEl.textContent = '';
+  handleLogout(skipConfirmation = false) {
+    // Skip confirmation if this is an automatic logout (triggered by web app session expiry)
+    if (!skipConfirmation && !confirm('Are you sure you want to logout?')) {
+      return;
     }
+
+    this.cleanup();
+
+    // Destroy TabManager and clean up all iframes/tabs
+    if (this.tabManager) {
+      this.tabManager.destroy();
+      this.tabManager = null;
+    }
+
+    kolboAPI.logout();
+    this.media = [];
+    this.selectedItems.clear();
+    this.showLoginScreen();
+
+    const emailInput = document.getElementById('email');
+    const passwordInput = document.getElementById('password');
+    const errorEl = document.getElementById('login-error');
+    if (emailInput) emailInput.value = '';
+    if (passwordInput) passwordInput.value = '';
+    if (errorEl) errorEl.textContent = '';
   }
 
   handleFilter(e) {
