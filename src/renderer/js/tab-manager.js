@@ -87,8 +87,12 @@ class TabManager {
     if (typeof window !== 'undefined' && window.KOLBO_CONFIG && window.KOLBO_CONFIG.webappUrl) {
       url = window.KOLBO_CONFIG.webappUrl;
       // ALWAYS log for debugging
+      if (this.DEBUG_MODE) {
       console.log('[TabManager] 📍 Using webapp URL from KOLBO_CONFIG:', url);
+      }
+      if (this.DEBUG_MODE) {
       console.log('[TabManager] 📍 Environment:', window.KOLBO_CONFIG.environment);
+      }
     }
     // PRIORITY 2: Manual override via localStorage (for debugging/testing)
     else if (localStorage.getItem('WEBAPP_ENVIRONMENT')) {
@@ -140,8 +144,12 @@ class TabManager {
 
       // If environment changed, clear saved tabs
       if (savedEnvironment && savedEnvironment !== currentEnvironment) {
+        if (this.DEBUG_MODE) {
         console.log(`[TabManager] Environment changed: ${savedEnvironment} → ${currentEnvironment}`);
+        }
+        if (this.DEBUG_MODE) {
         console.log('[TabManager] Clearing saved tabs to prevent URL mismatch');
+        }
         localStorage.removeItem('kolbo_tabs');
         localStorage.removeItem('kolbo_active_tab');
       }
@@ -328,7 +336,9 @@ class TabManager {
     });
 
     if (cleanedCount > 0) {
+      if (this.DEBUG_MODE) {
       console.log(`[TabManager] Memory cleanup complete: cleaned ${cleanedCount} inactive tab(s)`);
+      }
     }
   }
 
@@ -352,7 +362,9 @@ class TabManager {
 
     // Listen for auto-cleanup requests (80%+ threshold)
     window.kolboDesktop.onMemoryAutoCleanup(() => {
+      if (this.DEBUG_MODE) {
       console.log('[TabManager] 🧹 Auto-cleanup requested by memory monitor');
+      }
       this.performMemoryCleanup();
     });
 
@@ -367,7 +379,9 @@ class TabManager {
       this.showToast('Memory usage high. Cleaning up inactive tabs...', 'warning');
     });
 
+    if (this.DEBUG_MODE) {
     console.log('[TabManager] Memory monitoring listeners enabled');
+    }
   }
 
   setupNewWindowTabListener() {
@@ -398,7 +412,9 @@ class TabManager {
     window.addEventListener('message', (event) => {
       // Log all messages for debugging
       if (event.data && event.data.type) {
+        if (this.DEBUG_MODE) {
         console.log('[TabManager] Received postMessage:', event.data.type, event.data);
+        }
       }
 
       // Check for title update messages from iframes
@@ -417,11 +433,15 @@ class TabManager {
       if (event.data && event.data.type === 'CONTEXT_MENU') {
         const contextData = event.data.data;
 
+        if (this.DEBUG_MODE) {
         console.log('[TabManager] ✅ Context menu message received from iframe:', contextData);
+        }
 
         // Show context menu using Electron API
         if (window.kolboDesktop && window.kolboDesktop.showWebappContextMenu) {
+          if (this.DEBUG_MODE) {
           console.log('[TabManager] Showing webapp context menu...');
+          }
           window.kolboDesktop.showWebappContextMenu(contextData);
         } else {
           console.error('[TabManager] ❌ showWebappContextMenu not available!');
@@ -440,11 +460,15 @@ class TabManager {
       // Check for authentication status change messages from web app
       if (event.data && event.data.type === 'AUTH_STATUS_CHANGED') {
         const { authenticated, reason } = event.data;
+        if (this.DEBUG_MODE) {
         console.log(`[TabManager] 🔐 Auth status changed: authenticated=${authenticated}, reason=${reason}`);
+        }
 
         // If user logged out in the web app, log them out of the desktop app too
         if (!authenticated) {
+          if (this.DEBUG_MODE) {
           console.log('[TabManager] ⚠️ Web app logged out - triggering desktop app logout');
+          }
 
           // Trigger the logout handler from the main app
           if (this.onAuthStatusChanged) {
@@ -458,8 +482,12 @@ class TabManager {
       // Check for login page shown messages from web app
       if (event.data && event.data.type === 'LOGIN_PAGE_SHOWN') {
         const { reason } = event.data;
+        if (this.DEBUG_MODE) {
         console.log(`[TabManager] 🔑 Login page shown in iframe, reason=${reason}`);
+        }
+        if (this.DEBUG_MODE) {
         console.log('[TabManager] 💡 Switching to desktop login screen (Google OAuth will work there)');
+        }
 
         // Trigger the login screen switch from the main app
         if (this.onLoginPageShown) {
@@ -472,13 +500,17 @@ class TabManager {
       // Check for copy image messages from iframes
       if (event.data && event.data.type === 'COPY_IMAGE') {
         const imageUrl = event.data.imageUrl;
+        if (this.DEBUG_MODE) {
         console.log('[TabManager] Copy image request received:', imageUrl);
+        }
 
         if (window.kolboDesktop && window.kolboDesktop.copyImageToClipboard) {
           window.kolboDesktop.copyImageToClipboard(imageUrl)
             .then(result => {
               if (result.success) {
+                if (this.DEBUG_MODE) {
                 console.log('[TabManager] ✅ Image copied to clipboard');
+                }
               } else {
                 console.error('[TabManager] ❌ Failed to copy image:', result.error);
               }
@@ -494,13 +526,17 @@ class TabManager {
       // Check for download file messages from iframes
       if (event.data && event.data.type === 'DOWNLOAD_FILE') {
         const { url, filename, mediaType } = event.data;
+        if (this.DEBUG_MODE) {
         console.log('[TabManager] Download file request received:', { url, filename, mediaType });
+        }
 
         if (window.kolboDesktop && window.kolboDesktop.downloadFileFromContextMenu) {
           window.kolboDesktop.downloadFileFromContextMenu(url, mediaType)
             .then(result => {
               if (result.success) {
+                if (this.DEBUG_MODE) {
                 console.log('[TabManager] ✅ Download started:', filename);
+                }
               } else if (!result.canceled) {
                 console.error('[TabManager] ❌ Download failed:', result.error);
               }
@@ -516,7 +552,9 @@ class TabManager {
       // Check for open external URL messages from iframes
       if (event.data && event.data.type === 'OPEN_EXTERNAL_URL') {
         const { url, reason } = event.data;
+        if (this.DEBUG_MODE) {
         console.log('[TabManager] Open external URL request received:', { url, reason });
+        }
 
         if (window.kolboDesktop && window.kolboDesktop.openExternal) {
           window.kolboDesktop.openExternal(url)
@@ -524,7 +562,9 @@ class TabManager {
               if (result && result.success === false) {
                 console.error('[TabManager] ❌ Failed to open URL:', result.error);
               } else {
+                if (this.DEBUG_MODE) {
                 console.log('[TabManager] ✅ Opened URL in browser:', url);
+                }
               }
             })
             .catch(err => {
@@ -602,7 +642,9 @@ class TabManager {
         const script = iframeDoc.createElement('script');
         script.textContent = `
           (function() {
+            if (this.DEBUG_MODE) {
             console.log('[Kolbo Desktop] Context menu script injected into same-origin iframe');
+            }
 
             document.addEventListener('contextmenu', function(e) {
               e.preventDefault();
@@ -681,14 +723,18 @@ class TabManager {
                 }
               }, '*');
 
+              if (this.DEBUG_MODE) {
               console.log('[Kolbo Desktop] Context menu requested:', {
+              }
                 mediaType: mediaType,
                 srcURL: srcURL,
                 linkURL: linkURL
               });
             }, true); // Use capture phase to catch all events
 
+            if (this.DEBUG_MODE) {
             console.log('[Kolbo Desktop] Context menu listener registered');
+            }
           })();
         `;
 
@@ -717,15 +763,23 @@ class TabManager {
         // Try to load new state format first
         const savedState = localStorage.getItem('kolbo_tabs_state');
 
+        if (this.DEBUG_MODE) {
         console.log('[TabManager] 🔍 Checking for saved tabs...');
+        }
+        if (this.DEBUG_MODE) {
         console.log('[TabManager] Saved state exists:', !!savedState);
+        }
 
         if (savedState) {
           const state = JSON.parse(savedState);
+          if (this.DEBUG_MODE) {
           console.log('[TabManager] 📦 Parsed state:', state);
+          }
 
           if (state.tabs && Array.isArray(state.tabs) && state.tabs.length > 0) {
+            if (this.DEBUG_MODE) {
             console.log('[TabManager] ✅ Found', state.tabs.length, 'saved tabs. Starting restoration...');
+            }
 
             // CRITICAL: Set restoration flag to prevent renumbering during restore
             this.isRestoring = true;
@@ -844,8 +898,12 @@ class TabManager {
             this.isRestoring = false;
             this.renumberTabs();
 
+            if (this.DEBUG_MODE) {
             console.log('[TabManager] ✅ Tab restoration complete!');
+            }
+            if (this.DEBUG_MODE) {
             console.log('[TabManager] 📊 Restored tabs:', this.tabs.map(t => ({ id: t.id, title: t.title, url: t.url })));
+            }
 
             if (this.DEBUG_MODE) {
               console.log('[TabManager] State restored successfully');
@@ -853,10 +911,14 @@ class TabManager {
 
             return;
           } else {
+            if (this.DEBUG_MODE) {
             console.log('[TabManager] ❌ No valid tabs in saved state');
+            }
           }
         } else {
+          if (this.DEBUG_MODE) {
           console.log('[TabManager] ℹ️ No saved state found, creating default tab');
+          }
         }
 
         // Fallback: Try old format (backward compatibility)
@@ -934,7 +996,9 @@ class TabManager {
 
         localStorage.setItem('kolbo_tabs_state', JSON.stringify(state));
 
+        if (this.DEBUG_MODE) {
         console.log('[TabManager] 💾 Saved', tabsData.length, 'tabs to localStorage');
+        }
 
         if (this.DEBUG_MODE) {
           console.log('[TabManager] Saved state:', state);
@@ -1003,9 +1067,15 @@ class TabManager {
       iframe.src = `${tabUrl}${separator}embedded=true&source=desktop&token=${encodeURIComponent(token)}`;
 
       // ALWAYS log iframe URL for debugging (even if not in debug mode)
+      if (this.DEBUG_MODE) {
       console.log(`[TabManager] 🌐 Creating iframe with URL: ${tabUrl}${separator}embedded=true&source=desktop&token=***`);
+      }
+      if (this.DEBUG_MODE) {
       console.log(`[TabManager] 🔑 Token (first 20 chars): ${token.substring(0, 20)}...`);
+      }
+      if (this.DEBUG_MODE) {
       console.log(`[TabManager] ✅ Token synced from main process`);
+      }
     } else {
       iframe.src = tabUrl;
       console.error('[TabManager] ❌ No authentication token found - iframe will load without authentication');
@@ -1140,8 +1210,12 @@ class TabManager {
 
       if (this.DEBUG_MODE) {
         console.log('[TabManager] Closing merged tab, restoring original tabs:', tab.leftTabId, tab.rightTabId);
+        if (this.DEBUG_MODE) {
         console.log('[TabManager] Left tab:', leftTab ? leftTab.id : 'null');
+        }
+        if (this.DEBUG_MODE) {
         console.log('[TabManager] Right tab:', rightTab ? rightTab.id : 'null');
+        }
       }
 
       // CRITICAL: Fully restore iframes to their pre-split state
@@ -2040,11 +2114,15 @@ class TabManager {
 
         if (action === 'copy') {
           await window.kolboDesktop.copyScreenshotToClipboard(result.dataUrl);
+          if (this.DEBUG_MODE) {
           console.log('[TabManager] Screenshot copied to clipboard');
+          }
         } else if (action === 'save-png' || action === 'save-jpg') {
           const format = action === 'save-png' ? 'png' : 'jpg';
           await window.kolboDesktop.saveScreenshot(result.dataUrl, format);
+          if (this.DEBUG_MODE) {
           console.log('[TabManager] Screenshot saved as', format);
+          }
         }
       } else {
         console.warn('[TabManager] Screenshot API not available');
@@ -2279,8 +2357,12 @@ class TabManager {
 
     if (this.DEBUG_MODE) {
       console.log('[TabManager] Setting up split view CSS for iframes');
+      if (this.DEBUG_MODE) {
       console.log('[TabManager] Left iframe:', leftTab.id);
+      }
+      if (this.DEBUG_MODE) {
       console.log('[TabManager] Right iframe:', rightTab.id);
+      }
     }
 
     // CRITICAL: First, remove any existing split classes and reset inline styles

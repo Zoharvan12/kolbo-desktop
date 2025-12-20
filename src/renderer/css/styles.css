@@ -3474,3 +3474,53 @@ body.dragging-active * {
   border-color: #d97706;
   color: #d97706;
 }
+
+/* ========================================
+   EFFICIENT FILTERING SYSTEM
+   Hide/show items with CSS instead of DOM recreation
+   ======================================== */
+
+/* By default, show all items */
+.media-item {
+  display: block;
+}
+
+/* Filter: Show only images */
+body[data-filter="image"] .media-item:not(.media-item-image) {
+  display: none !important;
+}
+
+/* Filter: Show only videos */
+body[data-filter="video"] .media-item:not(.media-item-video) {
+  display: none !important;
+}
+
+/* Filter: Show only audio */
+body[data-filter="audio"] .media-item:not(.media-item-audio) {
+  display: none !important;
+}
+
+/* Filter: Show all (default) */
+body[data-filter="all"] .media-item {
+  display: block;
+}
+
+/* CSS-based filtering for instant performance - no DOM recreation */
+/* Hide all items by default when a filter is active, then show only matching ones */
+.media-grid[data-filter="image"] .media-item:not([data-type="image"]) {
+  display: none;
+}
+
+.media-grid[data-filter="video"] .media-item:not([data-type="video"]) {
+  display: none;
+}
+
+.media-grid[data-filter="audio"] .media-item:not([data-type="audio"]) {
+  display: none;
+}
+
+/* "all" filter shows everything - no hiding needed */
+.media-grid[data-filter="all"] .media-item,
+.media-grid:not([data-filter]) .media-item {
+  display: block;
+}

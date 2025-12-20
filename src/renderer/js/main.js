@@ -32,6 +32,40 @@ function getWebappEnvironment() {
  * KolboApp - Main Application Class
  */
 class KolboApp {
+
+  // ============================================================================
+  // CONSTANTS - Centralized configuration values for easy tuning
+  // ============================================================================
+  static CONSTANTS = {
+    // Performance
+    FILTER_DEBOUNCE_DELAY: 300,           // ms to wait before applying filter
+    INFINITE_SCROLL_ROOT_MARGIN: '400px', // Distance before triggering load
+    OPTIMAL_PAGE_SIZE_MIN: 12,            // Minimum items per page
+    OPTIMAL_PAGE_SIZE_MAX: 50,            // Maximum items per page
+    THUMBNAIL_PRELOAD_COUNT: 30,          // Number of thumbnails to preload
+    CACHE_PRELOAD_COUNT: 20,              // Number of items to cache for drag-and-drop
+
+    // Memory Management
+    TAB_CLEANUP_INTERVAL: 2 * 60 * 1000,  // 2 minutes (reduced from 5)
+    AUTO_SAVE_INTERVAL: 30 * 1000,        // 30 seconds
+
+    // Grid & Layout
+    MIN_GRID_SIZE: 1,                     // Minimum grid columns
+    MAX_GRID_SIZE: 8,                     // Maximum grid columns
+    DEFAULT_GRID_SIZE: 3,                 // Default grid columns
+    ITEM_WIDTH_ESTIMATE: 220,             // Estimated width per item (px)
+    ITEM_HEIGHT_ESTIMATE: 200,            // Estimated height per item (px)
+    BUFFER_ROWS: 2,                       // Extra rows to load for smooth scrolling
+
+    // Timeouts
+    DRAG_PREVIEW_CLEANUP_DELAY: 100,      // ms to wait before removing drag preview
+    GOOGLE_AUTH_POLL_INTERVAL: 2000,      // ms between Google auth checks
+    IFRAME_LOAD_TIMEOUT: 30000,           // ms to wait for iframe load
+
+    // Cache
+    MAX_DRAG_CACHE_ITEMS: 500,            // Maximum items in drag cache (LRU eviction)
+  };
+
   constructor() {
     // Filter & Project State
     this.currentFilter = 'all';
@@ -74,7 +108,7 @@ class KolboApp {
     this.domCache = {};
     this.abortController = null;
     this.filterDebounceTimer = null;
-    this.filterDebounceDelay = 300;
+    this.filterDebounceDelay = KolboApp.CONSTANTS.FILTER_DEBOUNCE_DELAY;
     this.preloadAbortController = null; // Controls cancellation of preload operations
 
     // Memory leak prevention
@@ -120,6 +154,41 @@ class KolboApp {
     if (intervalId) {
       clearInterval(intervalId);
       this.activeIntervals.delete(intervalId);
+    }
+  }
+
+
+  // Centralized error handling
+  handleError(error, context = 'Unknown', showToUser = false) {
+    console.error(`[Error] ${context}:`, error);
+
+    // Log to main process for crash reporting
+    if (window.kolboDesktop && window.kolboDesktop.logError) {
+      window.kolboDesktop.logError({ context, error: error.message, stack: error.stack });
+    }
+
+    // Show user-friendly error if needed
+    if (showToUser) {
+      this.showError(`An error occurred: ${error.message}`);
+    }
+
+    // Return false to indicate failure
+    return false;
+  }
+
+  showError(message) {
+    // Simple error display - can be enhanced with toast notifications later
+    const errorEl = this.getElement('media-error');
+    if (errorEl) {
+      errorEl.textContent = message;
+      errorEl.classList.remove('hidden');
+    }
+  }
+
+  hideError() {
+    const errorEl = this.getElement('media-error');
+    if (errorEl) {
+      errorEl.classList.add('hidden');
     }
   }
 
@@ -190,6 +259,7 @@ class KolboApp {
       this.showLoginScreen();
     }
 
+    this.cacheDOM();
     this.bindEvents();
 
     // Setup drag event listeners
@@ -200,6 +270,65 @@ class KolboApp {
 
     // Setup context menu manager
     this.contextMenuManager = new ContextMenuManager(this);
+  }
+
+
+  // Pre-cache frequently accessed DOM elements for performance
+  cacheDOM() {
+    // Screens
+    this.getElement('login-screen');
+    this.getElement('media-screen');
+    this.getElement('loading-overlay');
+
+    // Views
+    this.getElement('media-library-view');
+    this.getElement('webapp-view');
+    this.getElement('settings-view');
+
+    // Media elements
+    this.getElement('media-grid');
+    this.getElement('media-count');
+    this.getElement('media-container');
+    this.getElement('media-loading');
+    this.getElement('media-error');
+    this.getElement('media-empty');
+    this.getElement('loading-more');
+    this.getElement('infinite-scroll-trigger');
+
+    // Buttons
+    this.getElement('login-btn');
+    this.getElement('logout-btn');
+    this.getElement('google-login-btn');
+    this.getElement('refresh-btn');
+    this.getElement('retry-btn');
+    this.getElement('settings-btn');
+    this.getElement('media-tab');
+    this.getElement('webapp-tab');
+
+    // Controls
+    this.getElement('grid-size-slider');
+    this.getElement('grid-size-value');
+    this.getElement('project-select');
+
+    // Input fields
+    this.getElement('email');
+    this.getElement('password');
+
+    // Batch menu
+    this.getElement('floating-batch-menu');
+    this.getElement('floating-batch-import-premiere-btn');
+    this.getElement('floating-batch-download-btn');
+    this.getElement('floating-batch-clear-btn');
+
+    // Settings
+    this.getElement('clear-cache-btn');
+    this.getElement('reveal-cache-btn');
+    this.getElement('cache-size');
+
+    // Window controls
+    this.getElement('minimize-btn');
+    this.getElement('maximize-btn');
+    this.getElement('close-btn');
   }
 
   bindEvents() {
@@ -453,14 +582,18 @@ class KolboApp {
         // Set up callback for auth status changes from web app
         this.tabManager.onAuthStatusChanged = (authenticated, reason) => {
           if (!authenticated) {
+            if (this.DEBUG_MODE) {
             console.log(`[Main] 🔐 Web app logged out (${reason}) - logging out desktop app`);
+            }
             this.handleLogout(true); // Skip confirmation for automatic logout
           }
         };
 
         // Set up callback for login page shown in web app
         this.tabManager.onLoginPageShown = (reason) => {
+          if (this.DEBUG_MODE) {
           console.log(`[Main] 🔑 Login page shown in web app (${reason}) - switching to desktop login`);
+          }
           // Auto-logout and show desktop login screen (Google OAuth works there)
           this.handleLogout(true); // Skip confirmation for automatic logout
         };
@@ -592,14 +725,18 @@ class KolboApp {
       // Set up callback for auth status changes from web app
       this.tabManager.onAuthStatusChanged = (authenticated, reason) => {
         if (!authenticated) {
+          if (this.DEBUG_MODE) {
           console.log(`[Main] 🔐 Web app logged out (${reason}) - logging out desktop app`);
+          }
           this.handleLogout(true); // Skip confirmation for automatic logout
         }
       };
 
       // Set up callback for login page shown in web app
       this.tabManager.onLoginPageShown = (reason) => {
+        if (this.DEBUG_MODE) {
         console.log(`[Main] 🔑 Login page shown in web app (${reason}) - switching to desktop login`);
+        }
         // Auto-logout and show desktop login screen (Google OAuth works there)
         this.handleLogout(true); // Skip confirmation for automatic logout
       };
@@ -775,14 +912,18 @@ class KolboApp {
   }
 
   handleFilter(e) {
-    const filterType = e.target.dataset.type;
+    // Use closest() to ensure we get the button element, even if user clicks on SVG/text inside
+    const button = e.target.closest('.filter-btn');
+    if (!button) return;
+
+    const filterType = button.dataset.type;
 
     if (this.DEBUG_MODE) {
       console.log('[Filter] Button clicked, filterType:', filterType);
     }
 
     document.querySelectorAll('.filter-btn').forEach(btn => btn.classList.remove('active'));
-    e.target.classList.add('active');
+    button.classList.add('active');
 
     const previousFilter = this.currentFilter;
     this.currentFilter = filterType;
@@ -850,14 +991,17 @@ class KolboApp {
   }
 
   handleSubcategoryFilter(e) {
-    const subcategory = e.target.dataset.subcategory;
+    const button = e.target.closest('.subcategory-btn');
+    if (!button) return;
 
-    const parentGroup = e.target.closest('.subcategory-group');
+    const subcategory = button.dataset.subcategory;
+
+    const parentGroup = button.closest('.subcategory-group');
     if (parentGroup) {
       parentGroup.querySelectorAll('.subcategory-btn').forEach(btn => {
         btn.classList.remove('active');
       });
-      e.target.classList.add('active');
+      button.classList.add('active');
     }
 
     this.currentSubcategory = subcategory;
@@ -924,7 +1068,7 @@ class KolboApp {
       const viewportHeight = window.innerHeight;
       const itemsPerRow = Math.max(2, Math.floor(window.innerWidth / 220)); // ~220px per item with gap
       const rowsVisible = Math.ceil(viewportHeight / 200); // ~200px per row
-      const optimalPageSize = Math.min(50, Math.max(12, itemsPerRow * (rowsVisible + 2))); // +2 rows buffer
+      const optimalPageSize = Math.min(KolboApp.CONSTANTS.OPTIMAL_PAGE_SIZE_MAX, Math.max(KolboApp.CONSTANTS.OPTIMAL_PAGE_SIZE_MIN, itemsPerRow * (rowsVisible + 2))); // +2 rows buffer
 
       const params = {
         page: this.currentPage,
@@ -947,9 +1091,15 @@ class KolboApp {
 
       if (this.DEBUG_MODE) {
         console.log('[Media] Viewport-based pageSize:', optimalPageSize, `(${itemsPerRow} cols x ${rowsVisible + 2} rows)`);
+        if (this.DEBUG_MODE) {
         console.log('[Media] Loading media with params:', JSON.stringify(params, null, 2));
+        }
+        if (this.DEBUG_MODE) {
         console.log('[Media] Current filter state:', this.currentFilter);
+        }
+        if (this.DEBUG_MODE) {
         console.log('[Media] Append to existing:', appendToExisting);
+        }
       }
 
       const response = await kolboAPI.getMedia(params);
@@ -1022,7 +1172,7 @@ class KolboApp {
             this.loadMore();
           }
         },
-        { rootMargin: '400px' } // Start loading when trigger is 400px from viewport
+        { rootMargin: KolboApp.CONSTANTS.INFINITE_SCROLL_ROOT_MARGIN } // Start loading when trigger is 400px from viewport
       );
     }
 
@@ -1055,11 +1205,46 @@ class KolboApp {
     }
   }
 
-  renderMedia() {
+  renderMedia(forceRender = false) {
     const gridEl = this.getElement('media-grid');
     if (!gridEl) return;
 
-    // Filter media based on current filter
+    // PERFORMANCE FIX: Only rebuild DOM if we're loading new data or forcing a render
+    // For filters, just toggle CSS classes - instant performance!
+    const needsRebuild = forceRender || gridEl.children.length === 0 ||
+                         gridEl.children.length !== this.media.length;
+
+    if (needsRebuild) {
+      // Full render - only when loading new data
+      if (this.DEBUG_MODE) {
+        console.log('[Render] Full DOM rebuild:', this.media.length, 'items');
+      }
+      gridEl.innerHTML = this.media.map(item => this.renderMediaItem(item)).join('');
+
+      // Setup selection listeners
+      this.setupMediaItemListeners();
+      this.updateBatchMenu();
+
+      // Preload thumbnails for visible items only (first 30)
+      this.preloadAllThumbnails(this.media.slice(0, 30));
+
+      // Preload first 20 items to cache for drag-and-drop
+      this.preloadVisibleMediaToCache(this.media.slice(0, 20));
+    }
+
+    // Apply CSS filter - instant, no DOM changes!
+    this.applyFilter();
+  }
+
+  applyFilter() {
+    const gridEl = this.getElement('media-grid');
+    if (!gridEl) return;
+
+    // Set data-filter attribute for CSS-based filtering
+    const filterValue = this.currentFilter || 'all';
+    gridEl.setAttribute('data-filter', filterValue);
+
+    // Count visible items based on current filter
     let filtered = this.media;
     if (this.currentFilter !== 'all' && this.currentFilter !== 'favorites') {
       filtered = this.media.filter(item => item.type === this.currentFilter);
@@ -1071,19 +1256,9 @@ class KolboApp {
       countEl.textContent = `${filtered.length} items`;
     }
 
-    // Render items
-    gridEl.innerHTML = filtered.map(item => this.renderMediaItem(item)).join('');
-
-    // Setup selection listeners
-    this.setupMediaItemListeners();
-    this.updateBatchMenu();
-
-    // Preload thumbnails for visible items only (first 30) to prevent request storms
-    // More thumbnails will load on-demand as user scrolls
-    this.preloadAllThumbnails(filtered.slice(0, 30));
-
-    // Preload first 20 items to cache for drag-and-drop (async, don't wait)
-    this.preloadVisibleMediaToCache(filtered.slice(0, 20));
+    if (this.DEBUG_MODE) {
+      console.log('[Filter] CSS filter applied:', filterValue, '-', filtered.length, 'visible items');
+    }
   }
 
   async preloadVisibleMediaToCache(items) {
@@ -1092,7 +1267,9 @@ class KolboApp {
     // Check if operation was cancelled before starting
     if (this.preloadAbortController?.signal.aborted) return;
 
+    if (this.DEBUG_MODE) {
     console.log(`[Cache] Preloading ${items.length} visible items...`);
+    }
 
     // Prepare items for cache
     const cacheItems = items.map(item => {
@@ -1112,7 +1289,9 @@ class KolboApp {
         if (this.preloadAbortController?.signal.aborted) return;
 
         if (result.success) {
+          if (this.DEBUG_MODE) {
           console.log(`[Cache] Preloaded ${result.successful}/${result.total} items`);
+          }
 
           // Update cache status indicators for successfully cached items
           this.updateCacheStatusIndicators(items);
@@ -1164,7 +1343,9 @@ class KolboApp {
     // Check if operation was cancelled before starting
     if (this.preloadAbortController?.signal.aborted) return;
 
+    if (this.DEBUG_MODE) {
     console.log(`[ThumbnailCache] Preloading ${items.length} thumbnails...`);
+    }
 
     // Prepare thumbnail items for cache
     const thumbnailItems = items
@@ -1175,7 +1356,9 @@ class KolboApp {
       }));
 
     if (thumbnailItems.length === 0) {
+      if (this.DEBUG_MODE) {
       console.log('[ThumbnailCache] No thumbnails to preload');
+      }
       return;
     }
 
@@ -1186,7 +1369,9 @@ class KolboApp {
         if (this.preloadAbortController?.signal.aborted) return;
 
         if (result.success) {
+          if (this.DEBUG_MODE) {
           console.log(`[ThumbnailCache] Preloaded ${result.successful}/${result.total} thumbnails`);
+          }
 
           // Update all thumbnail images to use cached paths
           this.updateThumbnailsWithCachedPaths(items);
@@ -1227,7 +1412,9 @@ class KolboApp {
           } else if (imgEl.tagName === 'VIDEO') {
             imgEl.poster = cachedUrl;
           }
+          if (this.DEBUG_MODE) {
           console.log(`[ThumbnailCache] Updated thumbnail for ${id}`);
+          }
         }
       }
     }
@@ -1477,7 +1664,9 @@ class KolboApp {
 
       if (this.selectedItems.has(mediaId)) {
         // Dragging a selected item - collect ALL selected items
+        if (this.DEBUG_MODE) {
         console.log('[Drag] Dragging', this.selectedItems.size, 'selected items');
+        }
 
         const allMediaItems = e.currentTarget.querySelectorAll('.media-item[draggable="true"]');
 
@@ -1489,7 +1678,9 @@ class KolboApp {
               filesToDrag.push(cachedPath);
               elementsBeingDragged.push(item);
             } else {
+              if (this.DEBUG_MODE) {
               console.log('[Drag] Selected item not cached:', id);
+              }
             }
           }
         });
@@ -1502,13 +1693,17 @@ class KolboApp {
         }
       }
 
+      if (this.DEBUG_MODE) {
       console.log('[Drag] Starting drag for', filesToDrag.length, 'file(s)');
+      }
 
       if (filesToDrag.length > 0) {
         // Files are cached - start native drag
         e.preventDefault();
 
+        if (this.DEBUG_MODE) {
         console.log('[Drag] Files cached, starting native drag:', filesToDrag);
+        }
 
         // Create custom drag image
         this.setCustomDragImage(e, elementsBeingDragged, mediaItem);
@@ -1521,7 +1716,9 @@ class KolboApp {
           item.style.opacity = '0.5';
         });
 
+        if (this.DEBUG_MODE) {
         console.log('[Drag] Native drag started for', filesToDrag.length, 'file(s)');
+        }
 
         // Clear batch selection after drag starts
         // Note: dragend event doesn't fire reliably with Electron native drags
@@ -1540,7 +1737,9 @@ class KolboApp {
         }, 150);
       } else {
         // File not cached - prevent drag and download in background
+        if (this.DEBUG_MODE) {
         console.log('[Drag] File not cached - preventing drag');
+        }
         e.preventDefault();
         e.stopPropagation();
 
@@ -1567,7 +1766,9 @@ class KolboApp {
                   cacheStatus.style.display = 'block';
                 }
 
+                if (this.DEBUG_MODE) {
                 console.log('[Drag] File downloaded and ready for next drag');
+                }
               }
             });
           }
@@ -1600,7 +1801,9 @@ class KolboApp {
     gridEl.addEventListener('dragend', dragendHandler);
     gridEl.addEventListener('mouseover', mouseoverHandler);
 
+    if (this.DEBUG_MODE) {
     console.log('[Drag] Drag-and-drop handlers initialized');
+    }
   }
 
   setCustomDragImage(e, elementsBeingDragged, primaryItem) {
@@ -1668,7 +1871,9 @@ class KolboApp {
         }
       }, 100);
     } catch (error) {
+      if (this.DEBUG_MODE) {
       console.warn('[Drag] Failed to set custom drag image:', error);
+      }
     }
   }
 
@@ -1734,14 +1939,18 @@ class KolboApp {
         const url = item.dataset.url;
         const type = item.dataset.type;
 
+        if (this.DEBUG_MODE) {
         console.log('[Selection] Checking cache status for:', itemId);
+        }
 
         // Check if file is actually cached (not just in dragCacheStatus)
         window.kolboDesktop.getCachedFilePath(itemId).then(cacheResult => {
           if (cacheResult.cached) {
             // Already cached
             this.dragCacheStatus.set(itemId, cacheResult.filePath);
+            if (this.DEBUG_MODE) {
             console.log('[Selection] Item already cached:', itemId);
+            }
 
             // Show cache indicator
             const cacheStatus = item.querySelector('.cache-status');
@@ -1750,7 +1959,9 @@ class KolboApp {
             }
           } else {
             // Not cached - download it
+            if (this.DEBUG_MODE) {
             console.log('[Selection] Pre-downloading selected item:', itemId);
+            }
 
             // Start background download
             window.kolboDesktop.preloadCache([{
@@ -1771,7 +1982,9 @@ class KolboApp {
                       cacheStatus.style.display = 'block';
                     }
 
+                    if (this.DEBUG_MODE) {
                     console.log('[Selection] Item cached and ready:', itemId);
+                    }
                   }
                 });
               }
@@ -1813,7 +2026,9 @@ class KolboApp {
       return;
     }
 
+    if (this.DEBUG_MODE) {
     console.log('[Batch Download] Starting download for', this.selectedItems.size, 'items');
+    }
 
     try {
       // Show folder picker
@@ -1828,7 +2043,9 @@ class KolboApp {
       }
 
       const targetFolder = folderResult.folderPath;
+      if (this.DEBUG_MODE) {
       console.log('[Batch Download] Target folder:', targetFolder);
+      }
 
       // Build items array
       const items = Array.from(this.selectedItems).map(id => {
@@ -1871,15 +2088,21 @@ class KolboApp {
         `;
       }
 
+      if (this.DEBUG_MODE) {
       console.log('[Batch Download] Downloading', items.length, 'files...');
+      }
 
       // Start download
       const result = await window.kolboDesktop.batchDownload(items, targetFolder);
 
+      if (this.DEBUG_MODE) {
       console.log('[Batch Download] Result:', result);
+      }
 
       if (result.success) {
+        if (this.DEBUG_MODE) {
         console.log(`[Batch Download] Successfully downloaded ${result.successCount}/${items.length} files`);
+        }
 
         // Open the folder where files were downloaded
         await window.kolboDesktop.openFolder(targetFolder);
@@ -1916,7 +2139,9 @@ class KolboApp {
       return;
     }
 
+    if (this.DEBUG_MODE) {
     console.log('[Import to Premiere] Starting import for', this.selectedItems.size, 'items');
+    }
 
     try {
       // Build items array
@@ -1961,16 +2186,22 @@ class KolboApp {
         `;
       }
 
+      if (this.DEBUG_MODE) {
       console.log('[Import to Premiere] Sending', items.length, 'files to Premiere...');
+      }
 
       // Send to Premiere via IPC
       const result = await window.kolboDesktop.importToPremiere(items);
 
+      if (this.DEBUG_MODE) {
       console.log('[Import to Premiere] Result:', result);
+      }
 
       // Check if plugin is installed
       if (!result.hasPlugin) {
+        if (this.DEBUG_MODE) {
         console.log('[Import to Premiere] Plugin not detected');
+        }
 
         // Show dialog with options
         const choice = confirm(
@@ -1981,7 +2212,9 @@ class KolboApp {
 
         if (choice) {
           // User chose to download - fallback to batch download
+          if (this.DEBUG_MODE) {
           console.log('[Import to Premiere] Falling back to batch download');
+          }
           this.handleBatchDownload();
         } else {
           // User chose to install plugin
@@ -1993,7 +2226,9 @@ class KolboApp {
       }
 
       if (result.success) {
+        if (this.DEBUG_MODE) {
         console.log(`[Import to Premiere] Successfully sent ${result.count} files to Premiere Pro`);
+        }
         this.showToast(`Sent ${result.count} items to Premiere Pro. They will appear in the "Kolbo AI" bin and timeline.`, 'success');
 
         // Clear selection after successful import
@@ -2031,7 +2266,9 @@ class KolboApp {
   }
 
   showToast(message, type = 'info') {
+    if (this.DEBUG_MODE) {
     console.log(`[Toast ${type}] ${message}`);
+    }
     // TODO: Implement toast notifications
   }
 
@@ -2120,7 +2357,9 @@ class KolboApp {
                 const newFolder = await window.kolboDesktop.setDownloadFolder();
                 if (newFolder && downloadFolderPath) {
                   downloadFolderPath.textContent = newFolder;
+                  if (this.DEBUG_MODE) {
                   console.log('[Settings] Download folder changed to:', newFolder);
+                  }
                 }
               } catch (error) {
                 console.error('[Settings] Failed to change download folder:', error);
@@ -2162,7 +2401,9 @@ class KolboApp {
                 creditsTextEl.style.fontWeight = '500';
                 creditsTextEl.style.color = 'var(--primary-color, #4A90E2)';
 
+                if (this.DEBUG_MODE) {
                 console.log('[Settings] Loaded subscription:', planName, 'with', totalCredits, 'credits');
+                }
               } else {
                 currentPlanEl.textContent = 'Unable to load';
                 creditsTextEl.textContent = 'Unable to load';
@@ -2189,7 +2430,9 @@ class KolboApp {
               const webappUrl = window.KOLBO_CONFIG?.webappUrl || 'https://app.kolbo.ai';
               const pricingUrl = `${webappUrl}/pricing`;
 
+              if (this.DEBUG_MODE) {
               console.log('[Settings] Opening pricing page:', pricingUrl);
+              }
               window.kolboDesktop.openExternal(pricingUrl);
             });
           }
@@ -2267,10 +2510,14 @@ class KolboApp {
         statusEl.className = 'settings-sublabel checking';
       }
 
+      if (this.DEBUG_MODE) {
       console.log('[Update] Manual check requested');
+      }
       const result = await window.kolboDesktop.checkForUpdates();
 
+      if (this.DEBUG_MODE) {
       console.log('[Update] Check result:', result);
+      }
 
       // Button will be re-enabled by event handlers
       setTimeout(() => {
@@ -2308,7 +2555,9 @@ class KolboApp {
     if (!this._dragListenersSetup) {
       this._dragListenersSetup = true;
 
+      if (this.DEBUG_MODE) {
       console.log('[Drag] Setting up drag event listeners...');
+      }
 
       // Listen for drag errors from main process
       window.kolboDesktop.onDragError((data) => {
@@ -2321,8 +2570,12 @@ class KolboApp {
 
       // Listen for drag warnings from main process
       window.kolboDesktop.onDragWarning((data) => {
+        if (this.DEBUG_MODE) {
         console.warn('[Drag] Drag warning:', data.message);
+        }
+        if (this.DEBUG_MODE) {
         console.warn(`[Drag] Accessible: ${data.accessibleCount}, Failed: ${data.failedCount}`);
+        }
 
         // Show warning toast (optional - could be intrusive)
         // For now just log it, user will see files that drag successfully
@@ -2334,25 +2587,35 @@ class KolboApp {
     if (!this._updateListenersSetup) {
       this._updateListenersSetup = true;
 
+      if (this.DEBUG_MODE) {
       console.log('[Update] Setting up update listeners...');
+      }
 
       window.kolboDesktop.onUpdateAvailable((info) => {
+        if (this.DEBUG_MODE) {
         console.log('[Update] Update available:', info);
+        }
         this.showUpdateAvailable(info);
       });
 
       window.kolboDesktop.onUpdateNotAvailable(() => {
+        if (this.DEBUG_MODE) {
         console.log('[Update] App is up to date');
+        }
         this.showUpdateStatus('Your app is up to date', 'uptodate');
       });
 
       window.kolboDesktop.onDownloadProgress((progress) => {
+        if (this.DEBUG_MODE) {
         console.log('[Update] Download progress:', progress.percent);
+        }
         this.updateDownloadProgress(progress);
       });
 
       window.kolboDesktop.onUpdateDownloaded((info) => {
+        if (this.DEBUG_MODE) {
         console.log('[Update] Update downloaded:', info);
+        }
         this.showUpdateDownloaded(info);
       });
 
@@ -2364,7 +2627,9 @@ class KolboApp {
   }
 
   showUpdateAvailable(info) {
+    if (this.DEBUG_MODE) {
     console.log('[Updater] Update available:', info.version);
+    }
 
     // Show header update button
     const updateBtn = document.getElementById('update-available-btn');
@@ -2428,7 +2693,9 @@ class KolboApp {
         `;
       }
 
+      if (this.DEBUG_MODE) {
       console.log('[Update] Starting download');
+      }
       const result = await window.kolboDesktop.downloadUpdate();
 
       // Download complete - update UI
@@ -2524,7 +2791,9 @@ class KolboApp {
     );
 
     if (confirmed) {
+      if (this.DEBUG_MODE) {
       console.log('[Update] Installing update');
+      }
       await window.kolboDesktop.installUpdate();
       // App will quit and install
     }
@@ -2632,7 +2901,9 @@ class KolboApp {
         const result = await window.kolboDesktop.openCacheFolder();
 
         if (result.success) {
+          if (this.DEBUG_MODE) {
           console.log('[Settings] Cache folder opened:', result.path);
+          }
         } else {
           alert(`Failed to open cache folder: ${result.error}`);
         }
@@ -2656,7 +2927,9 @@ class KolboApp {
 function initBackgroundVideo() {
   const video = document.querySelector('.auth-video');
   if (!video) {
+    if (this.DEBUG_MODE) {
     console.warn('[Video] Video element not found');
+    }
     return;
   }
 
@@ -2789,7 +3062,9 @@ function setupDownloadNotifications() {
   // Listen for download complete events
   if (window.kolboDesktop && window.kolboDesktop.onDownloadComplete) {
     window.kolboDesktop.onDownloadComplete((data) => {
+      if (this.DEBUG_MODE) {
       console.log("[Download Notification] Download complete:", data);
+      }
 
       currentFilePath = data.filePath;
       filenameEl.textContent = data.fileName;
