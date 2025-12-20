@@ -1,6 +1,6 @@
 {
   "name": "kolbo-desktop",
-  "version": "1.0.9",
+  "version": "1.1.0",
   "description": "Kolbo Studio - AI Creative Platform for Video Editors",
   "main": "src/main/main.js",
   "author": {
@@ -23,7 +23,7 @@
     "build:dev:mac": "cross-env KOLBO_ENV=development node build-env.js && electron-builder --mac --config.productName=\"Kolbo Studio Dev\"",
     "build:staging:win": "cross-env KOLBO_ENV=staging node build-env.js && electron-builder --win --config.productName=\"Kolbo Studio Staging\"",
     "build:staging:mac": "cross-env KOLBO_ENV=staging node build-env.js && electron-builder --mac --config.productName=\"Kolbo Studio Staging\"",
-    "build:prod:win": "cross-env KOLBO_ENV=production node build-env.js && electron-builder --win",
+    "build:prod:win": "cross-env KOLBO_ENV=production node build-env.js && node scripts/build-win.js",
     "build:prod:mac": "cross-env KOLBO_ENV=production node build-env.js && node scripts/build-mac.js",
     "build:all:win": "npm run build:dev:win && npm run build:staging:win && npm run build:prod:win",
     "build:all:mac": "npm run build:dev:mac && npm run build:staging:mac && npm run build:prod:mac",
@@ -51,6 +51,12 @@
     "appId": "com.kolbo.studio",
     "productName": "Kolbo Studio",
     "copyright": "Copyright © 2025 Kolbo.AI",
+    "publish": {
+      "provider": "github",
+      "owner": "Zoharvan12",
+      "repo": "kolbo-desktop",
+      "releaseType": "release"
+    },
     "directories": {
       "output": "dist",
       "buildResources": "assets"
@@ -58,8 +64,12 @@
     "files": [
       "src/**/*",
       "assets/**/*",
+      "node_modules/**/*",
       "!**/*.md",
-      "!**/.DS_Store"
+      "!**/.DS_Store",
+      "!node_modules/*/{CHANGELOG.md,README.md,readme.md,LICENSE,license,License}",
+      "!node_modules/*/{test,__tests__,tests,powered-test,example,examples}",
+      "!node_modules/.cache/**/*"
     ],
     "extraMetadata": {
       "main": "src/main/main.js"
@@ -110,7 +120,11 @@
       "hardenedRuntime": true,
       "gatekeeperAssess": false,
       "entitlements": "entitlements.mac.plist",
-      "entitlementsInherit": "entitlements.mac.inherit.plist"
+      "entitlementsInherit": "entitlements.mac.inherit.plist",
+      "extendInfo": {
+        "NSCameraUsageDescription": "Kolbo Studio needs camera access for video recording and file uploads.",
+        "NSMicrophoneUsageDescription": "Kolbo Studio needs microphone access for audio recording and file uploads."
+      }
     },
     "dmg": {
       "title": "${productName} ${version}",

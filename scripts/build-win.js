@@ -2,11 +2,11 @@ const { execSync } = require('child_process');
 const fs = require('fs');
 const path = require('path');
 
-console.log('🚀 Building Mac universal installers (Intel + Apple Silicon)...\n');
+console.log('🚀 Building Windows installer...\n');
 
 // Run electron-builder
 try {
-  execSync('npx electron-builder --mac --publish never', {
+  execSync('npx electron-builder --win --publish never', {
     stdio: 'inherit',
     env: { ...process.env, KOLBO_ENV: 'production' }
   });
@@ -25,10 +25,10 @@ const repoName = 'kolbo-desktop';
 
 console.log(`Version: ${version}`);
 
-// List final files (don't rename - keep electron-builder's names for consistency)
+// List final files
 console.log('\n✅ Release files:');
 const releaseFiles = fs.readdirSync(distDir)
-  .filter(f => (f.includes(version) || f === 'latest-mac.yml') && !f.includes('.blockmap'));
+  .filter(f => (f.includes(version) || f === 'latest.yml') && !f.includes('.blockmap') && (f.endsWith('.exe') || f.endsWith('.yml')));
 
 releaseFiles.forEach(f => {
   const stats = fs.statSync(path.join(distDir, f));
@@ -36,12 +36,12 @@ releaseFiles.forEach(f => {
   console.log(`  ✓ ${f} (${sizeMB} MB)`);
 });
 
-// Fix latest-mac.yml:
+// Fix latest.yml:
 // 1. GitHub converts spaces to dots in filenames
 // 2. Use full absolute URLs to ensure electron-updater downloads correctly
-const latestMacPath = path.join(distDir, 'latest-mac.yml');
-if (fs.existsSync(latestMacPath)) {
-  let content = fs.readFileSync(latestMacPath, 'utf8');
+const latestPath = path.join(distDir, 'latest.yml');
+if (fs.existsSync(latestPath)) {
+  let content = fs.readFileSync(latestPath, 'utf8');
 
   // Fix filename format: electron-builder uses hyphens, GitHub converts spaces to dots
   content = content.replace(/Kolbo-Studio/g, 'Kolbo.Studio');
@@ -62,9 +62,9 @@ if (fs.existsSync(latestMacPath)) {
     `path: ${baseUrl}/$1`
   );
 
-  fs.writeFileSync(latestMacPath, content, 'utf8');
+  fs.writeFileSync(latestPath, content, 'utf8');
 
-  console.log('\n📋 latest-mac.yml content (fixed for GitHub):');
+  console.log('\n📋 latest.yml content (fixed for GitHub):');
   console.log(content);
 }
 

@@ -530,13 +530,21 @@ function setupAutoUpdater() {
   autoUpdater.allowDowngrade = false; // Only allow upgrades, not downgrades
   autoUpdater.allowPrerelease = false; // Only stable releases
 
+  // Explicitly set GitHub provider to ensure proper redirect handling
+  autoUpdater.setFeedURL({
+    provider: 'github',
+    owner: 'Zoharvan12',
+    repo: 'kolbo-desktop',
+    releaseType: 'release'
+  });
+
   // Force check for latest release (not just any newer version)
   autoUpdater.channel = 'latest';
 
   console.log('[Updater] Configuration:');
   console.log('[Updater] - Current version:', app.getVersion());
   console.log('[Updater] - Channel: latest (always fetches newest release)');
-  console.log('[Updater] - Provider: GitHub');
+  console.log('[Updater] - Provider: GitHub (explicit)');
 
   // Log all updater events
   autoUpdater.on('checking-for-update', () => {
