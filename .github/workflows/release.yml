@@ -107,12 +107,10 @@ jobs:
           echo "=== Original latest-mac.yml ==="
           cat dist/latest-mac.yml
           # Replace dashes in product name with spaces: Kolbo-Studio -> Kolbo Studio
-          # KEEP the arch suffixes (arm64, x64) - they're needed for v1.0.0 compatibility
           # macOS sed requires -i '' (empty backup extension)
           sed -i '' 's/Kolbo-Studio/Kolbo Studio/g' dist/latest-mac.yml
-          # Remove -mac suffix from ZIP filenames (keep arm64/x64)
-          sed -i '' 's/-arm64-mac\.zip/-arm64.zip/g' dist/latest-mac.yml
-          sed -i '' 's/-x64-mac\.zip/-x64.zip/g' dist/latest-mac.yml
+          # Remove -mac suffix from ZIP filenames for universal builds
+          sed -i '' 's/-universal-mac\.zip/-universal.zip/g' dist/latest-mac.yml
           echo "=== Fixed latest-mac.yml ==="
           cat dist/latest-mac.yml
 
@@ -128,10 +126,8 @@ jobs:
         with:
           name: macos-artifacts
           path: |
-            dist/Kolbo Studio-${{ needs.prepare-release.outputs.version }}-arm64.dmg
-            dist/Kolbo Studio-${{ needs.prepare-release.outputs.version }}-x64.dmg
-            dist/Kolbo Studio-${{ needs.prepare-release.outputs.version }}-arm64-mac.zip
-            dist/Kolbo Studio-${{ needs.prepare-release.outputs.version }}-x64-mac.zip
+            dist/Kolbo Studio-${{ needs.prepare-release.outputs.version }}-universal.dmg
+            dist/Kolbo Studio-${{ needs.prepare-release.outputs.version }}-universal-mac.zip
             dist/latest-mac.yml
 
   create-release:
@@ -177,20 +173,12 @@ jobs:
 
           echo "=== Validating Mac artifacts ==="
           ls ./dist-macos/
-          if ! ls ./dist-macos/ | grep -q "Kolbo Studio-.*-arm64\.dmg"; then
-            echo "❌ ERROR: Mac arm64 DMG not found"
+          if ! ls ./dist-macos/ | grep -q "Kolbo Studio-.*-universal\.dmg"; then
+            echo "❌ ERROR: Mac universal DMG not found"
             exit 1
           fi
-          if ! ls ./dist-macos/ | grep -q "Kolbo Studio-.*-x64\.dmg"; then
-            echo "❌ ERROR: Mac x64 DMG not found"
-            exit 1
-          fi
-          if ! ls ./dist-macos/ | grep -q "Kolbo Studio-.*-arm64-mac\.zip"; then
-            echo "❌ ERROR: Mac arm64 ZIP not found"
-            exit 1
-          fi
-          if ! ls ./dist-macos/ | grep -q "Kolbo Studio-.*-x64-mac\.zip"; then
-            echo "❌ ERROR: Mac x64 ZIP not found"
+          if ! ls ./dist-macos/ | grep -q "Kolbo Studio-.*-universal-mac\.zip"; then
+            echo "❌ ERROR: Mac universal ZIP not found"
             exit 1
           fi
           if ! ls ./dist-macos/latest-mac.yml >/dev/null 2>&1; then
@@ -200,22 +188,16 @@ jobs:
 
           echo "✅ All filenames validated successfully"
 
-      # Mac files are created with -mac suffix for ZIPs (e.g., arm64-mac.zip, x64-mac.zip).
+      # Mac files are created with -mac suffix for ZIPs (e.g., universal-mac.zip).
       # We rename to remove -mac suffix to match what the app expects.
-      # Keep arch suffixes (arm64, x64) for v1.0.0 compatibility.
       - name: Rename Mac ZIP files to remove -mac suffix
         run: |
           echo "=== Renaming Mac ZIP files ==="
           cd ./dist-macos
-          # Rename arm64 ZIP: remove -mac suffix
-          if [ -f "Kolbo Studio-${{ needs.prepare-release.outputs.version }}-arm64-mac.zip" ]; then
-            mv "Kolbo Studio-${{ needs.prepare-release.outputs.version }}-arm64-mac.zip" "Kolbo Studio-${{ needs.prepare-release.outputs.version }}-arm64.zip"
-            echo "✅ Renamed arm64 ZIP file"
-          fi
-          # Rename x64 ZIP: remove -mac suffix
-          if [ -f "Kolbo Studio-${{ needs.prepare-release.outputs.version }}-x64-mac.zip" ]; then
-            mv "Kolbo Studio-${{ needs.prepare-release.outputs.version }}-x64-mac.zip" "Kolbo Studio-${{ needs.prepare-release.outputs.version }}-x64.zip"
-            echo "✅ Renamed x64 ZIP file"
+          # Rename universal ZIP: remove -mac suffix
+          if [ -f "Kolbo Studio-${{ needs.prepare-release.outputs.version }}-universal-mac.zip" ]; then
+            mv "Kolbo Studio-${{ needs.prepare-release.outputs.version }}-universal-mac.zip" "Kolbo Studio-${{ needs.prepare-release.outputs.version }}-universal.zip"
+            echo "✅ Renamed universal ZIP file"
           fi
           # DMG files don't need renaming - they're already correct
           echo "=== Mac files after rename ==="
