@@ -87,6 +87,12 @@ jobs:
       - name: Build macOS DMG
         env:
           KOLBO_ENV: production
+          # Code signing configuration (optional - set GitHub secrets if you want signed builds)
+          # See MACOS-CODE-SIGNING.md for setup instructions
+          APPLE_IDENTITY: ${{ secrets.APPLE_IDENTITY }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
         run: |
           echo "=== Starting Mac build ==="
           # Use --publish never to prevent electron-builder from publishing to GitHub
@@ -100,6 +106,20 @@ jobs:
             exit $BUILD_EXIT_CODE
           fi
           echo "✅ Mac build completed successfully"
+          
+          # If code signing secrets are set, verify the signature
+          if [ -n "$APPLE_IDENTITY" ]; then
+            echo "=== Verifying code signature ==="
+            APP_PATH=$(find dist/mac -name "*.app" -type d | head -1)
+            if [ -n "$APP_PATH" ]; then
+              codesign -dv --verbose=4 "$APP_PATH" || echo "⚠️  Signature verification failed (this is OK if secrets aren't set)"
+              spctl --assess --verbose "$APP_PATH" || echo "⚠️  Gatekeeper check failed (this is OK if secrets aren't set)"
+            fi
+          else
+            echo "ℹ️  Code signing secrets not set - building unsigned (users will see warnings)"
+            echo "   To enable code signing, set GitHub secrets: APPLE_IDENTITY, APPLE_TEAM_ID, APPLE_ID, APPLE_APP_SPECIFIC_PASSWORD"
+            echo "   See MACOS-CODE-SIGNING.md for instructions"
+          fi
 
       - name: Fix filename format in latest-mac.yml
         shell: bash

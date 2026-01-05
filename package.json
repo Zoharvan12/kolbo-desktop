@@ -14,8 +14,8 @@
     "url": "https://github.com/Zoharvan12/kolbo-desktop.git"
   },
   "scripts": {
-    "start": "cross-env KOLBO_ENV=development NODE_ENV=development electron .",
-    "dev": "cross-env KOLBO_ENV=development NODE_ENV=development electron .",
+    "start": "cross-env KOLBO_ENV=development NODE_ENV=development node build-env.js && electron .",
+    "dev": "cross-env KOLBO_ENV=development NODE_ENV=development node build-env.js && electron .",
     "build": "electron-builder",
     "build:win": "electron-builder --win",
     "build:mac": "electron-builder --mac",
@@ -118,12 +118,18 @@
       "icon": "assets/icon.icns",
       "category": "public.app-category.video",
       "hardenedRuntime": true,
-      "gatekeeperAssess": false,
+      "gatekeeperAssess": true,
+      "identity": "${env.APPLE_IDENTITY}",
       "entitlements": "entitlements.mac.plist",
       "entitlementsInherit": "entitlements.mac.inherit.plist",
       "extendInfo": {
         "NSCameraUsageDescription": "Kolbo Studio needs camera access for video recording and file uploads.",
         "NSMicrophoneUsageDescription": "Kolbo Studio needs microphone access for audio recording and file uploads."
+      },
+      "notarize": {
+        "teamId": "${env.APPLE_TEAM_ID}",
+        "appleId": "${env.APPLE_ID}",
+        "appleIdPassword": "${env.APPLE_APP_SPECIFIC_PASSWORD}"
       }
     },
     "dmg": {

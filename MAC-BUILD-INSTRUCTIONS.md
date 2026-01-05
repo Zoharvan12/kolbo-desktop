@@ -175,41 +175,40 @@ rm -rf dist
 ./build-mac.sh production
 ```
 
-## Code Signing (Optional - for production)
+## Code Signing & Notarization (Required for Production)
 
-To remove the "damaged app" warning, sign the app with Apple Developer ID.
+**✅ You're now an Apple Developer!** To eliminate all macOS security warnings, you need to set up code signing and notarization.
 
-### Requirements
-- Apple Developer account ($99/year)
-- Developer ID Application certificate
-- Developer ID Installer certificate
+### Quick Setup
 
-### Setup
+See the comprehensive guide: **[MACOS-CODE-SIGNING.md](./MACOS-CODE-SIGNING.md)**
 
-1. **Get certificates from Apple Developer portal**
+### Quick Summary
 
-2. **Update package.json:**
-   ```json
-   "mac": {
-     "identity": "Developer ID Application: Your Company Name (TEAM_ID)",
-     "hardenedRuntime": true,
-     "gatekeeperAssess": true,
-     "entitlements": "build/entitlements.mac.plist",
-     "entitlementsInherit": "build/entitlements.mac.plist"
-   }
-   ```
+1. **Get certificates** from Apple Developer portal:
+   - Developer ID Application certificate
+   - Developer ID Installer certificate
 
-3. **Create entitlements file** (if needed for specific features)
-
-4. **Rebuild:**
+2. **Set environment variables:**
    ```bash
-   ./build-mac.sh production
+   export APPLE_IDENTITY="Developer ID Application: Kolbo.AI (YOUR_TEAM_ID)"
+   export APPLE_TEAM_ID="YOUR_TEAM_ID"
+   export APPLE_ID="your-apple-id@email.com"
+   export APPLE_APP_SPECIFIC_PASSWORD="your-app-specific-password"
    ```
 
-5. **Notarize with Apple** (required for macOS 10.15+):
+3. **Build:**
    ```bash
-   # electron-builder can do this automatically with proper credentials
+   npm run build:prod:mac
    ```
+
+electron-builder will automatically:
+- ✅ Code sign the app
+- ✅ Code sign the DMG
+- ✅ Submit for notarization
+- ✅ Staple the notarization ticket
+
+**Full instructions:** See [MACOS-CODE-SIGNING.md](./MACOS-CODE-SIGNING.md)
 
 ## Building Both Intel and Apple Silicon
 
