@@ -1,6 +1,6 @@
 {
   "name": "kolbo-desktop",
-  "version": "1.1.1",
+  "version": "1.1.2",
   "description": "Kolbo Studio - AI Creative Platform for Video Editors",
   "main": "src/main/main.js",
   "author": {
