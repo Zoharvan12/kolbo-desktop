@@ -141,6 +141,22 @@ html, body {
   -webkit-app-region: drag; /* Enable dragging on empty space around card */
 }
 
+/* Ensure auth card and all interactive elements are always clickable */
+.auth-card,
+.auth-card * {
+  -webkit-app-region: no-drag;
+}
+
+/* Override for specific interactive elements to ensure they work immediately */
+.auth-card input,
+.auth-card button,
+.auth-card a {
+  pointer-events: auto !important;
+  -webkit-app-region: no-drag !important;
+  user-select: text;
+  -webkit-user-select: text;
+}
+
 /* Auth Card */
 .auth-card {
   width: 100%;
@@ -206,6 +222,7 @@ html, body {
   justify-content: center;
   gap: 10px;
   margin-bottom: 16px;
+  -webkit-app-region: no-drag; /* Ensure button is clickable */
 }
 
 .google-btn:hover {
@@ -249,6 +266,7 @@ html, body {
 /* Auth Form */
 .auth-form {
   margin-top: 16px;
+  -webkit-app-region: no-drag; /* Ensure form is not draggable, inputs are clickable */
 }
 
 .auth-form input {
@@ -261,6 +279,9 @@ html, body {
   color: white;
   font-size: 14px;
   transition: all 0.2s;
+  -webkit-app-region: no-drag; /* Ensure inputs are clickable and selectable */
+  user-select: text; /* Allow text selection in inputs */
+  -webkit-user-select: text;
 }
 
 .auth-form input:focus {
@@ -278,6 +299,7 @@ html, body {
 .password-field {
   position: relative;
   margin-bottom: 12px;
+  -webkit-app-region: no-drag; /* Ensure password field is not draggable */
 }
 
 .password-field input {
@@ -299,6 +321,7 @@ html, body {
   justify-content: center;
   color: rgba(255, 255, 255, 0.6);
   transition: color 0.2s;
+  -webkit-app-region: no-drag; /* Ensure toggle button is clickable */
 }
 
 .toggle-password:hover {
@@ -323,6 +346,7 @@ html, body {
   cursor: pointer;
   transition: var(--transition-base);
   box-shadow: var(--shadow-md);
+  -webkit-app-region: no-drag; /* Ensure button is clickable */
 }
 
 .auth-btn:hover {
@@ -1068,11 +1092,23 @@ body.is-mac .window-controls {
   height: 100%;
   border: none;
   background: #1a1a1a;
-  display: none;
+
+  /* PERFORMANCE FIX: Use visibility instead of display to keep iframes processing in background */
+  /* This allows inactive tabs to continue loading, processing WebSockets, etc. */
+  visibility: hidden;
+  pointer-events: none; /* Prevent interaction when hidden */
+  z-index: 0; /* Keep inactive iframes below active ones */
+
+  /* PERFORMANCE: GPU acceleration hints for smoother rendering */
+  will-change: transform, opacity;
+  transform: translateZ(0);
+  backface-visibility: hidden;
 }
 
 .iframe-container iframe.active {
-  display: block;
+  visibility: visible;
+  pointer-events: auto; /* Re-enable interaction for active iframe */
+  z-index: 1; /* Bring active iframe to front */
 }
 
 /* Split View Layout */
@@ -1199,54 +1235,49 @@ body.is-mac .window-controls {
   /* width and left set via inline styles for performance */
 }
 
-/* Split pane refresh buttons */
+/* Split pane refresh buttons - styled to match preset buttons */
 .split-pane-refresh-btn {
-  position: absolute;
-  top: 8px;
-  right: 12px;
-  width: 36px;
-  height: 36px;
-  border: none;
-  border-radius: 8px;
-  background: rgba(0, 0, 0, 0.85);
-  backdrop-filter: blur(8px);
-  color: rgba(255, 255, 255, 0.95);
-  cursor: pointer;
-  display: flex;
+  display: inline-flex;
   align-items: center;
   justify-content: center;
-  transition: all 0.2s ease;
-  z-index: 200;
-  opacity: 0.9;
-  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.5);
-  pointer-events: auto;
+  gap: 4px;
+  height: 32px;
+  padding: 6px 10px;
+  background: transparent;
+  border: 1px solid rgb(var(--border) / 0.3);
+  border-radius: 6px;
+  color: rgba(255, 255, 255, 0.6);
+  cursor: pointer;
+  transition: all 0.15s ease;
+  flex-shrink: 0;
+  font-size: 12px;
+  white-space: nowrap;
   -webkit-app-region: no-drag;
 }
 
 .split-pane-refresh-btn:hover {
-  opacity: 1;
-  background: rgba(0, 0, 0, 0.8);
-  transform: scale(1.1);
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
+  background: rgba(255, 255, 255, 0.08);
+  color: rgba(255, 255, 255, 0.9);
+  border-color: rgba(255, 255, 255, 0.3);
 }
 
 .split-pane-refresh-btn:active {
-  transform: scale(0.95);
+  transform: scale(0.98);
 }
 
 .split-pane-refresh-btn svg {
-  width: 16px;
-  height: 16px;
+  width: 14px;
+  height: 14px;
+  pointer-events: none;
+  flex-shrink: 0;
 }
 
-/* Left pane refresh button positioning */
-.split-pane-refresh-left {
-  /* Position will be calculated dynamically based on split ratio */
-}
-
-/* Right pane refresh button positioning */
-.split-pane-refresh-right {
-  /* Position will be calculated dynamically based on split ratio */
+/* Separator before refresh buttons */
+.split-refresh-separator {
+  width: 1px;
+  height: 20px;
+  background: rgb(var(--border) / 0.3);
+  margin: 0 4px;
 }
 
 /* Project Selector */

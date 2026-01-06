@@ -227,16 +227,19 @@ class TabManager {
 
     // Screenshot button
     if (this.screenshotBtn) {
-      this.screenshotBtn.addEventListener('click', () => this.startScreenshot());
+      this.screenshotBtnHandler = () => this.startScreenshot();
+      this.screenshotBtn.addEventListener('click', this.screenshotBtnHandler);
     }
 
     // Screenshot keyboard shortcut (Ctrl+Shift+5)
-    document.addEventListener('keydown', (e) => {
+    // MEMORY LEAK FIX: Store handler for cleanup
+    this.screenshotKeyboardHandler = (e) => {
       if (e.ctrlKey && e.shiftKey && e.key === '%') { // % is Shift+5
         e.preventDefault();
         this.startScreenshot();
       }
-    });
+    };
+    document.addEventListener('keydown', this.screenshotKeyboardHandler);
 
     // Load saved tabs or create default tab (MUST AWAIT!)
     await this.loadSavedTabs();
@@ -262,31 +265,36 @@ class TabManager {
   }
 
   setupAutoSave() {
-    // Save state before window closes
-    window.addEventListener('beforeunload', () => {
+    // MEMORY LEAK FIX: Store handler references for proper cleanup
+    this.beforeUnloadHandler = () => {
       this.saveTabs();
-    });
+    };
 
-    // Auto-save every 30 seconds to prevent data loss
-    setInterval(() => {
-      this.saveTabs();
-    }, 30000);
-
-    // Save on visibility change (when user switches away)
-    document.addEventListener('visibilitychange', () => {
+    this.visibilityChangeHandler = () => {
       if (document.hidden) {
         this.saveTabs();
       }
-    });
+    };
+
+    // Save state before window closes
+    window.addEventListener('beforeunload', this.beforeUnloadHandler);
+
+    // OPTIMIZED: Debounced auto-save (was every 30s, now only when changed)
+    this.autoSaveInterval = setInterval(() => {
+      this.saveTabs();
+    }, 60000); // Increased to 60 seconds to reduce I/O
+
+    // Save on visibility change (when user switches away)
+    document.addEventListener('visibilitychange', this.visibilityChangeHandler);
 
     // MEMORY MANAGEMENT: Periodic cleanup of inactive tabs
     // Run every 5 minutes to prevent memory accumulation
-    setInterval(() => {
-      this.performMemoryCleanup();
-    }, 5 * 60 * 1000); // 5 minutes
+    // DISABLED:     setInterval(() => {
+    // DISABLED:       this.performMemoryCleanup();
+    // DISABLED:     }, 5 * 60 * 1000); // 5 minutes
 
     if (this.DEBUG_MODE) {
-      console.log('[TabManager] Auto-save and memory cleanup enabled');
+      console.log('[TabManager] Auto-save enabled (memory cleanup DISABLED)');
     }
   }
 
@@ -957,6 +965,14 @@ class TabManager {
   }
 
   saveTabs() {
+    // PERFORMANCE FIX: Debounce saves to prevent excessive I/O
+    clearTimeout(this._saveDebounceTimer);
+    this._saveDebounceTimer = setTimeout(() => {
+      this._doSaveTabs();
+    }, 1000); // Wait 1 second after last change before saving
+  }
+
+  _doSaveTabs() {
     try {
       // Don't save during restoration to avoid conflicts
       if (this.isRestoring) {
@@ -994,14 +1010,21 @@ class TabManager {
           timestamp: Date.now()
         };
 
-        localStorage.setItem('kolbo_tabs_state', JSON.stringify(state));
+        // PERFORMANCE FIX: Only save if state actually changed
+        const stateJson = JSON.stringify(state);
+        if (stateJson !== this._lastSavedState) {
+          localStorage.setItem('kolbo_tabs_state', stateJson);
+          this._lastSavedState = stateJson;
 
-        if (this.DEBUG_MODE) {
-        console.log('[TabManager] 💾 Saved', tabsData.length, 'tabs to localStorage');
-        }
+          if (this.DEBUG_MODE) {
+            console.log('[TabManager] 💾 Saved', tabsData.length, 'tabs to localStorage');
+          }
 
-        if (this.DEBUG_MODE) {
-          console.log('[TabManager] Saved state:', state);
+          if (this.DEBUG_MODE) {
+            console.log('[TabManager] Saved state:', state);
+          }
+        } else if (this.DEBUG_MODE) {
+          console.log('[TabManager] ⏭️  Skipped save (no changes)');
         }
       }
     } catch (error) {
@@ -1294,10 +1317,15 @@ class TabManager {
       }
 
       // Remove merged tab element and overlay from DOM
-      // Note: tab.iframe is the mergedContainer which includes divider and refresh buttons
-      // All children (divider, leftRefreshBtn, rightRefreshBtn) are automatically removed
+      // Note: tab.iframe is the mergedContainer which includes divider
+      // Refresh buttons are in split-presets container, so remove them separately
       tab.element.remove();
       tab.iframe.remove();
+
+      // Remove refresh buttons and separator from split-presets container
+      if (mergedData.separator) mergedData.separator.remove();
+      if (mergedData.leftRefreshBtn) mergedData.leftRefreshBtn.remove();
+      if (mergedData.rightRefreshBtn) mergedData.rightRefreshBtn.remove();
 
       // Remove from array BEFORE switching tabs (important for proper state)
       this.tabs.splice(tabIndex, 1);
@@ -1379,16 +1407,20 @@ class TabManager {
         // Clear src to unload content and free memory
         tab.iframe.src = 'about:blank';
 
-        // Remove all event listeners by cloning and replacing
-        const iframeClone = tab.iframe.cloneNode(false);
-        if (tab.iframe.parentNode) {
-          tab.iframe.parentNode.replaceChild(iframeClone, tab.iframe);
+        // MEMORY LEAK FIX: Wait for unload, then remove from DOM
+        // Using requestIdleCallback for better GC timing
+        if (window.requestIdleCallback) {
+          requestIdleCallback(() => {
+            if (tab.iframe && tab.iframe.parentNode) {
+              tab.iframe.remove();
+            }
+          });
+        } else {
+          // Fallback: immediate removal
+          tab.iframe.remove();
         }
 
-        // Remove the cloned iframe from DOM
-        iframeClone.remove();
-
-        // Clear reference to help garbage collection
+        // Clear reference immediately to help garbage collection
         tab.iframe = null;
 
         if (this.DEBUG_MODE) {
@@ -1397,8 +1429,14 @@ class TabManager {
       } catch (error) {
         console.error('[TabManager] Error cleaning up iframe:', error);
         // Fallback: just remove it
-        tab.iframe.remove();
-        tab.iframe = null;
+        if (tab.iframe) {
+          try {
+            tab.iframe.remove();
+          } catch (e) {
+            console.error('[TabManager] Could not remove iframe:', e);
+          }
+          tab.iframe = null;
+        }
       }
     }
 
@@ -1481,13 +1519,12 @@ class TabManager {
         this.mergedTabs.forEach((data, mergedId) => {
           if (mergedId !== tabId) {
             // CRITICAL: Hide iframes from other merged tabs
+            // PERFORMANCE FIX: Removed style.display = 'none' - CSS handles visibility now
             if (data.leftIframe) {
               data.leftIframe.classList.remove('active', 'split-left-iframe', 'split-right-iframe');
-              data.leftIframe.style.display = 'none'; // HIDE IT!
             }
             if (data.rightIframe) {
               data.rightIframe.classList.remove('active', 'split-left-iframe', 'split-right-iframe');
-              data.rightIframe.style.display = 'none'; // HIDE IT!
             }
           }
         });
@@ -1495,22 +1532,22 @@ class TabManager {
         // Hide all other merged tab overlay containers
         this.tabs.forEach(t => {
           if (t.isMerged && t.id !== tabId) {
-            t.iframe.style.display = 'none';
+            // PERFORMANCE FIX: Removed style.display = 'none' - CSS handles visibility
+            t.iframe.classList.remove('active');
           }
         });
 
         // Now show and activate THIS merged tab's iframes
         // First, ensure split classes are applied correctly
+        // PERFORMANCE FIX: Removed style.display - CSS handles visibility now
         mergedData.leftIframe.classList.remove('split-right-iframe'); // Remove wrong class if any
         mergedData.leftIframe.classList.add('active', 'split-left-iframe');
-        mergedData.leftIframe.style.display = 'block';
 
         mergedData.rightIframe.classList.remove('split-left-iframe'); // Remove wrong class if any
         mergedData.rightIframe.classList.add('active', 'split-right-iframe');
-        mergedData.rightIframe.style.display = 'block';
 
         // Show this merged tab's overlay container
-        tab.iframe.style.display = 'block';
+        tab.iframe.classList.add('active');
 
         if (this.DEBUG_MODE) {
           console.log('[TabManager] Activated split iframes for merged tab:', tabId);
@@ -1521,16 +1558,13 @@ class TabManager {
       // CRITICAL: This ensures when switching from split view to single tab,
       // the split view is completely hidden
       this.mergedTabs.forEach((data, mergedId) => {
-        // CRITICAL: Deactivate AND HIDE iframes from all merged tabs
+        // CRITICAL: Deactivate iframes from all merged tabs
+        // PERFORMANCE FIX: Removed style.display = 'none' - CSS handles visibility now
         if (data.leftIframe) {
           data.leftIframe.classList.remove('active', 'split-left-iframe', 'split-right-iframe');
-          // Remove from display completely
-          data.leftIframe.style.display = 'none';
         }
         if (data.rightIframe) {
           data.rightIframe.classList.remove('active', 'split-left-iframe', 'split-right-iframe');
-          // Remove from display completely
-          data.rightIframe.style.display = 'none';
         }
       });
 
@@ -1538,7 +1572,8 @@ class TabManager {
       // This ensures the split divider and overlay are not visible
       this.tabs.forEach(t => {
         if (t.isMerged) {
-          t.iframe.style.display = 'none';
+          // PERFORMANCE FIX: Removed style.display = 'none' - CSS handles visibility
+          t.iframe.classList.remove('active');
         }
       });
 
@@ -2191,12 +2226,57 @@ class TabManager {
 
   // Cleanup
   destroy() {
+    // MEMORY LEAK FIX: Remove all event listeners before destroying
+    if (this.beforeUnloadHandler) {
+      window.removeEventListener('beforeunload', this.beforeUnloadHandler);
+      this.beforeUnloadHandler = null;
+    }
+
+    if (this.visibilityChangeHandler) {
+      document.removeEventListener('visibilitychange', this.visibilityChangeHandler);
+      this.visibilityChangeHandler = null;
+    }
+
+    if (this.screenshotKeyboardHandler) {
+      document.removeEventListener('keydown', this.screenshotKeyboardHandler);
+      this.screenshotKeyboardHandler = null;
+    }
+
+    if (this.screenshotBtnHandler && this.screenshotBtn) {
+      this.screenshotBtn.removeEventListener('click', this.screenshotBtnHandler);
+      this.screenshotBtnHandler = null;
+    }
+
+    // Clear all intervals
+    if (this.autoSaveInterval) {
+      clearInterval(this.autoSaveInterval);
+      this.autoSaveInterval = null;
+    }
+
+    // Clear debounce timer
+    if (this._saveDebounceTimer) {
+      clearTimeout(this._saveDebounceTimer);
+      this._saveDebounceTimer = null;
+    }
+
+    // Clean up tabs and iframes
     this.tabs.forEach(tab => {
-      tab.element.remove();
-      tab.iframe.remove();
+      if (tab.iframe) {
+        tab.iframe.src = 'about:blank'; // Unload content first
+        tab.iframe.remove();
+        tab.iframe = null; // Clear reference for GC
+      }
+      if (tab.element) {
+        tab.element.remove();
+        tab.element = null;
+      }
     });
+
     this.tabs = [];
     this.activeTabId = null;
+    this._lastSavedState = null;
+
+    console.log('[TabManager] Destroyed and cleaned up all resources');
   }
 
   // ============================================================================
@@ -2278,18 +2358,20 @@ class TabManager {
     divider.style.left = '50%'; // Initial position
     mergedContainer.appendChild(divider);
 
-    // Create refresh buttons for each pane
+    // Create refresh buttons for split presets bar
+    // Add separator before refresh buttons
+    const separator = document.createElement('div');
+    separator.className = 'split-refresh-separator';
+
     const leftRefreshBtn = document.createElement('button');
     leftRefreshBtn.className = 'split-pane-refresh-btn split-pane-refresh-left';
     leftRefreshBtn.title = 'Refresh Left Pane';
     leftRefreshBtn.innerHTML = `
-      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
         <path d="M21.5 2v6h-6M2.5 22v-6h6M2 11.5a10 10 0 0 1 18.8-4.3M22 12.5a10 10 0 0 1-18.8 4.2"/>
       </svg>
+      <span>Left</span>
     `;
-    // Initial position for left button (50/50 split)
-    leftRefreshBtn.style.left = 'auto';
-    leftRefreshBtn.style.right = 'calc(50% + 12px)';
     leftRefreshBtn.addEventListener('click', (e) => {
       e.preventDefault();
       e.stopPropagation();
@@ -2300,21 +2382,23 @@ class TabManager {
     rightRefreshBtn.className = 'split-pane-refresh-btn split-pane-refresh-right';
     rightRefreshBtn.title = 'Refresh Right Pane';
     rightRefreshBtn.innerHTML = `
-      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
         <path d="M21.5 2v6h-6M2.5 22v-6h6M2 11.5a10 10 0 0 1 18.8-4.3M22 12.5a10 10 0 0 1-18.8 4.2"/>
       </svg>
+      <span>Right</span>
     `;
-    // Initial position for right button (50/50 split)
-    rightRefreshBtn.style.left = 'calc(50% + 12px)';
-    rightRefreshBtn.style.right = 'auto';
     rightRefreshBtn.addEventListener('click', (e) => {
       e.preventDefault();
       e.stopPropagation();
       this.refreshSplitPane(mergedTabId, 'right');
     });
 
-    mergedContainer.appendChild(leftRefreshBtn);
-    mergedContainer.appendChild(rightRefreshBtn);
+    // Append refresh buttons to split-presets container instead of merged overlay
+    if (this.splitPresetsContainer) {
+      this.splitPresetsContainer.appendChild(separator);
+      this.splitPresetsContainer.appendChild(leftRefreshBtn);
+      this.splitPresetsContainer.appendChild(rightRefreshBtn);
+    }
 
     // Add to DOM
     const newTabBtn = document.getElementById('new-tab-btn');
@@ -2349,6 +2433,7 @@ class TabManager {
       divider,
       leftIframe,  // Store iframe reference
       rightIframe, // Store iframe reference
+      separator,   // Store separator element reference
       leftRefreshBtn,  // Store left refresh button reference
       rightRefreshBtn, // Store right refresh button reference
       activePaneId: 'left',
@@ -2518,18 +2603,7 @@ class TabManager {
     // Update stored ratio
     mergedData.splitRatio = ratio;
 
-    // Update refresh button positions based on new split ratio
-    if (mergedData.leftRefreshBtn && mergedData.rightRefreshBtn) {
-      // Left button stays in the left pane (positioned relative to left edge)
-      // It uses the default CSS positioning (top: 12px, right: 12px within its containing area)
-      // But we need to constrain it to the left pane width
-      mergedData.leftRefreshBtn.style.left = 'auto';
-      mergedData.leftRefreshBtn.style.right = `calc(${rightPercent} + 12px)`;
-
-      // Right button positioned in the right pane
-      mergedData.rightRefreshBtn.style.left = `calc(${leftPercent} + 12px)`;
-      mergedData.rightRefreshBtn.style.right = 'auto';
-    }
+    // Refresh buttons are now in the split-presets bar and don't need repositioning
 
     // Update active state of preset buttons
     if (this.splitPresetsContainer) {

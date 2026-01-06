@@ -39,11 +39,15 @@ class KolboApp {
   static CONSTANTS = {
     // Performance
     FILTER_DEBOUNCE_DELAY: 300,           // ms to wait before applying filter
-    INFINITE_SCROLL_ROOT_MARGIN: '400px', // Distance before triggering load
+    INFINITE_SCROLL_ROOT_MARGIN: '200px', // Distance before triggering load (reduced from 400px for stability)
+    INFINITE_SCROLL_DEBOUNCE: 250,        // ms to debounce scroll trigger
+    INFINITE_SCROLL_COOLDOWN: 500,        // ms cooldown between page loads
     OPTIMAL_PAGE_SIZE_MIN: 12,            // Minimum items per page
     OPTIMAL_PAGE_SIZE_MAX: 50,            // Maximum items per page
     THUMBNAIL_PRELOAD_COUNT: 30,          // Number of thumbnails to preload
     CACHE_PRELOAD_COUNT: 20,              // Number of items to cache for drag-and-drop
+    MAX_EMPTY_RESPONSES: 3,               // Max consecutive empty responses before stopping
+    MAX_PAGES_LIMIT: 100,                 // Absolute safety limit on pages
 
     // Memory Management
     TAB_CLEANUP_INTERVAL: 2 * 60 * 1000,  // 2 minutes (reduced from 5)
@@ -81,6 +85,9 @@ class KolboApp {
     this.loadingMore = false;
     this.hasMore = false;
     this.totalItems = 0;
+    this.emptyResponseCount = 0;          // Track consecutive empty responses
+    this.lastLoadTime = 0;                // Timestamp of last page load
+    this.scrollDebounceTimer = null;      // Debounce timer for scroll trigger
 
     // Selection & Interaction State
     this.observer = null;
@@ -107,6 +114,7 @@ class KolboApp {
     this.cachedApiUrl = null;
     this.domCache = {};
     this.abortController = null;
+    this.mediaAbortController = null;      // Controls cancellation of media API requests
     this.filterDebounceTimer = null;
     this.filterDebounceDelay = KolboApp.CONSTANTS.FILTER_DEBOUNCE_DELAY;
     this.preloadAbortController = null; // Controls cancellation of preload operations
@@ -219,9 +227,19 @@ class KolboApp {
       this.filterDebounceTimer = null;
     }
 
+    if (this.scrollDebounceTimer) {
+      clearTimeout(this.scrollDebounceTimer);
+      this.scrollDebounceTimer = null;
+    }
+
     if (this.abortController) {
       this.abortController.abort();
       this.abortController = null;
+    }
+
+    if (this.mediaAbortController) {
+      this.mediaAbortController.abort();
+      this.mediaAbortController = null;
     }
 
     if (this.observer) {
@@ -482,9 +500,61 @@ class KolboApp {
   }
 
   showLoginScreen() {
-    document.getElementById('login-screen').classList.remove('hidden');
+    // First, hide other screens
     document.getElementById('media-screen').classList.add('hidden');
     document.getElementById('loading-overlay').classList.add('hidden');
+    
+    // Show login screen
+    const loginScreen = document.getElementById('login-screen');
+    loginScreen.classList.remove('hidden');
+    
+    // Use requestAnimationFrame to ensure DOM is ready and CSS is applied
+    requestAnimationFrame(() => {
+      // Force a reflow to ensure CSS is applied
+      void loginScreen.offsetHeight;
+      
+      // Ensure inputs are enabled and focusable
+      const emailInput = document.getElementById('email');
+      const passwordInput = document.getElementById('password');
+      const loginBtn = document.getElementById('login-btn');
+      const googleLoginBtn = document.getElementById('google-login-btn');
+      const togglePasswordBtn = document.getElementById('toggle-password');
+      
+      if (emailInput) {
+        emailInput.disabled = false;
+        emailInput.readOnly = false;
+        emailInput.style.pointerEvents = 'auto';
+        emailInput.style.userSelect = 'text';
+        emailInput.style.webkitUserSelect = 'text';
+      }
+      if (passwordInput) {
+        passwordInput.disabled = false;
+        passwordInput.readOnly = false;
+        passwordInput.style.pointerEvents = 'auto';
+        passwordInput.style.userSelect = 'text';
+        passwordInput.style.webkitUserSelect = 'text';
+      }
+      if (loginBtn) {
+        loginBtn.disabled = false;
+        loginBtn.style.pointerEvents = 'auto';
+      }
+      if (googleLoginBtn) {
+        googleLoginBtn.style.pointerEvents = 'auto';
+      }
+      if (togglePasswordBtn) {
+        togglePasswordBtn.style.pointerEvents = 'auto';
+      }
+      
+      // Ensure auth form and card are interactive
+      const authForm = document.querySelector('.auth-form');
+      const authCard = document.querySelector('.auth-card');
+      if (authForm) {
+        authForm.style.pointerEvents = 'auto';
+      }
+      if (authCard) {
+        authCard.style.pointerEvents = 'auto';
+      }
+    });
 
     // Re-initialize the background video to ensure it's properly displayed and interactive
     setTimeout(() => {
@@ -601,6 +671,10 @@ class KolboApp {
         if (this.DEBUG_MODE) {
           console.log('[View] TabManager initialized');
         }
+      } else {
+        // TabManager already exists - refresh tabs with current token
+        // This ensures tabs are authenticated if user logged in after TabManager was created
+        setTimeout(() => this.refreshWebappTabsWithToken(), 300);
       }
     } else if (view === 'settings') {
       settingsView?.classList.remove('hidden');
@@ -775,6 +849,12 @@ class KolboApp {
         await this.loadProjects();
         await this.loadMedia();
         this.showMediaScreen(false);
+        
+        // Refresh webapp tabs with new token if TabManager exists
+        // This ensures tabs are authenticated after login
+        if (this.tabManager) {
+          setTimeout(() => this.refreshWebappTabsWithToken(), 500);
+        }
       } else {
         errorEl.textContent = result.error || 'Login failed';
       }
@@ -784,6 +864,85 @@ class KolboApp {
     } finally {
       loginBtn.disabled = false;
       loginBtn.textContent = 'Sign In';
+    }
+  }
+
+  /**
+   * Refresh all webapp tabs with the current authentication token
+   * This ensures tabs are authenticated after login
+   */
+  refreshWebappTabsWithToken() {
+    if (!this.tabManager) return;
+    
+    // Sync token from main process first
+    if (window.kolboAPI && typeof window.kolboAPI.syncTokenFromMainProcess === 'function') {
+      window.kolboAPI.syncTokenFromMainProcess().then(() => {
+        const token = window.kolboAPI?.getToken();
+        if (token && this.tabManager) {
+          // Only refresh tabs that are already loaded (not currently loading)
+          // This prevents ERR_ABORTED (-3) errors from interrupting active loads
+          this.tabManager.tabs.forEach(tab => {
+            if (tab.iframe && tab.url && tab.loaded) {
+              try {
+                // Get current iframe URL to check if token needs updating
+                const currentSrc = tab.iframe.src;
+                const currentUrlObj = new URL(currentSrc);
+                const currentToken = currentUrlObj.searchParams.get('token');
+                
+                // Only refresh if token is missing or different
+                if (!currentToken || currentToken !== token) {
+                  // Build new URL from base tab.url (not current iframe src)
+                  const urlObj = new URL(tab.url);
+                  
+                  // Get API URL from config
+                  const apiUrl = window.KOLBO_CONFIG?.apiUrl || 'http://localhost:5050/api';
+                  
+                  // Remove old token and params if present
+                  urlObj.searchParams.delete('token');
+                  urlObj.searchParams.delete('embedded');
+                  urlObj.searchParams.delete('source');
+                  urlObj.searchParams.delete('apiUrl');
+                  
+                  // Add new token and embedded params
+                  urlObj.searchParams.set('embedded', 'true');
+                  urlObj.searchParams.set('source', 'desktop');
+                  urlObj.searchParams.set('token', token);
+                  urlObj.searchParams.set('apiUrl', apiUrl);
+                  
+                  // Only reload if the URL actually changed
+                  const newUrl = urlObj.toString();
+                  if (currentSrc !== newUrl) {
+                    // Reload iframe with new URL
+                    tab.iframe.src = newUrl;
+                    tab.loaded = false;
+                    
+                    if (this.DEBUG_MODE) {
+                      console.log(`[Main] 🔄 Refreshed tab ${tab.id} with new token`);
+                    }
+                  }
+                }
+              } catch (error) {
+                console.error(`[Main] Error refreshing tab ${tab.id}:`, error);
+              }
+            } else if (tab.iframe && tab.url && !tab.loaded) {
+              // Tab is still loading - wait for it to finish, then refresh
+              // Set up a one-time listener to refresh when load completes
+              const loadHandler = () => {
+                tab.iframe.removeEventListener('load', loadHandler);
+                // Small delay to ensure page is fully loaded
+                setTimeout(() => {
+                  if (tab.loaded) {
+                    this.refreshWebappTabsWithToken();
+                  }
+                }, 500);
+              };
+              tab.iframe.addEventListener('load', loadHandler, { once: true });
+            }
+          });
+        }
+      }).catch(error => {
+        console.error('[Main] Error syncing token for webapp refresh:', error);
+      });
     }
   }
 
@@ -807,6 +966,11 @@ class KolboApp {
           await this.loadProjects();
           await this.loadMedia();
           this.showMediaScreen(false);
+          
+          // Refresh webapp tabs with new token if TabManager exists
+          if (this.tabManager) {
+            setTimeout(() => this.refreshWebappTabsWithToken(), 500);
+          }
         }, 800);
       } else {
         errorEl.style.color = '#ef4444';
@@ -901,14 +1065,17 @@ class KolboApp {
     kolboAPI.logout();
     this.media = [];
     this.selectedItems.clear();
-    this.showLoginScreen();
-
+    
+    // Clear input values before showing login screen
     const emailInput = document.getElementById('email');
     const passwordInput = document.getElementById('password');
     const errorEl = document.getElementById('login-error');
     if (emailInput) emailInput.value = '';
     if (passwordInput) passwordInput.value = '';
     if (errorEl) errorEl.textContent = '';
+    
+    // Show login screen - this will ensure inputs are interactive
+    this.showLoginScreen();
   }
 
   handleFilter(e) {
@@ -1030,15 +1197,47 @@ class KolboApp {
   }
 
   loadMore() {
-    if (!this.hasMore || this.loadingMore) return;
+    // IMPROVED: Add multiple safety checks before loading
+    if (!this.hasMore || this.loadingMore || this.isLoading) {
+      if (this.DEBUG_MODE) {
+        console.log('[Infinite Scroll] Blocked - hasMore:', this.hasMore, 'loadingMore:', this.loadingMore, 'isLoading:', this.isLoading);
+      }
+      return;
+    }
+
+    // Safety: Check page limit
+    if (this.currentPage >= KolboApp.CONSTANTS.MAX_PAGES_LIMIT) {
+      console.warn('[Infinite Scroll] Hit page limit safety check:', this.currentPage);
+      this.hasMore = false;
+      return;
+    }
+
+    // IMPROVED: Cooldown period between loads
+    const now = Date.now();
+    const timeSinceLastLoad = now - this.lastLoadTime;
+    if (timeSinceLastLoad < KolboApp.CONSTANTS.INFINITE_SCROLL_COOLDOWN) {
+      if (this.DEBUG_MODE) {
+        console.log(`[Infinite Scroll] Cooldown active - wait ${KolboApp.CONSTANTS.INFINITE_SCROLL_COOLDOWN - timeSinceLastLoad}ms`);
+      }
+      return;
+    }
+
     if (this.DEBUG_MODE) {
       console.log('[Infinite Scroll] Loading more items...');
     }
+
+    this.lastLoadTime = now;
     this.loadMedia(false, true);
   }
 
   async loadMedia(forceRefresh = false, appendToExisting = false) {
     if (this.isLoading || (this.loadingMore && appendToExisting)) return;
+
+    // IMPROVED: Cancel any in-flight media request
+    if (this.mediaAbortController) {
+      this.mediaAbortController.abort();
+    }
+    this.mediaAbortController = new AbortController();
 
     const loadingEl = this.getElement('loading');
     const loadingMoreEl = this.getElement('loading-more');
@@ -1049,6 +1248,14 @@ class KolboApp {
     if (appendToExisting) {
       this.loadingMore = true;
       if (loadingMoreEl) loadingMoreEl.classList.remove('hidden');
+
+      // IMPROVED: Add visual feedback - dim container during load
+      const mediaContainer = this.getElement('media-container');
+      if (mediaContainer) {
+        mediaContainer.style.pointerEvents = 'none'; // Disable scrolling during load
+        mediaContainer.style.opacity = '0.7';
+      }
+
       this.currentPage++;
     } else {
       this.isLoading = true;
@@ -1060,6 +1267,9 @@ class KolboApp {
       errorEl.classList.add('hidden');
       this.currentPage = 1;
       this.media = [];
+      // IMPROVED: Reset safety counters on fresh load
+      this.emptyResponseCount = 0;
+      this.lastLoadTime = 0;
     }
 
     try {
@@ -1117,11 +1327,35 @@ class KolboApp {
       const newItems = (response.data && response.data.items) || [];
       const pagination = (response.data && response.data.pagination) || {};
 
+      // IMPROVED: Track empty responses to prevent infinite loops
+      if (appendToExisting && newItems.length === 0 && pagination.hasNext) {
+        this.emptyResponseCount++;
+        if (this.DEBUG_MODE) {
+          console.warn(`[Media] Empty response ${this.emptyResponseCount}/${KolboApp.CONSTANTS.MAX_EMPTY_RESPONSES} (hasNext=true but 0 items)`);
+        }
+        if (this.emptyResponseCount >= KolboApp.CONSTANTS.MAX_EMPTY_RESPONSES) {
+          console.warn('[Media] Hit max empty responses - stopping pagination');
+          this.hasMore = false;
+          if (loadingMoreEl) loadingMoreEl.classList.add('hidden');
+          return;
+        }
+      } else if (newItems.length > 0) {
+        // Reset counter on successful load
+        this.emptyResponseCount = 0;
+      }
+
       if (appendToExisting) {
         // Append new items, avoiding duplicates
         const existingIds = new Set(this.media.map(item => item.id));
         const uniqueNewItems = newItems.filter(item => !existingIds.has(item.id));
         this.media = [...this.media, ...uniqueNewItems];
+
+        // IMPROVED: Check if we actually added anything (duplicates check)
+        if (uniqueNewItems.length === 0 && newItems.length > 0) {
+          if (this.DEBUG_MODE) {
+            console.warn('[Media] Received duplicate items - all filtered out');
+          }
+        }
       } else {
         this.media = newItems;
       }
@@ -1135,6 +1369,14 @@ class KolboApp {
 
       if (appendToExisting) {
         if (loadingMoreEl) loadingMoreEl.classList.add('hidden');
+
+        // IMPROVED: Restore visual feedback
+        const mediaContainer = this.getElement('media-container');
+        if (mediaContainer) {
+          mediaContainer.style.pointerEvents = 'auto';
+          mediaContainer.style.opacity = '1';
+        }
+
         this.renderMedia();
         this.setupInfiniteScroll();
       } else {
@@ -1150,6 +1392,13 @@ class KolboApp {
       console.error('Failed to load media:', error);
       if (appendToExisting) {
         if (loadingMoreEl) loadingMoreEl.classList.add('hidden');
+
+        // IMPROVED: Restore visual state on error
+        const mediaContainer = this.getElement('media-container');
+        if (mediaContainer) {
+          mediaContainer.style.pointerEvents = 'auto';
+          mediaContainer.style.opacity = '1';
+        }
       } else {
         loadingEl.classList.add('hidden');
         errorEl.classList.remove('hidden');
@@ -1161,18 +1410,25 @@ class KolboApp {
   }
 
   setupInfiniteScroll() {
-    // Reuse existing observer if available
+    // IMPROVED: Create observer with debounced callback
     if (!this.observer) {
       this.observer = new IntersectionObserver(
         (entries) => {
-          if (entries[0].isIntersecting && !this.loadingMore) {
-            if (this.DEBUG_MODE) {
-              console.log('[Infinite Scroll] Trigger visible, loading more...');
-            }
-            this.loadMore();
+          if (entries[0].isIntersecting && !this.loadingMore && !this.isLoading) {
+            // IMPROVED: Debounce the trigger to prevent rapid-fire loads during fast scrolling
+            clearTimeout(this.scrollDebounceTimer);
+            this.scrollDebounceTimer = setTimeout(() => {
+              if (this.DEBUG_MODE) {
+                console.log('[Infinite Scroll] Trigger visible (debounced), loading more...');
+              }
+              this.loadMore();
+            }, KolboApp.CONSTANTS.INFINITE_SCROLL_DEBOUNCE);
           }
         },
-        { rootMargin: KolboApp.CONSTANTS.INFINITE_SCROLL_ROOT_MARGIN } // Start loading when trigger is 400px from viewport
+        {
+          rootMargin: KolboApp.CONSTANTS.INFINITE_SCROLL_ROOT_MARGIN,
+          threshold: 0.1  // Only trigger when at least 10% visible
+        }
       );
     }
 
@@ -1201,7 +1457,7 @@ class KolboApp {
     this.observer.observe(trigger);
 
     if (this.DEBUG_MODE) {
-      console.log('[Infinite Scroll] Observer setup complete');
+      console.log('[Infinite Scroll] Observer setup complete with debouncing');
     }
   }
 
@@ -2547,6 +2803,24 @@ class KolboApp {
       }
     }
   }
+
+        // Setup Billing button
+        const billingBtn = document.getElementById('billing-btn');
+        if (billingBtn && window.kolboDesktop) {
+          if (!billingBtn.hasAttribute('data-listener-attached')) {
+            billingBtn.setAttribute('data-listener-attached', 'true');
+            billingBtn.addEventListener('click', () => {
+              // Build billing URL based on current environment
+              const webappUrl = window.KOLBO_CONFIG?.webappUrl || 'https://app.kolbo.ai';
+              const billingUrl = `${webappUrl}/billing`;
+
+              if (this.DEBUG_MODE) {
+                console.log('[Settings] Opening billing page:', billingUrl);
+              }
+              window.kolboDesktop.openExternal(billingUrl);
+            });
+          }
+        }
 
   // Setup update event listeners on app startup
   setupDragEventListeners() {

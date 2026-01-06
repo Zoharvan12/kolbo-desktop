@@ -135,9 +135,34 @@ Both desktop app and web app use the same API endpoints:
 | **Localhost** | `http://localhost:5050/api` | `http://localhost:8080` |
 
 **Configuration:**
-- Set via `localStorage.API_BASE_URL`
-- Auto-detected based on environment
+- Desktop app auto-detects environment and passes API URL to webapp via:
+  1. **URL parameter**: `?apiUrl=http://localhost:5050/api` (in iframe URL)
+  2. **postMessage**: `{ type: 'KOLBO_DESKTOP_CONFIG', apiUrl: '...', environment: '...' }` (sent when iframe loads)
+- Webapp should read API URL from URL parameter or postMessage and set `localStorage.API_BASE_URL`
 - Can be changed in debug console (Ctrl+Shift+D)
+
+**Webapp Implementation Required:**
+```javascript
+// In webapp's embedded mode handler or initialization code:
+
+// Method 1: Read from URL parameter
+const urlParams = new URLSearchParams(window.location.search);
+const apiUrl = urlParams.get('apiUrl');
+if (apiUrl) {
+  localStorage.setItem('API_BASE_URL', apiUrl);
+}
+
+// Method 2: Listen for postMessage from desktop app
+window.addEventListener('message', (event) => {
+  if (event.data && event.data.type === 'KOLBO_DESKTOP_CONFIG') {
+    if (event.data.apiUrl) {
+      localStorage.setItem('API_BASE_URL', event.data.apiUrl);
+      // Reconfigure API client with new URL
+      // (implementation depends on your API client setup)
+    }
+  }
+});
+```
 
 ## Debugging Authentication
 

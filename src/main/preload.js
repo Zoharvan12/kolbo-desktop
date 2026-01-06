@@ -91,6 +91,10 @@ contextBridge.exposeInMainWorld('kolboDesktop', {
   isFileCached: (fileName) =>
     ipcRenderer.invoke('cache:is-cached', { fileName }),
 
+  // PERFORMANCE FIX: Batch cache check to reduce IPC calls
+  batchIsFileCached: (fileNames) =>
+    ipcRenderer.invoke('cache:batch-is-cached', fileNames),
+
   openCacheFolder: () =>
     ipcRenderer.invoke('cache:open-folder'),
 

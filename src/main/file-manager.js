@@ -22,6 +22,8 @@ class FileManager {
     ipcMain.handle('cache:get-size', this.getCacheSize.bind(this));
     ipcMain.handle('cache:clear', this.clearCache.bind(this));
     ipcMain.handle('cache:is-cached', this.isFileCached.bind(this));
+    // PERFORMANCE FIX: Batch cache check to reduce IPC overhead
+    ipcMain.handle('cache:batch-is-cached', this.batchIsFileCached.bind(this));
     ipcMain.handle('media:get', this.getMedia.bind(this));
     ipcMain.handle('media:get-projects', this.getProjects.bind(this));
 
@@ -36,6 +38,20 @@ class FileManager {
     const filePath = path.join(CACHE_DIR, fileName);
     const exists = fs.existsSync(filePath);
     return { cached: exists, filePath };
+  }
+
+  // PERFORMANCE FIX: Batch check multiple files at once (reduces IPC overhead)
+  static batchIsFileCached(event, fileNames) {
+    if (!Array.isArray(fileNames)) {
+      console.error('[FileManager] batchIsFileCached expects array, got:', typeof fileNames);
+      return [];
+    }
+
+    return fileNames.map(fileName => {
+      const filePath = path.join(CACHE_DIR, fileName);
+      const exists = fs.existsSync(filePath);
+      return { fileName, cached: exists, filePath };
+    });
   }
 
   static ensureCacheDir() {
@@ -105,16 +121,6 @@ class FileManager {
   }
 
   static async downloadFile(event, { url, fileName }) {
-    const filePath = path.join(CACHE_DIR, fileName);
-
-    // Check if already cached
-    if (fs.existsSync(filePath)) {
-      // Update access time for future reference
-      fs.utimesSync(filePath, new Date(), new Date());
-      console.log('[FileManager] File already cached:', fileName);
-      return { success: true, filePath };
-    }
-
     // Check disk space before downloading (estimate 100MB if size unknown)
     const estimatedSize = 100 * 1024 * 1024; // 100MB default estimate
     const spaceCheck = await this.hasEnoughDiskSpace(estimatedSize, CACHE_DIR);
@@ -136,6 +142,22 @@ class FileManager {
     // Warn user if low disk space
     if (spaceCheck.message && spaceCheck.hasSpace) {
       console.warn('[FileManager]', spaceCheck.message);
+    }
+
+    // Generate unique filename if file already exists
+    let filePath = path.join(CACHE_DIR, fileName);
+    let counter = 1;
+    const ext = path.extname(fileName);
+    const base = path.basename(fileName, ext);
+
+    while (fs.existsSync(filePath)) {
+      filePath = path.join(CACHE_DIR, `${base} (${counter})${ext}`);
+      counter++;
+    }
+
+    // If filename was changed, log it
+    if (counter > 1) {
+      console.log('[FileManager] File exists, using unique name:', path.basename(filePath));
     }
 
     // Download file
@@ -167,7 +189,7 @@ class FileManager {
 
         file.on('finish', () => {
           file.close();
-          console.log('[FileManager] Downloaded:', fileName);
+          console.log('[FileManager] Downloaded:', path.basename(filePath));
           resolve({ success: true, filePath });
         });
       });
@@ -251,18 +273,20 @@ class FileManager {
 
     for (const item of items) {
       try {
-        const filePath = path.join(targetFolder, item.fileName);
+        // Generate unique filename if file already exists
+        let filePath = path.join(targetFolder, item.fileName);
+        let counter = 1;
+        const ext = path.extname(item.fileName);
+        const base = path.basename(item.fileName, ext);
 
-        // Check if file already exists
-        if (fs.existsSync(filePath)) {
-          console.log('[FileManager] File already exists, skipping:', item.fileName);
-          results.push({
-            success: true,
-            fileName: item.fileName,
-            filePath,
-            skipped: true
-          });
-          continue;
+        while (fs.existsSync(filePath)) {
+          filePath = path.join(targetFolder, `${base} (${counter})${ext}`);
+          counter++;
+        }
+
+        // If filename was changed, log it
+        if (counter > 1) {
+          console.log('[FileManager] File exists, using unique name:', path.basename(filePath));
         }
 
         // Download file
@@ -297,7 +321,7 @@ class FileManager {
 
             file.on('finish', () => {
               file.close();
-              console.log('[FileManager] Downloaded:', item.fileName);
+              console.log('[FileManager] Downloaded:', path.basename(filePath));
               resolve();
             });
           });
@@ -347,7 +371,7 @@ class FileManager {
 
         results.push({
           success: true,
-          fileName: item.fileName,
+          fileName: path.basename(filePath),
           filePath
         });
 

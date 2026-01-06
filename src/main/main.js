@@ -26,8 +26,22 @@ let tray = null;
 // Additional Windows compatibility flags
 app.commandLine.appendSwitch('no-sandbox');
 app.commandLine.appendSwitch('disable-dev-shm-usage');
+
+// Performance: Increase HTTP disk cache to 500MB (default is ~50MB)
+// This significantly improves performance for repeat page loads
+app.commandLine.appendSwitch('disk-cache-size', '524288000'); // 500MB in bytes
+
+// Enable modern Chromium performance features
+app.commandLine.appendSwitch('enable-features', 'NetworkService,NetworkServiceInProcess,CanvasOopRasterization,VaapiVideoDecoder');
+
+// Hardware acceleration flags for better rendering performance
+app.commandLine.appendSwitch('enable-gpu-rasterization');
+app.commandLine.appendSwitch('enable-zero-copy');
+app.commandLine.appendSwitch('enable-accelerated-video-decode');
+
+// Legacy GPU flags (kept commented for reference - do NOT enable unless debugging)
 // app.commandLine.appendSwitch('in-process-gpu');
-// app.commandLine.appendSwitch('disable-gpu');
+// app.commandLine.appendSwitch('disable-gpu');  // Would disable all GPU acceleration!
 // app.commandLine.appendSwitch('disable-gpu-compositing');
 // app.commandLine.appendSwitch('disable-gpu-sandbox');
 
@@ -40,8 +54,10 @@ const heapSizeMB = heapSizeGB * 1024;
 
 // Apply the dynamic limit
 app.commandLine.appendSwitch('js-flags', `--max-old-space-size=${heapSizeMB}`);
-// Enable memory optimization
-app.commandLine.appendSwitch('js-flags', '--optimize-for-size');
+// Enable speed optimization instead of size (better performance for embedded webapp)
+app.commandLine.appendSwitch('js-flags', '--optimize-for-speed');
+// Enable TurboFan fast API calls for better performance
+app.commandLine.appendSwitch('js-flags', '--turbo-fast-api-calls');
 
 console.log('[Main] System RAM:', totalRAM.toFixed(2), 'GB');
 console.log('[Main] V8 heap limit (50% of RAM):', heapSizeGB, 'GB (', heapSizeMB, 'MB)');
@@ -96,10 +112,11 @@ function createWindow() {
         return preloadPath;
       })(),
       webSecurity: process.env.NODE_ENV === 'development' ? false : true,  // Disabled in dev for CORS/CSP
-      // Memory optimization settings to prevent crashes
-      v8CacheOptions: 'code',      // Cache compiled code for better memory efficiency
+      // Performance optimization settings
+      v8CacheOptions: 'bypassHeatCheck',  // Aggressive caching for faster execution (was 'code')
       enableWebSQL: false,         // Disable unused WebSQL to save memory
-      spellcheck: false            // Disable spellcheck to reduce memory overhead
+      spellcheck: false,           // Disable spellcheck to reduce memory overhead
+      backgroundThrottling: false  // Don't throttle background tabs for better responsiveness
     },
     show: true // Show immediately for debugging
   });
@@ -135,6 +152,43 @@ function createWindow() {
   // Log console messages from renderer
   mainWindow.webContents.on('console-message', (event, level, message, line, sourceId) => {
     console.log('[Renderer]', message);
+  });
+
+  // Intercept window.open() calls to download files instead of opening in new tabs
+  mainWindow.webContents.setWindowOpenHandler(({ url }) => {
+    console.log('[Main] Window open intercepted:', url);
+
+    // Check if URL is a downloadable file (PDF, images, videos, documents, etc.)
+    const downloadableExtensions = [
+      '.pdf', '.doc', '.docx', '.xls', '.xlsx', '.ppt', '.pptx',
+      '.zip', '.rar', '.7z', '.tar', '.gz',
+      '.mp4', '.mov', '.avi', '.mkv', '.webm',
+      '.mp3', '.wav', '.flac', '.ogg',
+      '.png', '.jpg', '.jpeg', '.gif', '.webp', '.svg',
+      '.txt', '.csv', '.json', '.xml'
+    ];
+
+    const urlLower = url.toLowerCase();
+    const isDownloadable = downloadableExtensions.some(ext => urlLower.includes(ext));
+
+    if (isDownloadable) {
+      console.log('[Main] Downloadable file detected - triggering download instead of new window');
+
+      // Trigger download by navigating to URL in hidden way
+      // The will-download handler will catch this and handle the download
+      mainWindow.webContents.downloadURL(url);
+
+      // Deny the window.open() request
+      return { action: 'deny' };
+    }
+
+    // For non-downloadable URLs, allow them to open in default browser
+    console.log('[Main] Non-downloadable URL - opening in external browser');
+    const { shell } = require('electron');
+    shell.openExternal(url);
+
+    // Deny the window.open() in Electron (already opened externally)
+    return { action: 'deny' };
   });
 
   // Crash detection and recovery handlers
@@ -200,7 +254,19 @@ function createWindow() {
   });
 
   mainWindow.on('closed', () => {
+    // MEMORY LEAK FIX: Clean up all event listeners when window closes
+    // This prevents accumulation of listeners if multiple windows are created/destroyed
+    if (mainWindow && mainWindow.webContents) {
+      // Remove all webContents event listeners
+      mainWindow.webContents.removeAllListeners('did-fail-load');
+      mainWindow.webContents.removeAllListeners('did-finish-load');
+      mainWindow.webContents.removeAllListeners('console-message');
+      mainWindow.webContents.removeAllListeners('render-process-gone');
+      console.log('[Main] Cleaned up window event listeners');
+    }
+
     mainWindow = null;
+    console.log('[Main] Window closed and cleaned up');
   });
 
   // Dev tools in development
@@ -471,6 +537,42 @@ function setupWindowHandlers() {
         webSecurity: process.env.NODE_ENV === 'development' ? false : true,
         additionalArguments: url ? [`--tab-url=${url}`] : []
       }
+    });
+
+    // Intercept window.open() calls to download files instead of opening in new tabs
+    newWindow.webContents.setWindowOpenHandler(({ url }) => {
+      console.log('[Main] Window open intercepted (new window):', url);
+
+      // Check if URL is a downloadable file (PDF, images, videos, documents, etc.)
+      const downloadableExtensions = [
+        '.pdf', '.doc', '.docx', '.xls', '.xlsx', '.ppt', '.pptx',
+        '.zip', '.rar', '.7z', '.tar', '.gz',
+        '.mp4', '.mov', '.avi', '.mkv', '.webm',
+        '.mp3', '.wav', '.flac', '.ogg',
+        '.png', '.jpg', '.jpeg', '.gif', '.webp', '.svg',
+        '.txt', '.csv', '.json', '.xml'
+      ];
+
+      const urlLower = url.toLowerCase();
+      const isDownloadable = downloadableExtensions.some(ext => urlLower.includes(ext));
+
+      if (isDownloadable) {
+        console.log('[Main] Downloadable file detected - triggering download instead of new window');
+
+        // Trigger download by navigating to URL in hidden way
+        // The will-download handler will catch this and handle the download
+        newWindow.webContents.downloadURL(url);
+
+        // Deny the window.open() request
+        return { action: 'deny' };
+      }
+
+      // For non-downloadable URLs, allow them to open in default browser
+      console.log('[Main] Non-downloadable URL - opening in external browser');
+      shell.openExternal(url);
+
+      // Deny the window.open() in Electron (already opened externally)
+      return { action: 'deny' };
     });
 
     // Store URL in a global for this window to access
@@ -1298,10 +1400,13 @@ function setupDownloadHandler() {
  * This is CRITICAL for Mac - without this, file uploads crash the app
  */
 function setupPermissionHandlers() {
-  const { session } = require('electron');
+  const { session, systemPreferences } = require('electron');
+
+  // Track if we've already requested system permissions to prevent infinite loops
+  const requestedPermissions = new Set();
 
   // Handle permission requests from web content (iframes)
-  session.defaultSession.setPermissionRequestHandler((webContents, permission, callback) => {
+  session.defaultSession.setPermissionRequestHandler(async (webContents, permission, callback) => {
     console.log('[Permissions] Permission requested:', permission);
 
     // Auto-grant permissions needed for file uploads and media access
@@ -1321,12 +1426,87 @@ function setupPermissionHandlers() {
       'microphone'         // Microphone access (for file uploads)
     ];
 
-    if (allowedPermissions.includes(permission)) {
-      console.log(`[Permissions] ✅ Granted: ${permission}`);
-      callback(true);
-    } else {
+    if (!allowedPermissions.includes(permission)) {
       console.log(`[Permissions] ❌ Denied: ${permission}`);
       callback(false);
+      return;
+    }
+
+    // For macOS, check system-level permissions for media devices
+    // This prevents the infinite popup loop by only requesting once
+    if (process.platform === 'darwin' && (permission === 'media' || permission === 'camera' || permission === 'microphone')) {
+      const mediaType = permission === 'microphone' ? 'microphone' : 'camera';
+
+      // Create a unique key for this permission request
+      const permissionKey = `${mediaType}_${Date.now()}`;
+
+      // Check if we've already requested this permission in the last 5 seconds
+      const recentRequest = Array.from(requestedPermissions).find(key => {
+        const [type, timestamp] = key.split('_');
+        return type === mediaType && (Date.now() - parseInt(timestamp)) < 5000;
+      });
+
+      if (recentRequest) {
+        // We already requested this recently, just grant without asking again
+        console.log(`[Permissions] ✅ Granted (cached): ${permission}`);
+        callback(true);
+        return;
+      }
+
+      // Mark this permission as requested
+      requestedPermissions.add(permissionKey);
+
+      // Clean up old entries (older than 5 seconds)
+      setTimeout(() => {
+        requestedPermissions.delete(permissionKey);
+      }, 5000);
+
+      try {
+        // Check macOS system permission status
+        const status = systemPreferences.getMediaAccessStatus(mediaType);
+        console.log(`[Permissions] macOS ${mediaType} status:`, status);
+
+        if (status === 'granted') {
+          // Already granted at system level
+          console.log(`[Permissions] ✅ Granted (system): ${permission}`);
+          callback(true);
+        } else if (status === 'denied') {
+          // User denied at system level - show helpful message
+          console.log(`[Permissions] ❌ Denied (system): ${permission}`);
+
+          const { dialog } = require('electron');
+          dialog.showMessageBox(mainWindow, {
+            type: 'warning',
+            title: `${mediaType === 'camera' ? 'Camera' : 'Microphone'} Access Denied`,
+            message: `Kolbo Studio needs ${mediaType} access`,
+            detail: `Please enable ${mediaType} access in System Preferences → Security & Privacy → Privacy → ${mediaType === 'camera' ? 'Camera' : 'Microphone'}`,
+            buttons: ['OK']
+          });
+
+          callback(false);
+        } else if (status === 'not-determined' || status === 'restricted') {
+          // Need to request permission - this will show the system dialog ONCE
+          console.log(`[Permissions] 🔄 Requesting macOS ${mediaType} permission...`);
+
+          // Request access - this triggers the macOS system dialog
+          const granted = await systemPreferences.askForMediaAccess(mediaType);
+
+          console.log(`[Permissions] ${granted ? '✅' : '❌'} macOS ${mediaType} permission ${granted ? 'granted' : 'denied'}`);
+          callback(granted);
+        } else {
+          // Unknown status, grant anyway
+          console.log(`[Permissions] ✅ Granted (unknown status): ${permission}`);
+          callback(true);
+        }
+      } catch (error) {
+        console.error(`[Permissions] Error checking ${mediaType} permission:`, error);
+        // On error, grant anyway (might not be macOS)
+        callback(true);
+      }
+    } else {
+      // For non-macOS or other permissions, just grant
+      console.log(`[Permissions] ✅ Granted: ${permission}`);
+      callback(true);
     }
   });
 
@@ -1429,7 +1609,9 @@ class MediaCache {
     this.cacheIndex = new Map(); // id -> { filePath, lastAccessed, size, type }
     this.thumbnailIndex = new Map(); // id -> { filePath, lastAccessed, size }
     this.maxCacheSize = 5 * 1024 * 1024 * 1024; // 5GB
-    this.maxCacheItems = 100;
+    // PERFORMANCE FIX: Increased from 100 to 500 to prevent cache thrashing
+    // (100 was too small, causing constant download→evict→re-download cycles)
+    this.maxCacheItems = 500;
     this.downloadQueue = new Map(); // id -> Promise
     this.thumbnailQueue = new Map(); // id -> Promise
 
@@ -1587,23 +1769,38 @@ class MediaCache {
     const path = require('path');
     const fs = require('fs');
 
-    const filePath = path.join(this.cachePath, fileName);
+    // Generate unique filename if file already exists
+    let filePath = path.join(this.cachePath, fileName);
+    let counter = 1;
+    const ext = path.extname(fileName);
+    const base = path.basename(fileName, ext);
+
+    while (fs.existsSync(filePath)) {
+      filePath = path.join(this.cachePath, `${base} (${counter})${ext}`);
+      counter++;
+    }
+
+    // If filename was changed, log it
+    if (counter > 1) {
+      console.log(`[MediaCache] File exists, using unique name: ${path.basename(filePath)}`);
+    }
 
     // Start download
     const downloadPromise = this.downloadFile(url, filePath)
       .then(() => {
         const stats = fs.statSync(filePath);
+        const actualFileName = path.basename(filePath);
 
         // Add to cache index
         this.cacheIndex.set(id, {
           filePath,
           lastAccessed: Date.now(),
           size: stats.size,
-          fileName,
+          fileName: actualFileName,
           type
         });
 
-        console.log(`[MediaCache] Downloaded ${fileName} (${(stats.size / 1024 / 1024).toFixed(2)} MB)`);
+        console.log(`[MediaCache] Downloaded ${actualFileName} (${(stats.size / 1024 / 1024).toFixed(2)} MB)`);
 
         // Check cache size and evict if needed
         this.evictOldItemsIfNeeded();
@@ -1612,7 +1809,7 @@ class MediaCache {
         return filePath;
       })
       .catch(err => {
-        console.error(`[MediaCache] Failed to download ${fileName}:`, err);
+        console.error(`[MediaCache] Failed to download ${path.basename(filePath)}:`, err);
         this.downloadQueue.delete(id);
         throw err;
       });
@@ -2466,9 +2663,81 @@ function setupMemoryMonitoring() {
   console.log('[Memory Monitor] Monitoring enabled (check every 60s, cleanup at 80%, warn at 90%, critical at 95%)');
 }
 
+// Setup session to modify CSP headers for iframe compatibility
+function setupSessionCSP() {
+  const { session } = require('electron');
+  const defaultSession = session.defaultSession;
+
+  // Intercept headers to modify CSP for iframe compatibility
+  // PERFORMANCE: Use URL filter to avoid processing non-Kolbo URLs (reduces overhead)
+  defaultSession.webRequest.onHeadersReceived(
+    { urls: ['*://localhost/*', '*://*.kolbo.ai/*', '*://staging.kolbo.ai/*'] },
+    (details, callback) => {
+      // Only modify CSP for localhost (development) or web app URLs
+      // URL filtering already done by filter above, so we know this is a Kolbo URL
+      try {
+        if (details.responseHeaders) {
+          // Helper function to modify CSP header
+          const modifyCSP = (headerName) => {
+            if (details.responseHeaders[headerName]) {
+              const cspArray = Array.isArray(details.responseHeaders[headerName])
+                ? details.responseHeaders[headerName]
+                : [details.responseHeaders[headerName]];
+
+              const modifiedCSP = cspArray.map(csp => {
+                // Replace frame-ancestors * with explicit protocols including file://
+                // Also handle cases where frame-ancestors might be missing
+                if (csp.includes('frame-ancestors')) {
+                  return csp.replace(
+                    /frame-ancestors\s+[^;]+/gi,
+                    "frame-ancestors * file:// app:// http:// https://"
+                  );
+                } else if (csp.includes("'self'") || csp.includes('*')) {
+                  // If no frame-ancestors directive, add it
+                  return csp + "; frame-ancestors * file:// app:// http:// https://";
+                }
+                return csp;
+              });
+
+              details.responseHeaders[headerName] = modifiedCSP;
+            }
+          };
+
+          // Modify both lowercase and mixed-case CSP headers
+          modifyCSP('content-security-policy');
+          modifyCSP('Content-Security-Policy');
+        }
+      } catch (error) {
+        // Error processing headers, just pass through
+        console.warn('[Main] Error modifying CSP headers:', error);
+      }
+
+      callback({ responseHeaders: details.responseHeaders });
+    }
+  );
+
+  console.log('[Main] Session CSP modification enabled for iframe compatibility (optimized with URL filters)');
+}
+
 // App ready
 app.whenReady().then(() => {
   console.log('[Main] App ready, creating window and tray');
+
+  // PERFORMANCE FIX: Clear corrupted GPU cache to fix rendering issues
+  // GPU cache can become corrupted and cause "Unable to create cache" errors
+  const gpuCachePath = path.join(app.getPath('userData'), 'GPUCache');
+  try {
+    if (require('fs').existsSync(gpuCachePath)) {
+      require('fs').rmSync(gpuCachePath, { recursive: true, force: true });
+      console.log('[Main] Cleared GPU cache to prevent corruption issues');
+    }
+  } catch (error) {
+    console.error('[Main] Could not clear GPU cache:', error.message);
+    // Non-fatal, continue anyway
+  }
+
+  // Setup session CSP modification (must be before creating window)
+  setupSessionCSP();
 
   // Run first-time setup (enables auto-launch on first install)
   setupFirstTimeDefaults();
