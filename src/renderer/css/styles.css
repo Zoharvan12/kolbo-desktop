@@ -2149,6 +2149,40 @@ body.is-mac .window-controls {
   font-size: 13px;
 }
 
+/* Loading More Spinner - positioned at bottom during infinite scroll */
+#loading-more {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  height: auto;
+  min-height: 80px;
+  padding: 20px 0;
+  width: 100%;
+  color: rgb(var(--muted-foreground));
+  transition: opacity 0.3s ease;
+}
+
+#loading-more.hidden {
+  display: none !important;
+}
+
+#loading-more .spinner {
+  width: 32px;
+  height: 32px;
+  border: 3px solid rgb(var(--border));
+  border-top-color: rgb(var(--primary));
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+  margin-bottom: 12px;
+}
+
+#loading-more p {
+  font-size: 12px;
+  color: rgb(var(--muted-foreground));
+  margin: 0;
+}
+
 /* Empty State */
 .empty-state {
   display: flex;

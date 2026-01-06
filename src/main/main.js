@@ -207,9 +207,11 @@ function createWindow() {
       detail: `Reason: ${details.reason}\n\nThe app will reload automatically to recover.`,
       buttons: ['Reload Now']
     }).then(() => {
-      // Reload the app
-      mainWindow.reload();
-      console.log('[Main] App reloaded after crash');
+      // Reload the app (check if window still exists)
+      if (mainWindow && !mainWindow.isDestroyed()) {
+        mainWindow.reload();
+        console.log('[Main] App reloaded after crash');
+      }
     });
   });
 
@@ -227,9 +229,11 @@ function createWindow() {
       defaultId: 1
     }).then(({ response }) => {
       if (response === 1) {
-        // User chose to reload
-        mainWindow.reload();
-        console.log('[Main] App reloaded after becoming unresponsive');
+        // User chose to reload (check if window still exists)
+        if (mainWindow && !mainWindow.isDestroyed()) {
+          mainWindow.reload();
+          console.log('[Main] App reloaded after becoming unresponsive');
+        }
       }
     });
   });
@@ -249,22 +253,22 @@ function createWindow() {
       console.log('[Main] Window hidden to tray (macOS)');
     } else {
       // Windows/Linux: actually quit
+      // MEMORY LEAK FIX: Clean up all event listeners when window closes
+      // This must be done in 'close' event (before destruction), not 'closed' event
+      if (mainWindow && !mainWindow.isDestroyed() && mainWindow.webContents) {
+        // Remove all webContents event listeners
+        mainWindow.webContents.removeAllListeners('did-fail-load');
+        mainWindow.webContents.removeAllListeners('did-finish-load');
+        mainWindow.webContents.removeAllListeners('console-message');
+        mainWindow.webContents.removeAllListeners('render-process-gone');
+        console.log('[Main] Cleaned up window event listeners');
+      }
       console.log('[Main] Window closing, app will quit');
     }
   });
 
   mainWindow.on('closed', () => {
-    // MEMORY LEAK FIX: Clean up all event listeners when window closes
-    // This prevents accumulation of listeners if multiple windows are created/destroyed
-    if (mainWindow && mainWindow.webContents) {
-      // Remove all webContents event listeners
-      mainWindow.webContents.removeAllListeners('did-fail-load');
-      mainWindow.webContents.removeAllListeners('did-finish-load');
-      mainWindow.webContents.removeAllListeners('console-message');
-      mainWindow.webContents.removeAllListeners('render-process-gone');
-      console.log('[Main] Cleaned up window event listeners');
-    }
-
+    // Window is already destroyed at this point, just clean up the reference
     mainWindow = null;
     console.log('[Main] Window closed and cleaned up');
   });
@@ -729,6 +733,13 @@ function setupAutoUpdater() {
     }
 
     // Show dialog asking user to restart now or later
+    // Check if window still exists before showing dialog
+    if (!mainWindow || mainWindow.isDestroyed()) {
+      // Window is closed, just quit and install
+      autoUpdater.quitAndInstall();
+      return;
+    }
+    
     dialog.showMessageBox(mainWindow, {
       type: 'info',
       title: 'Update Ready',
@@ -950,13 +961,16 @@ function setupUpdaterHandlers() {
       installInstructions = 'Run the installer to update to the latest version. Your settings and data will be preserved.';
     }
 
-    await dialog.showMessageBox(mainWindow, {
-      type: 'info',
-      title: 'Update Downloaded',
-      message: 'The installer has been downloaded to your Downloads folder.',
-      detail: installInstructions,
-      buttons: ['OK']
-    });
+    // Check if window still exists before showing dialog
+    if (mainWindow && !mainWindow.isDestroyed()) {
+      await dialog.showMessageBox(mainWindow, {
+        type: 'info',
+        title: 'Update Downloaded',
+        message: 'The installer has been downloaded to your Downloads folder.',
+        detail: installInstructions,
+        buttons: ['OK']
+      });
+    }
 
     return { success: true };
   });
@@ -1475,13 +1489,16 @@ function setupPermissionHandlers() {
           console.log(`[Permissions] ❌ Denied (system): ${permission}`);
 
           const { dialog } = require('electron');
-          dialog.showMessageBox(mainWindow, {
-            type: 'warning',
-            title: `${mediaType === 'camera' ? 'Camera' : 'Microphone'} Access Denied`,
-            message: `Kolbo Studio needs ${mediaType} access`,
-            detail: `Please enable ${mediaType} access in System Preferences → Security & Privacy → Privacy → ${mediaType === 'camera' ? 'Camera' : 'Microphone'}`,
-            buttons: ['OK']
-          });
+          // Check if window still exists before showing dialog
+          if (mainWindow && !mainWindow.isDestroyed()) {
+            dialog.showMessageBox(mainWindow, {
+              type: 'warning',
+              title: `${mediaType === 'camera' ? 'Camera' : 'Microphone'} Access Denied`,
+              message: `Kolbo Studio needs ${mediaType} access`,
+              detail: `Please enable ${mediaType} access in System Preferences → Security & Privacy → Privacy → ${mediaType === 'camera' ? 'Camera' : 'Microphone'}`,
+              buttons: ['OK']
+            });
+          }
 
           callback(false);
         } else if (status === 'not-determined' || status === 'restricted') {

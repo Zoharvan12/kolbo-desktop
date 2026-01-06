@@ -1244,6 +1244,12 @@ class KolboApp {
       console.log('[Infinite Scroll] Loading more items...');
     }
 
+    // Show spinner immediately when scrolling triggers load
+    const loadingMoreEl = this.getElement('loading-more');
+    if (loadingMoreEl) {
+      loadingMoreEl.classList.remove('hidden');
+    }
+
     this.lastLoadTime = now;
     this.loadMedia(false, true);
   }
