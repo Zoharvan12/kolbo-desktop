@@ -465,6 +465,24 @@ class KolboApp {
     if (revealCacheBtn) {
       revealCacheBtn.addEventListener('click', () => this.handleRevealCache());
     }
+
+    // Setup Billing button
+    const billingBtn = document.getElementById('billing-btn');
+    if (billingBtn && window.kolboDesktop) {
+      if (!billingBtn.hasAttribute('data-listener-attached')) {
+        billingBtn.setAttribute('data-listener-attached', 'true');
+        billingBtn.addEventListener('click', () => {
+          // Build billing URL based on current environment
+          const webappUrl = window.KOLBO_CONFIG?.webappUrl || 'https://app.kolbo.ai';
+          const billingUrl = `${webappUrl}/billing`;
+
+          if (this.DEBUG_MODE) {
+            console.log('[Settings] Opening billing page:', billingUrl);
+          }
+          window.kolboDesktop.openExternal(billingUrl);
+        });
+      }
+    }
   }
 
   handleGridSizeChange(e) {
@@ -2803,24 +2821,6 @@ class KolboApp {
       }
     }
   }
-
-        // Setup Billing button
-        const billingBtn = document.getElementById('billing-btn');
-        if (billingBtn && window.kolboDesktop) {
-          if (!billingBtn.hasAttribute('data-listener-attached')) {
-            billingBtn.setAttribute('data-listener-attached', 'true');
-            billingBtn.addEventListener('click', () => {
-              // Build billing URL based on current environment
-              const webappUrl = window.KOLBO_CONFIG?.webappUrl || 'https://app.kolbo.ai';
-              const billingUrl = `${webappUrl}/billing`;
-
-              if (this.DEBUG_MODE) {
-                console.log('[Settings] Opening billing page:', billingUrl);
-              }
-              window.kolboDesktop.openExternal(billingUrl);
-            });
-          }
-        }
 
   // Setup update event listeners on app startup
   setupDragEventListeners() {
