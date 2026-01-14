@@ -35,9 +35,12 @@
     "release:mac": "cross-env KOLBO_ENV=production node build-env.js && electron-builder --mac --publish always"
   },
   "dependencies": {
+    "@ffmpeg-installer/ffmpeg": "^1.1.0",
     "check-disk-space": "^3.4.0",
     "electron-store": "^8.1.0",
-    "electron-updater": "^6.6.2"
+    "electron-updater": "^6.6.2",
+    "fluent-ffmpeg": "^2.1.3",
+    "systeminformation": "^5.30.3"
   },
   "devDependencies": {
     "cross-env": "^10.1.0",

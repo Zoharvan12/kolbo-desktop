@@ -390,11 +390,15 @@ class KolboApp {
     // Tab Switching
     const mediaTab = document.getElementById('media-tab');
     const webappTab = document.getElementById('webapp-tab');
+    const formatFactoryTab = document.getElementById('format-factory-tab');
     if (mediaTab) {
       mediaTab.addEventListener('click', () => this.switchView('media'));
     }
     if (webappTab) {
       webappTab.addEventListener('click', () => this.switchView('webapp'));
+    }
+    if (formatFactoryTab) {
+      formatFactoryTab.addEventListener('click', () => this.switchView('format-factory'));
     }
 
     // Settings Button (icon button in header-actions)
@@ -629,6 +633,7 @@ class KolboApp {
     const mediaView = document.getElementById('media-library-view');
     const webappView = document.getElementById('webapp-view');
     const settingsView = document.getElementById('settings-view');
+    const formatFactoryView = document.getElementById('format-factory-view');
     const mediaCount = document.getElementById('media-count');
 
     // Hide all views first
@@ -638,6 +643,8 @@ class KolboApp {
     webappView?.classList.remove('active');
     settingsView?.classList.add('hidden');
     settingsView?.classList.remove('active');
+    formatFactoryView?.classList.add('hidden');
+    formatFactoryView?.classList.remove('active');
 
     if (view === 'media') {
       mediaView?.classList.remove('hidden');
@@ -701,6 +708,14 @@ class KolboApp {
 
       // Load settings data
       this.loadSettingsData();
+    } else if (view === 'format-factory') {
+      formatFactoryView?.classList.remove('hidden');
+      formatFactoryView?.classList.add('active');
+      if (mediaCount) mediaCount.style.display = 'none';
+
+      if (this.DEBUG_MODE) {
+        console.log('[View] Format Factory view shown');
+      }
     }
   }
 
@@ -2644,6 +2659,131 @@ class KolboApp {
               } catch (error) {
                 console.error('[Settings] Failed to change download folder:', error);
                 alert('Failed to change download folder');
+              }
+            });
+          }
+        }
+
+        // Load Format Factory settings
+        const ffModeSource = document.getElementById('ff-mode-source');
+        const ffModeCustom = document.getElementById('ff-mode-custom');
+        const ffOutputFolderPath = document.getElementById('ff-output-folder-path');
+        const ffChangeOutputFolderBtn = document.getElementById('ff-change-output-folder-btn');
+        const ffCustomFolderSetting = document.getElementById('ff-custom-folder-setting');
+
+        if (window.kolboDesktop?.ffmpeg) {
+          // Load current output mode
+          try {
+            const modeResult = await window.kolboDesktop.ffmpeg.getOutputMode();
+            const currentMode = modeResult.success ? modeResult.outputMode : 'source';
+
+            if (ffModeSource && ffModeCustom) {
+              if (currentMode === 'source') {
+                ffModeSource.checked = true;
+                if (ffCustomFolderSetting) ffCustomFolderSetting.style.opacity = '0.5';
+              } else {
+                ffModeCustom.checked = true;
+                if (ffCustomFolderSetting) ffCustomFolderSetting.style.opacity = '1';
+              }
+            }
+
+            // Load current output folder
+            const folderResult = await window.kolboDesktop.ffmpeg.getOutputFolder();
+            if (folderResult.success && folderResult.outputFolder && ffOutputFolderPath) {
+              ffOutputFolderPath.textContent = folderResult.outputFolder;
+            } else if (ffOutputFolderPath) {
+              ffOutputFolderPath.textContent = 'Not set';
+            }
+          } catch (error) {
+            console.error('[Settings] Failed to load Format Factory settings:', error);
+          }
+
+          // Handle output mode change
+          if (ffModeSource && !ffModeSource.hasAttribute('data-listener-attached')) {
+            ffModeSource.setAttribute('data-listener-attached', 'true');
+            ffModeSource.addEventListener('change', async () => {
+              if (ffModeSource.checked) {
+                try {
+                  await window.kolboDesktop.ffmpeg.setOutputMode('source');
+                  if (ffCustomFolderSetting) ffCustomFolderSetting.style.opacity = '0.5';
+
+                  // Notify format factory manager if it exists
+                  if (window.formatFactoryManager) {
+                    await window.formatFactoryManager.loadSettings();
+                  }
+
+                  console.log('[Settings] Format Factory output mode set to: source');
+                } catch (error) {
+                  console.error('[Settings] Failed to set output mode:', error);
+                }
+              }
+            });
+          }
+
+          if (ffModeCustom && !ffModeCustom.hasAttribute('data-listener-attached')) {
+            ffModeCustom.setAttribute('data-listener-attached', 'true');
+            ffModeCustom.addEventListener('change', async () => {
+              if (ffModeCustom.checked) {
+                if (ffCustomFolderSetting) ffCustomFolderSetting.style.opacity = '1';
+
+                // If no folder is set, prompt to select one
+                const folderResult = await window.kolboDesktop.ffmpeg.getOutputFolder();
+                if (!folderResult.success || !folderResult.outputFolder) {
+                  const result = await window.kolboDesktop.ffmpeg.selectOutputFolder();
+                  if (result.success && !result.canceled && ffOutputFolderPath) {
+                    ffOutputFolderPath.textContent = result.folderPath;
+                    await window.kolboDesktop.ffmpeg.setOutputFolder(result.folderPath);
+                  } else {
+                    // User canceled, revert to source mode
+                    if (ffModeSource) ffModeSource.checked = true;
+                    if (ffCustomFolderSetting) ffCustomFolderSetting.style.opacity = '0.5';
+                    return;
+                  }
+                }
+
+                try {
+                  await window.kolboDesktop.ffmpeg.setOutputMode('custom');
+
+                  // Notify format factory manager if it exists
+                  if (window.formatFactoryManager) {
+                    await window.formatFactoryManager.loadSettings();
+                  }
+
+                  console.log('[Settings] Format Factory output mode set to: custom');
+                } catch (error) {
+                  console.error('[Settings] Failed to set output mode:', error);
+                }
+              }
+            });
+          }
+
+          // Handle change folder button
+          if (ffChangeOutputFolderBtn && !ffChangeOutputFolderBtn.hasAttribute('data-listener-attached')) {
+            ffChangeOutputFolderBtn.setAttribute('data-listener-attached', 'true');
+            ffChangeOutputFolderBtn.addEventListener('click', async () => {
+              try {
+                const result = await window.kolboDesktop.ffmpeg.selectOutputFolder();
+                if (result.success && !result.canceled) {
+                  if (ffOutputFolderPath) {
+                    ffOutputFolderPath.textContent = result.folderPath;
+                  }
+                  await window.kolboDesktop.ffmpeg.setOutputFolder(result.folderPath);
+
+                  // Set mode to custom
+                  if (ffModeCustom) ffModeCustom.checked = true;
+                  await window.kolboDesktop.ffmpeg.setOutputMode('custom');
+                  if (ffCustomFolderSetting) ffCustomFolderSetting.style.opacity = '1';
+
+                  // Notify format factory manager if it exists
+                  if (window.formatFactoryManager) {
+                    await window.formatFactoryManager.loadSettings();
+                  }
+
+                  console.log('[Settings] Format Factory output folder changed to:', result.folderPath);
+                }
+              } catch (error) {
+                console.error('[Settings] Failed to change Format Factory output folder:', error);
+                alert('Failed to change output folder');
               }
             });
           }

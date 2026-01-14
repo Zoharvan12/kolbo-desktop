@@ -14,6 +14,10 @@
   <link rel="stylesheet" href="css/styles.css?v=6">
   <!-- Custom Context Menu Styles -->
   <link rel="stylesheet" href="css/context-menu.css?v=6">
+  <!-- Format Factory Styles -->
+  <link rel="stylesheet" href="css/format-factory.css?v=1">
+  <!-- Trimmer Styles -->
+  <link rel="stylesheet" href="css/trimmer.css?v=1">
 </head>
 <body>
   <div id="app">
@@ -130,6 +134,13 @@
                 <path d="M4 4h16v2H4V4zm0 6h16v2H4v-2zm0 6h16v2H4v-2z"/>
               </svg>
               My Media
+            </button>
+            <button id="format-factory-tab" class="tab-btn" data-view="format-factory">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M21.21 15.89A10 10 0 1 1 8 2.83"></path>
+                <path d="M22 12A10 10 0 0 0 12 2v10z"></path>
+              </svg>
+              Format Factory
             </button>
           </div>
           <span id="media-count" class="media-count">0 items</span>
@@ -507,6 +518,50 @@
             </div>
           </div>
 
+          <!-- Format Factory Section -->
+          <div class="settings-section">
+            <div class="settings-section-header">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M21.21 15.89A10 10 0 1 1 8 2.83"></path>
+                <path d="M22 12A10 10 0 0 0 12 2v10z"></path>
+              </svg>
+              <h2>Format Factory</h2>
+            </div>
+            <p class="settings-description">
+              Configure how converted media files are saved and where they are stored.
+            </p>
+
+            <div class="settings-item">
+              <div class="settings-item-info">
+                <label class="settings-label">Output Location</label>
+                <p class="settings-sublabel">Choose where converted files should be saved</p>
+              </div>
+              <div style="display: flex; gap: 12px; align-items: center;">
+                <label style="display: flex; align-items: center; gap: 8px; cursor: pointer;">
+                  <input type="radio" name="ff-output-mode" id="ff-mode-source" value="source" checked style="cursor: pointer;">
+                  <span style="color: rgba(255, 255, 255, 0.9);">Same as source</span>
+                </label>
+                <label style="display: flex; align-items: center; gap: 8px; cursor: pointer;">
+                  <input type="radio" name="ff-output-mode" id="ff-mode-custom" value="custom" style="cursor: pointer;">
+                  <span style="color: rgba(255, 255, 255, 0.9);">Custom folder</span>
+                </label>
+              </div>
+            </div>
+
+            <div class="settings-item" id="ff-custom-folder-setting">
+              <div class="settings-item-info">
+                <label class="settings-label">Custom Output Folder</label>
+                <p class="settings-sublabel" id="ff-output-folder-path">Not set</p>
+              </div>
+              <button id="ff-change-output-folder-btn" class="secondary-btn">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="margin-right: 6px;">
+                  <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"></path>
+                </svg>
+                Change Folder
+              </button>
+            </div>
+          </div>
+
           <!-- Updates Section -->
           <div class="settings-section">
             <div class="settings-section-header">
@@ -669,6 +724,219 @@
           </div>
         </div>
       </div>
+
+      <!-- Format Factory View -->
+      <div id="format-factory-view" class="view-content hidden">
+        <div class="ff-layout">
+
+          <!-- Top Toolbar -->
+          <div class="ff-toolbar">
+            <div class="ff-toolbar-left">
+              <div style="display: flex; align-items: center; gap: 16px;">
+                <label style="display: flex; align-items: center; gap: 8px; cursor: pointer; color: rgba(255, 255, 255, 0.9); font-size: 13px;">
+                  <input type="checkbox" id="ff-use-custom-folder" style="cursor: pointer; width: 16px; height: 16px;">
+                  <span>Save to custom folder</span>
+                </label>
+                <button class="ff-btn" id="ff-output-folder-btn" data-action="output-folder" title="Choose where to save converted files" disabled>
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"></path>
+                  </svg>
+                  Choose Output Folder
+                </button>
+              </div>
+            </div>
+            <div class="ff-toolbar-right">
+              <button class="ff-btn" id="ff-add-files-btn" data-action="add-files" title="Add Files" disabled>
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <path d="M12 5v14M5 12h14"></path>
+                </svg>
+                Add Files
+              </button>
+              <button class="ff-btn" id="ff-remove-btn" data-action="remove" title="Remove" disabled>
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <path d="M18 6L6 18M6 6l12 12"></path>
+                </svg>
+                Remove
+              </button>
+              <button class="ff-btn" id="ff-clear-btn" data-action="clear" title="Clear List" disabled>
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <polyline points="3 6 5 6 21 6"></polyline>
+                  <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+                </svg>
+                Clear List
+              </button>
+              <button class="ff-btn ff-btn-reset" id="ff-reset-btn" data-action="reset" title="Reset Completed" disabled>
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"></path>
+                  <path d="M21 3v5h-5"></path>
+                  <path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16"></path>
+                  <path d="M3 21v-5h5"></path>
+                </svg>
+                Reset
+              </button>
+              <button class="ff-btn ff-btn-stop" id="ff-stop-btn" data-action="stop" title="Stop" disabled>
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+                  <rect x="6" y="6" width="12" height="12"></rect>
+                </svg>
+                Stop
+              </button>
+              <button class="ff-btn ff-btn-start" id="ff-start-btn" data-action="start" title="Start" disabled>
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+                  <polygon points="5 3 19 12 5 21 5 3"></polygon>
+                </svg>
+                Start
+              </button>
+            </div>
+          </div>
+
+          <!-- Main Content Area -->
+          <div class="ff-content">
+
+            <!-- Left Sidebar -->
+            <div class="ff-sidebar">
+              <!-- Video Category -->
+              <div class="ff-category-section">
+                <button class="ff-category-btn active" data-category="video">
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="m22 8-6 4 6 4V8Z"></path>
+                    <rect width="14" height="12" x="2" y="6" rx="2"></rect>
+                  </svg>
+                  <span class="ff-category-label">Video</span>
+                  <svg class="ff-chevron" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="m6 9 6 6 6-6"></path>
+                  </svg>
+                </button>
+                <div class="ff-format-list active">
+                  <button class="ff-format-tile" data-format="mp4" data-type="video">
+                    <div class="ff-tile-icon">🎬</div>
+                    <div class="ff-tile-label">-> MP4</div>
+                  </button>
+                  <button class="ff-format-tile" data-format="mov" data-type="video">
+                    <div class="ff-tile-icon">🎬</div>
+                    <div class="ff-tile-label">-> MOV</div>
+                  </button>
+                  <button class="ff-format-tile" data-format="avi" data-type="video">
+                    <div class="ff-tile-icon">🎬</div>
+                    <div class="ff-tile-label">-> AVI</div>
+                  </button>
+                  <button class="ff-format-tile" data-format="mkv" data-type="video">
+                    <div class="ff-tile-icon">🎬</div>
+                    <div class="ff-tile-label">-> MKV</div>
+                  </button>
+                  <button class="ff-format-tile" data-format="webm" data-type="video">
+                    <div class="ff-tile-icon">🎬</div>
+                    <div class="ff-tile-label">-> WEBM</div>
+                  </button>
+                </div>
+              </div>
+
+              <!-- Audio Category -->
+              <div class="ff-category-section">
+                <button class="ff-category-btn" data-category="audio">
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M9 18V5l12-2v13"></path>
+                    <circle cx="6" cy="18" r="3"></circle>
+                    <circle cx="18" cy="16" r="3"></circle>
+                  </svg>
+                  <span class="ff-category-label">Audio</span>
+                  <svg class="ff-chevron" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="m6 9 6 6 6-6"></path>
+                  </svg>
+                </button>
+                <div class="ff-format-list">
+                  <button class="ff-format-tile" data-format="mp3" data-type="audio">
+                    <div class="ff-tile-icon">🎵</div>
+                    <div class="ff-tile-label">-> MP3</div>
+                  </button>
+                  <button class="ff-format-tile" data-format="wav" data-type="audio">
+                    <div class="ff-tile-icon">🎵</div>
+                    <div class="ff-tile-label">-> WAV</div>
+                  </button>
+                  <button class="ff-format-tile" data-format="aac" data-type="audio">
+                    <div class="ff-tile-icon">🎵</div>
+                    <div class="ff-tile-label">-> AAC</div>
+                  </button>
+                  <button class="ff-format-tile" data-format="flac" data-type="audio">
+                    <div class="ff-tile-icon">🎵</div>
+                    <div class="ff-tile-label">-> FLAC</div>
+                  </button>
+                </div>
+              </div>
+
+              <!-- Picture Category -->
+              <div class="ff-category-section">
+                <button class="ff-category-btn" data-category="picture">
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <rect width="18" height="18" x="3" y="3" rx="2"></rect>
+                    <circle cx="9" cy="9" r="2"></circle>
+                    <path d="m21 15-3.086-3.086a2 2 0 0 0-2.828 0L6 21"></path>
+                  </svg>
+                  <span class="ff-category-label">Picture</span>
+                  <svg class="ff-chevron" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="m6 9 6 6 6-6"></path>
+                  </svg>
+                </button>
+                <div class="ff-format-list">
+                  <button class="ff-format-tile" data-format="jpg" data-type="image">
+                    <div class="ff-tile-icon">🖼️</div>
+                    <div class="ff-tile-label">-> JPG</div>
+                  </button>
+                  <button class="ff-format-tile" data-format="png" data-type="image">
+                    <div class="ff-tile-icon">🖼️</div>
+                    <div class="ff-tile-label">-> PNG</div>
+                  </button>
+                  <button class="ff-format-tile" data-format="webp" data-type="image">
+                    <div class="ff-tile-icon">🖼️</div>
+                    <div class="ff-tile-label">-> WEBP</div>
+                  </button>
+                  <button class="ff-format-tile" data-format="gif" data-type="image">
+                    <div class="ff-tile-icon">🖼️</div>
+                    <div class="ff-tile-label">-> GIF</div>
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            <!-- Main Table View -->
+            <div class="ff-main">
+              <table class="ff-table">
+                <thead>
+                  <tr>
+                    <th style="width: 40px;"><input type="checkbox" id="ff-select-all"></th>
+                    <th style="width: 80px;">Type</th>
+                    <th>Source File</th>
+                    <th style="width: 300px;">Output Format / Progress</th>
+                  </tr>
+                </thead>
+                <tbody id="ff-table-body">
+                  <!-- Rows will be added here -->
+                  <tr class="ff-empty-state">
+                    <td colspan="4">
+                      <div class="ff-drag-drop-zone">
+                        <svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                          <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                          <polyline points="17 8 12 3 7 8"></polyline>
+                          <line x1="12" y1="3" x2="12" y2="15"></line>
+                        </svg>
+                        <p class="ff-drag-message">Drag & Drop files here</p>
+                        <p class="ff-drag-hint">or</p>
+                        <button class="ff-btn-add-files">
+                          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M12 5v14m-7-7h14"></path>
+                          </svg>
+                          Add Files
+                        </button>
+                        <p class="ff-file-types">Supported: Video, Audio, Images</p>
+                      </div>
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+
+          </div>
+        </div>
+      </div>
     </div>
   </div>
 
@@ -733,6 +1001,48 @@
     </div>
   </div>
 
+  <!-- Queue Item Template -->
+  <template id="queue-item-template">
+    <div class="queue-item" data-job-id="">
+      <div class="queue-item-thumbnail">
+        <span>📄</span>
+      </div>
+      <div class="queue-item-info">
+        <div class="queue-item-name"></div>
+        <div class="queue-item-conversion">
+          <span class="conversion-arrow">→</span>
+          <span class="conversion-format"></span>
+          <span class="conversion-settings"></span>
+        </div>
+      </div>
+      <div class="queue-item-progress">
+        <div class="progress-bar">
+          <div class="progress-fill"></div>
+        </div>
+        <span class="progress-text">Pending</span>
+      </div>
+      <div class="queue-item-actions">
+        <button class="queue-action-btn settings-btn" title="Settings">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <circle cx="12" cy="12" r="3"></circle>
+            <path d="M12 1v6m0 6v6M5.64 5.64l4.24 4.24m4.24 4.24l4.24 4.24M1 12h6m6 0h6M5.64 18.36l4.24-4.24m4.24-4.24l4.24-4.24"></path>
+          </svg>
+        </button>
+        <button class="queue-action-btn pause-btn" title="Pause" style="display:none;">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <rect x="6" y="4" width="4" height="16"></rect>
+            <rect x="14" y="4" width="4" height="16"></rect>
+          </svg>
+        </button>
+        <button class="queue-action-btn cancel-btn" title="Cancel">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M18 6L6 18M6 6l12 12"></path>
+          </svg>
+        </button>
+      </div>
+    </div>
+  </template>
+
   <!-- Toast Notification -->
   <div id="toast-notification" class="toast-notification">
     <svg class="toast-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -770,6 +1080,11 @@
   <script src="js/custom-context-menu.js?v=5"></script> <!-- Custom context menu component -->
   <script src="js/context-menu-manager.js?v=5"></script>
   <script src="js/tab-manager.js?v=5"></script>
+  <!-- Trimmer Components (load BEFORE format-factory-manager) -->
+  <script src="js/trimmer/video-trimmer.js?v=1"></script>
+  <script src="js/trimmer/audio-trimmer.js?v=1"></script>
+  <script src="js/trimmer/trimmer-modal.js?v=1"></script>
+  <script src="js/format-factory-manager.js?v=1"></script> <!-- Format Factory manager -->
   <script src="js/main.js?v=5"></script>
 </body>
 </html>

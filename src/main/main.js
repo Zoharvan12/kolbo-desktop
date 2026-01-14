@@ -12,6 +12,7 @@ const AuthManager = require('./auth-manager');
 const FileManager = require('./file-manager');
 const DragHandler = require('./drag-handler');
 const ContextMenuHandler = require('./context-menu-handler');
+const FFmpegHandler = require('./ffmpeg-handler');
 
 // Persistent settings store
 const store = new Store();
@@ -976,6 +977,151 @@ function setupUpdaterHandlers() {
   });
 
   console.log('[Updater] IPC handlers registered');
+}
+
+// ============================================================================
+// FFMPEG HANDLERS
+// ============================================================================
+
+let ffmpegHandler = null;
+
+function setupFFmpegHandlers() {
+  const { ipcMain } = require('electron');
+
+  // Initialize FFmpeg handler
+  ffmpegHandler = new FFmpegHandler(mainWindow);
+  console.log('[FFmpeg] Handler initialized');
+
+  // Get GPU information
+  ipcMain.handle('ff:get-gpu-info', async () => {
+    try {
+      const gpuInfo = ffmpegHandler.getGPUInfo();
+      return { success: true, gpuInfo };
+    } catch (error) {
+      console.error('[FFmpeg] Failed to get GPU info:', error);
+      return { success: false, error: error.message };
+    }
+  });
+
+  // Convert a single file
+  ipcMain.handle('ff:convert-job', async (event, job) => {
+    try {
+      console.log('[FFmpeg] Convert job requested:', job.id);
+      const outputPath = await ffmpegHandler.convertFile(job);
+      return { success: true, outputPath };
+    } catch (error) {
+      console.error('[FFmpeg] Conversion failed:', error);
+      return { success: false, error: error.message };
+    }
+  });
+
+  // Cancel a job
+  ipcMain.handle('ff:cancel-job', async (event, jobId) => {
+    try {
+      const result = ffmpegHandler.cancelJob(jobId);
+      return { success: result };
+    } catch (error) {
+      console.error('[FFmpeg] Failed to cancel job:', error);
+      return { success: false, error: error.message };
+    }
+  });
+
+  // Cancel all jobs
+  ipcMain.handle('ff:cancel-all', async () => {
+    try {
+      ffmpegHandler.cancelAll();
+      return { success: true };
+    } catch (error) {
+      console.error('[FFmpeg] Failed to cancel all jobs:', error);
+      return { success: false, error: error.message };
+    }
+  });
+
+  // Select output folder
+  ipcMain.handle('ff:select-output-folder', async () => {
+    try {
+      const result = await dialog.showOpenDialog(mainWindow, {
+        title: 'Select Output Folder',
+        properties: ['openDirectory', 'createDirectory']
+      });
+
+      if (result.canceled) {
+        return { success: false, canceled: true };
+      }
+
+      return { success: true, folderPath: result.filePaths[0] };
+    } catch (error) {
+      console.error('[FFmpeg] Failed to select folder:', error);
+      return { success: false, error: error.message };
+    }
+  });
+
+  // Probe file for metadata
+  ipcMain.handle('ff:probe-file', async (event, filePath) => {
+    try {
+      const metadata = await ffmpegHandler.probeFile(filePath);
+      return { success: true, metadata };
+    } catch (error) {
+      console.error('[FFmpeg] Failed to probe file:', error);
+      return { success: false, error: error.message };
+    }
+  });
+
+  // Get saved output folder preference
+  ipcMain.handle('ff:get-output-folder', async () => {
+    try {
+      const outputFolder = store.get('ff_output_folder') || null;
+      return { success: true, outputFolder };
+    } catch (error) {
+      console.error('[FFmpeg] Failed to get output folder:', error);
+      return { success: false, error: error.message };
+    }
+  });
+
+  // Set output folder preference
+  ipcMain.handle('ff:set-output-folder', async (event, folderPath) => {
+    try {
+      if (folderPath) {
+        store.set('ff_output_folder', folderPath);
+        console.log('[FFmpeg] Output folder saved:', folderPath);
+      } else {
+        store.delete('ff_output_folder');
+        console.log('[FFmpeg] Output folder cleared (will use source folder)');
+      }
+      return { success: true, folderPath };
+    } catch (error) {
+      console.error('[FFmpeg] Failed to set output folder:', error);
+      return { success: false, error: error.message };
+    }
+  });
+
+  // Get output mode preference ('source' or 'custom')
+  ipcMain.handle('ff:get-output-mode', async () => {
+    try {
+      const outputMode = store.get('ff_output_mode') || 'source';
+      return { success: true, outputMode };
+    } catch (error) {
+      console.error('[FFmpeg] Failed to get output mode:', error);
+      return { success: false, error: error.message, outputMode: 'source' };
+    }
+  });
+
+  // Set output mode preference
+  ipcMain.handle('ff:set-output-mode', async (event, mode) => {
+    try {
+      if (mode !== 'source' && mode !== 'custom') {
+        throw new Error('Invalid mode. Must be "source" or "custom"');
+      }
+      store.set('ff_output_mode', mode);
+      console.log('[FFmpeg] Output mode saved:', mode);
+      return { success: true, mode };
+    } catch (error) {
+      console.error('[FFmpeg] Failed to set output mode:', error);
+      return { success: false, error: error.message };
+    }
+  });
+
+  console.log('[FFmpeg] IPC handlers registered');
 }
 
 // ============================================================================
@@ -2799,6 +2945,9 @@ app.whenReady().then(() => {
     setupUpdaterHandlers();
     console.log('[Main] Auto-updater disabled (development mode)');
   }
+
+  // Setup FFmpeg handlers
+  setupFFmpegHandlers();
 
   // Setup proactive memory monitoring
   setupMemoryMonitoring();

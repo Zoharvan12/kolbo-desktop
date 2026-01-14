@@ -270,7 +270,75 @@ contextBridge.exposeInMainWorld('kolboDesktop', {
 
   // Copy image from URL to clipboard
   copyImageToClipboard: (imageUrl) =>
-    ipcRenderer.invoke('clipboard:copy-image', imageUrl)
+    ipcRenderer.invoke('clipboard:copy-image', imageUrl),
+
+  // FFmpeg / Format Factory
+  ffmpeg: {
+    // Get GPU information
+    getGPUInfo: () =>
+      ipcRenderer.invoke('ff:get-gpu-info'),
+
+    // Convert a file
+    convertJob: (job) =>
+      ipcRenderer.invoke('ff:convert-job', job),
+
+    // Cancel a specific job
+    cancelJob: (jobId) =>
+      ipcRenderer.invoke('ff:cancel-job', jobId),
+
+    // Cancel all jobs
+    cancelAll: () =>
+      ipcRenderer.invoke('ff:cancel-all'),
+
+    // Select output folder
+    selectOutputFolder: () =>
+      ipcRenderer.invoke('ff:select-output-folder'),
+
+    // Probe file metadata
+    probeFile: (filePath) =>
+      ipcRenderer.invoke('ff:probe-file', filePath),
+
+    // Get saved output folder preference
+    getOutputFolder: () =>
+      ipcRenderer.invoke('ff:get-output-folder'),
+
+    // Set output folder preference
+    setOutputFolder: (folderPath) =>
+      ipcRenderer.invoke('ff:set-output-folder', folderPath),
+
+    // Get output mode preference ('source' or 'custom')
+    getOutputMode: () =>
+      ipcRenderer.invoke('ff:get-output-mode'),
+
+    // Set output mode preference
+    setOutputMode: (mode) =>
+      ipcRenderer.invoke('ff:set-output-mode', mode),
+
+    // Listen for progress updates
+    onProgress: (callback) => {
+      ipcRenderer.on('ff:progress', (event, data) => callback(data));
+    },
+
+    // Listen for job completion
+    onComplete: (callback) => {
+      ipcRenderer.on('ff:complete', (event, data) => callback(data));
+    },
+
+    // Listen for errors
+    onError: (callback) => {
+      ipcRenderer.on('ff:error', (event, data) => callback(data));
+    },
+
+    // Listen for GPU info
+    onGPUInfo: (callback) => {
+      ipcRenderer.on('ff:gpu-info', (event, data) => callback(data));
+    },
+
+    // Remove listeners (cleanup)
+    removeListener: (channel, callback) => {
+      ipcRenderer.removeListener(channel, callback);
+    }
+  }
 });
 
 console.log('[Preload] Context bridge established');

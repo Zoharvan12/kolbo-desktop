@@ -2554,10 +2554,15 @@ body.is-mac .window-controls {
 }
 
 .tab-btn.active {
-  background: rgb(var(--primary));
-  color: rgb(var(--primary-foreground));
+  background: linear-gradient(135deg, #3b82f6, #60a5fa);
+  color: #ffffff;
   border-color: transparent;
-  box-shadow: var(--shadow-md);
+  box-shadow: 0 2px 12px rgba(59, 130, 246, 0.4);
+}
+
+.tab-btn.active svg {
+  fill: #ffffff;
+  stroke: #ffffff;
 }
 
 .tab-btn svg {
