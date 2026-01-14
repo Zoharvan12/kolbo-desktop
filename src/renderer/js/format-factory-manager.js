@@ -8,11 +8,36 @@ class FormatFactoryManager {
     this.queue = [];
     this.selectedFormat = null;
     this.selectedType = null;
+    this.selectedPreset = 'source'; // Default preset
     this.outputFolder = null; // null = same as source
     this.outputMode = 'source'; // 'source' or 'custom'
     this.currentCategory = 'video'; // default active category
     this.thumbnailGenerating = new Set(); // Track thumbnails being generated
     this.updateTableDebounceTimer = null; // Debounce UI updates
+
+    // Quality/Resolution Presets
+    this.presets = {
+      video: [
+        { id: 'source', label: 'Source Quality', desc: 'Maintain original resolution and quality' },
+        { id: '4k', label: '4K (3840×2160, 20Mbps)', desc: 'Ultra HD quality', maxWidth: 3840, maxHeight: 2160, bitrate: '20M' },
+        { id: '1080p', label: '1080p (1920×1080, 10Mbps)', desc: 'Full HD quality', maxWidth: 1920, maxHeight: 1080, bitrate: '10M' },
+        { id: '720p', label: '720p (1280×720, 6Mbps)', desc: 'HD quality', maxWidth: 1280, maxHeight: 720, bitrate: '6M' },
+        { id: '480p', label: '480p (854×480, 3Mbps)', desc: 'SD quality', maxWidth: 854, maxHeight: 480, bitrate: '3M' }
+      ],
+      audio: [
+        { id: 'source', label: 'Source Quality', desc: 'Maintain original quality' },
+        { id: 'high', label: 'High (320kbps)', desc: 'Maximum quality', bitrate: '320k' },
+        { id: 'standard', label: 'Standard (192kbps)', desc: 'Good quality', bitrate: '192k' },
+        { id: 'low', label: 'Low (128kbps)', desc: 'Smaller file size', bitrate: '128k' }
+      ],
+      image: [
+        { id: 'source', label: 'Source Quality', desc: 'Maintain original size and quality' },
+        { id: '4k', label: 'Up to 4K (3840px)', desc: 'Maximum quality', maxDimension: 3840, quality: 95 },
+        { id: '2k', label: 'Up to 2K (2048px)', desc: 'High quality', maxDimension: 2048, quality: 90 },
+        { id: '1k', label: 'Up to 1K (1080px)', desc: 'Standard quality', maxDimension: 1080, quality: 85 },
+        { id: 'web', label: 'Web Optimized (800px)', desc: 'Small file size', maxDimension: 800, quality: 80 }
+      ]
+    };
 
     this.init();
   }
@@ -514,9 +539,176 @@ class FormatFactoryManager {
       formatsContainer.appendChild(imageSection);
     }
 
+    // Preset Selector
+    const presetSection = this.createPresetSelector(hasVideo, hasAudio, hasImage);
+
+    // Selection Status Display
+    const statusDisplay = document.createElement('div');
+    statusDisplay.id = 'ff-selection-status';
+    statusDisplay.style.cssText = `
+      margin-top: 20px;
+      padding: 12px 16px;
+      background: rgba(59, 130, 246, 0.08);
+      border: 1px solid rgba(59, 130, 246, 0.2);
+      border-radius: 8px;
+      display: none;
+      gap: 16px;
+      align-items: center;
+    `;
+
+    statusDisplay.innerHTML = `
+      <div style="flex: 1;">
+        <div style="font-size: 11px; color: rgba(255, 255, 255, 0.5); text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 4px;">Selected</div>
+        <div id="ff-status-format" style="font-size: 14px; color: #60a5fa; font-weight: 600;">No format selected</div>
+      </div>
+      <div style="flex: 1;">
+        <div style="font-size: 11px; color: rgba(255, 255, 255, 0.5); text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 4px;">Quality</div>
+        <div id="ff-status-preset" style="font-size: 14px; color: #60a5fa; font-weight: 600;">-</div>
+      </div>
+    `;
+
+    // Modal Footer with Confirm/Cancel buttons
+    const footer = document.createElement('div');
+    footer.style.cssText = `
+      display: flex;
+      gap: 12px;
+      margin-top: 24px;
+      padding-top: 20px;
+      border-top: 1px solid #474747;
+      justify-content: flex-end;
+    `;
+
+    const cancelBtn = document.createElement('button');
+    cancelBtn.textContent = 'Cancel';
+    cancelBtn.style.cssText = `
+      padding: 10px 24px;
+      background: #262626;
+      border: 1px solid #474747;
+      border-radius: 6px;
+      color: rgba(255, 255, 255, 0.8);
+      font-size: 14px;
+      font-weight: 500;
+      cursor: pointer;
+      transition: all 0.2s ease;
+    `;
+
+    cancelBtn.addEventListener('mouseenter', () => {
+      cancelBtn.style.background = '#333333';
+      cancelBtn.style.borderColor = '#5a5a5a';
+    });
+
+    cancelBtn.addEventListener('mouseleave', () => {
+      cancelBtn.style.background = '#262626';
+      cancelBtn.style.borderColor = '#474747';
+    });
+
+    cancelBtn.addEventListener('click', () => {
+      modal.remove();
+      this.pendingFiles = null;
+      this.tempSelectedFormat = null;
+      this.tempSelectedType = null;
+      this.tempTrimStart = null;
+      this.tempTrimEnd = null;
+    });
+
+    // Trim button (only for single video/audio file)
+    const isSingleFile = files.length === 1;
+    const firstFile = isSingleFile ? files[0] : null;
+    const canTrim = isSingleFile && firstFile && (firstFile.type.startsWith('video/') || firstFile.type.startsWith('audio/'));
+
+    let trimBtn = null;
+    if (canTrim) {
+      trimBtn = document.createElement('button');
+      trimBtn.id = 'ff-modal-trim';
+      trimBtn.innerHTML = `
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="margin-right: 6px;">
+          <circle cx="6" cy="6" r="3"/>
+          <circle cx="6" cy="18" r="3"/>
+          <line x1="20" y1="4" x2="8.12" y2="15.88"/>
+          <line x1="14.47" y1="14.48" x2="20" y2="20"/>
+          <line x1="8.12" y1="8.12" x2="12" y2="12"/>
+        </svg>
+        Trim
+      `;
+      trimBtn.style.cssText = `
+        display: flex;
+        align-items: center;
+        padding: 10px 20px;
+        background: #262626;
+        border: 1px solid #474747;
+        border-radius: 6px;
+        color: rgba(255, 255, 255, 0.8);
+        font-size: 14px;
+        font-weight: 500;
+        cursor: pointer;
+        transition: all 0.2s ease;
+        margin-right: auto;
+      `;
+
+      trimBtn.addEventListener('mouseenter', () => {
+        trimBtn.style.background = 'rgba(139, 92, 246, 0.1)';
+        trimBtn.style.borderColor = '#8b5cf6';
+        trimBtn.style.color = '#a78bfa';
+      });
+
+      trimBtn.addEventListener('mouseleave', () => {
+        trimBtn.style.background = '#262626';
+        trimBtn.style.borderColor = '#474747';
+        trimBtn.style.color = 'rgba(255, 255, 255, 0.8)';
+      });
+
+      trimBtn.addEventListener('click', async () => {
+        await this.openTrimmerForPendingFile(firstFile);
+      });
+    }
+
+    const confirmBtn = document.createElement('button');
+    confirmBtn.id = 'ff-modal-confirm';
+    confirmBtn.textContent = 'Confirm';
+    confirmBtn.disabled = true; // Disabled until format is selected
+    confirmBtn.style.cssText = `
+      padding: 10px 24px;
+      background: linear-gradient(135deg, #3b82f6, #60a5fa);
+      border: 1px solid #3b82f6;
+      border-radius: 6px;
+      color: #ffffff;
+      font-size: 14px;
+      font-weight: 500;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      opacity: 0.5;
+    `;
+
+    confirmBtn.addEventListener('mouseenter', () => {
+      if (!confirmBtn.disabled) {
+        confirmBtn.style.boxShadow = '0 4px 16px rgba(59, 130, 246, 0.4)';
+        confirmBtn.style.transform = 'translateY(-1px)';
+      }
+    });
+
+    confirmBtn.addEventListener('mouseleave', () => {
+      confirmBtn.style.boxShadow = 'none';
+      confirmBtn.style.transform = 'translateY(0)';
+    });
+
+    confirmBtn.addEventListener('click', () => {
+      if (!confirmBtn.disabled && this.tempSelectedFormat && this.tempSelectedType) {
+        this.onFormatSelected(this.tempSelectedFormat, this.tempSelectedType);
+      }
+    });
+
+    if (trimBtn) {
+      footer.appendChild(trimBtn);
+    }
+    footer.appendChild(cancelBtn);
+    footer.appendChild(confirmBtn);
+
     // Assemble modal
     modalContent.appendChild(header);
     modalContent.appendChild(formatsContainer);
+    modalContent.appendChild(presetSection);
+    modalContent.appendChild(statusDisplay);
+    modalContent.appendChild(footer);
     modal.appendChild(modalContent);
     document.body.appendChild(modal);
 
@@ -525,6 +717,8 @@ class FormatFactoryManager {
     closeBtn.addEventListener('click', () => {
       modal.remove();
       this.pendingFiles = null;
+      this.tempTrimStart = null;
+      this.tempTrimEnd = null;
     });
 
     closeBtn.addEventListener('mouseenter', (e) => {
@@ -630,7 +824,17 @@ class FormatFactoryManager {
       });
 
       btn.addEventListener('click', () => {
-        this.onFormatSelected(fmt.format, type);
+        // Toggle selection instead of auto-applying
+        const allBtns = grid.querySelectorAll('button');
+        allBtns.forEach(b => b.classList.remove('ff-format-selected'));
+        btn.classList.add('ff-format-selected');
+
+        // Store temporary selection
+        this.tempSelectedFormat = fmt.format;
+        this.tempSelectedType = type;
+
+        // Update preset dropdown for the selected type
+        this.updatePresetDropdownForType(type);
       });
 
       grid.appendChild(btn);
@@ -640,17 +844,277 @@ class FormatFactoryManager {
     return section;
   }
 
+  createPresetSelector(hasVideo, hasAudio, hasImage, sourceResolution = null) {
+    const section = document.createElement('div');
+    section.id = 'ff-preset-section';
+    section.style.cssText = `
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      margin-top: 16px;
+      padding-top: 16px;
+      border-top: 1px solid #474747;
+    `;
+
+    const titleEl = document.createElement('h4');
+    titleEl.textContent = 'Quality Preset';
+    titleEl.style.cssText = `
+      margin: 0 0 8px 0;
+      color: rgba(255, 255, 255, 0.8);
+      font-size: 14px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    `;
+    section.appendChild(titleEl);
+
+    // Create dropdown
+    const select = document.createElement('select');
+    select.id = 'ff-preset-select';
+    select.style.cssText = `
+      width: 100%;
+      padding: 10px 12px;
+      background: #262626;
+      border: 1px solid #474747;
+      border-radius: 6px;
+      color: #ffffff;
+      font-size: 13px;
+      cursor: pointer;
+      outline: none;
+      transition: all 0.2s ease;
+      -webkit-appearance: none;
+      -moz-appearance: none;
+      appearance: none;
+      background-image: url("data:image/svg+xml;charset=UTF-8,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='rgba(255,255,255,0.6)' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3e%3cpolyline points='6 9 12 15 18 9'%3e%3c/polyline%3e%3c/svg%3e");
+      background-repeat: no-repeat;
+      background-position: right 8px center;
+      background-size: 16px;
+      padding-right: 32px;
+    `;
+
+    // Add hover effect
+    select.addEventListener('mouseenter', () => {
+      select.style.borderColor = '#3b82f6';
+      select.style.background = 'rgba(59, 130, 246, 0.05)';
+    });
+
+    select.addEventListener('mouseleave', () => {
+      select.style.borderColor = '#474747';
+      select.style.background = '#262626';
+    });
+
+    // Populate with presets based on file types
+    // Default to video if multiple types, or first available type
+    let defaultType = 'video';
+    if (!hasVideo && hasAudio) defaultType = 'audio';
+    if (!hasVideo && !hasAudio && hasImage) defaultType = 'image';
+
+    // Store type on the select element for later use
+    select.dataset.presetType = defaultType;
+
+    const presetList = this.presets[defaultType] || [];
+    const savedPresetId = this.getRememberedPreset(defaultType);
+
+    // Filter video presets to prevent upscaling
+    const filteredPresets = this.filterPresetsForResolution(presetList, defaultType, sourceResolution);
+
+    filteredPresets.forEach((preset, index) => {
+      const option = document.createElement('option');
+      option.value = preset.id;
+      option.textContent = preset.label;
+      option.title = preset.desc;
+
+      // Style options for dark theme
+      option.style.cssText = `
+        background: #262626;
+        color: #ffffff;
+        padding: 8px 12px;
+      `;
+
+      // Disable if higher than source (for video only)
+      if (preset.disabled) {
+        option.disabled = true;
+        option.textContent += ' (exceeds source)';
+        option.style.color = 'rgba(255, 255, 255, 0.3)';
+        option.style.background = '#1a1a1a';
+      }
+
+      if (preset.id === savedPresetId || (index === 0 && !savedPresetId)) {
+        option.selected = true;
+        this.selectedPreset = preset.id;
+      }
+      select.appendChild(option);
+    });
+
+    // Update selected preset on change
+    select.addEventListener('change', () => {
+      this.selectedPreset = select.value;
+      console.log('[Format Factory] Preset changed to:', this.selectedPreset);
+    });
+
+    // Inject global styles for dropdown menu (only once)
+    if (!document.getElementById('ff-preset-dropdown-styles')) {
+      const style = document.createElement('style');
+      style.id = 'ff-preset-dropdown-styles';
+      style.textContent = `
+        /* Force dark theme on dropdown menus */
+        select#ff-preset-select {
+          color-scheme: dark;
+        }
+
+        select#ff-preset-select option {
+          background-color: #262626 !important;
+          color: #ffffff !important;
+        }
+
+        select#ff-preset-select option:hover {
+          background-color: rgba(59, 130, 246, 0.2) !important;
+        }
+
+        select#ff-preset-select option:checked,
+        select#ff-preset-select option:focus {
+          background-color: rgba(59, 130, 246, 0.3) !important;
+          color: #60a5fa !important;
+        }
+
+        select#ff-preset-select option:disabled {
+          background-color: #1a1a1a !important;
+          color: rgba(255, 255, 255, 0.3) !important;
+        }
+      `;
+      document.head.appendChild(style);
+    }
+
+    section.appendChild(select);
+    return section;
+  }
+
+  filterPresetsForResolution(presetList, type, sourceResolution) {
+    // Only filter video presets for upscaling prevention
+    if (type !== 'video' || !sourceResolution) {
+      return presetList;
+    }
+
+    const { width, height } = sourceResolution;
+    const maxSourceDimension = Math.max(width, height);
+
+    return presetList.map(preset => {
+      if (preset.id === 'source') {
+        return preset; // Source is always available
+      }
+
+      // Check if preset resolution exceeds source
+      const presetMaxDimension = Math.max(preset.maxWidth || 0, preset.maxHeight || 0);
+
+      if (presetMaxDimension > maxSourceDimension) {
+        return { ...preset, disabled: true };
+      }
+
+      return preset;
+    });
+  }
+
+  updatePresetDropdownForType(type) {
+    const presetSelect = document.getElementById('ff-preset-select');
+    const confirmBtn = document.getElementById('ff-modal-confirm');
+    const statusDisplay = document.getElementById('ff-selection-status');
+    const statusFormat = document.getElementById('ff-status-format');
+    const statusPreset = document.getElementById('ff-status-preset');
+
+    if (!presetSelect) return;
+
+    // Clear and repopulate dropdown with presets for this type
+    presetSelect.innerHTML = '';
+    const presetList = this.presets[type] || [];
+    const savedPresetId = this.getRememberedPreset(type);
+
+    presetList.forEach((preset, index) => {
+      const option = document.createElement('option');
+      option.value = preset.id;
+      option.textContent = preset.label;
+      option.title = preset.desc;
+
+      // Style options for dark theme
+      option.style.cssText = `
+        background: #262626;
+        color: #ffffff;
+        padding: 8px 12px;
+      `;
+
+      if (preset.id === savedPresetId || (index === 0 && !savedPresetId)) {
+        option.selected = true;
+      }
+
+      presetSelect.appendChild(option);
+    });
+
+    // Update stored preset type
+    presetSelect.dataset.presetType = type;
+
+    // Update status display
+    if (statusDisplay && statusFormat && statusPreset && this.tempSelectedFormat) {
+      statusDisplay.style.display = 'flex';
+      statusFormat.textContent = `${this.tempSelectedFormat.toUpperCase()} (${type})`;
+
+      const selectedPreset = presetList.find(p => p.id === (savedPresetId || 'source'));
+      statusPreset.textContent = selectedPreset ? selectedPreset.label : 'Source Quality';
+    }
+
+    // Enable confirm button
+    if (confirmBtn) {
+      confirmBtn.disabled = false;
+      confirmBtn.style.opacity = '1';
+      confirmBtn.style.cursor = 'pointer';
+    }
+
+    // Update status when preset changes
+    if (presetSelect) {
+      presetSelect.addEventListener('change', () => {
+        if (statusPreset) {
+          const selectedPreset = presetList.find(p => p.id === presetSelect.value);
+          statusPreset.textContent = selectedPreset ? selectedPreset.label : 'Source Quality';
+        }
+      });
+    }
+  }
+
+  getRememberedPreset(type) {
+    try {
+      return localStorage.getItem(`ff-preset-${type}`) || 'source';
+    } catch (error) {
+      console.error('[Format Factory] Failed to get remembered preset:', error);
+      return 'source';
+    }
+  }
+
+  saveRememberedPreset(type, presetId) {
+    try {
+      localStorage.setItem(`ff-preset-${type}`, presetId);
+      console.log('[Format Factory] Saved preset for', type, ':', presetId);
+    } catch (error) {
+      console.error('[Format Factory] Failed to save preset:', error);
+    }
+  }
+
   onFormatSelected(format, type) {
     console.log('[Format Factory] Format selected from modal:', format, type);
+
+    // Get selected preset from dropdown
+    const presetSelect = document.getElementById('ff-preset-select');
+    const selectedPreset = presetSelect ? presetSelect.value : 'source';
+
+    // Save preset preference for this type
+    this.saveRememberedPreset(type, selectedPreset);
 
     // Check if we're editing an existing job
     if (this.editingJobId) {
       const job = this.queue.find(j => j.id === this.editingJobId);
       if (job) {
-        console.log('[Format Factory] Updating job format:', job.fileName, '→', format);
+        console.log('[Format Factory] Updating job format:', job.fileName, '→', format, 'preset:', selectedPreset);
         job.outputFormat = format;
         job.outputType = type;
-        job.settings = this.getDefaultSettings(type, format);
+        job.preset = selectedPreset;
+        job.settings = this.getDefaultSettings(type, format, selectedPreset);
         // Reset progress if job was partially processed
         if (job.status === 'processing' || job.status === 'completed') {
           job.status = 'pending';
@@ -662,6 +1126,7 @@ class FormatFactoryManager {
       // Adding new files
       this.selectedFormat = format;
       this.selectedType = type;
+      this.selectedPreset = selectedPreset;
 
       // Add pending files to queue
       if (this.pendingFiles) {
@@ -670,6 +1135,10 @@ class FormatFactoryManager {
         });
         this.pendingFiles = null;
       }
+
+      // Clear temp trim settings after adding to queue
+      this.tempTrimStart = null;
+      this.tempTrimEnd = null;
     }
 
     // Close modal
@@ -695,35 +1164,61 @@ class FormatFactoryManager {
       fileType: file.type,
       outputFormat: this.selectedFormat,
       outputType: this.selectedType,
+      preset: this.selectedPreset || 'source',
       status: 'pending', // pending, processing, completed, failed
       progress: 0,
-      settings: this.getDefaultSettings(this.selectedType, this.selectedFormat),
-      // Trimmer properties
-      trimStart: null,
-      trimEnd: null,
-      hasTrim: false
+      settings: this.getDefaultSettings(this.selectedType, this.selectedFormat, this.selectedPreset || 'source'),
+      // Trimmer properties - use temp trim settings if set
+      trimStart: this.tempTrimStart !== null && this.tempTrimStart !== undefined ? this.tempTrimStart : null,
+      trimEnd: this.tempTrimEnd !== null && this.tempTrimEnd !== undefined ? this.tempTrimEnd : null,
+      hasTrim: this.tempTrimStart !== null && this.tempTrimStart !== undefined && this.tempTrimEnd !== null && this.tempTrimEnd !== undefined
     };
 
     this.queue.push(job);
     console.log('[Format Factory] Added to queue:', job.fileName, '→', job.outputFormat, 'from:', filePath);
   }
 
-  getDefaultSettings(type, format) {
+  getDefaultSettings(type, format, presetId = 'source') {
     const settings = {};
 
+    // Find the preset configuration
+    const presetList = this.presets[type] || [];
+    const preset = presetList.find(p => p.id === presetId) || presetList[0];
+
     if (type === 'video') {
-      // Use 'original' to maintain source properties
-      settings.resolution = 'original';
-      settings.bitrate = null; // Auto bitrate
-      settings.framerate = null; // Original framerate
       settings.codec = format === 'mp4' ? 'h264' : 'auto';
+      settings.framerate = null; // Original framerate
+
+      if (presetId === 'source') {
+        // Maintain source properties
+        settings.resolution = 'original';
+        settings.bitrate = null; // Auto bitrate
+      } else {
+        // Apply preset resolution and bitrate
+        settings.maxWidth = preset.maxWidth;
+        settings.maxHeight = preset.maxHeight;
+        settings.bitrate = preset.bitrate;
+        settings.resolution = 'preset'; // Flag to indicate preset mode
+      }
     } else if (type === 'audio') {
-      settings.audioBitrate = '192k';
       settings.sampleRate = 44100;
       settings.channels = 2;
+
+      if (presetId === 'source') {
+        settings.audioBitrate = null; // Use source bitrate
+      } else {
+        settings.audioBitrate = preset.bitrate;
+      }
     } else if (type === 'image') {
-      settings.quality = 90;
       settings.maintainAspect = true;
+
+      if (presetId === 'source') {
+        settings.quality = 95;
+        settings.maxDimension = null; // No resize
+      } else {
+        settings.quality = preset.quality;
+        settings.maxDimension = preset.maxDimension;
+      }
     }
 
     return settings;
@@ -1057,7 +1552,7 @@ class FormatFactoryManager {
       case 'pending':
         return 'Pending';
       case 'processing':
-        return `${job.progress}%`;
+        return `${Math.round(job.progress)}%`;
       case 'completed':
         return 'Completed';
       case 'failed':
@@ -1197,17 +1692,173 @@ class FormatFactoryManager {
       formatsContainer.appendChild(imageSection);
     }
 
+    // Preset Selector - set initial value to job's current preset
+    const presetSection = this.createPresetSelector(hasVideo, hasAudio, hasImage);
+
+    // After adding to DOM, set the current job's preset as selected
+    setTimeout(() => {
+      const presetSelect = document.getElementById('ff-preset-select');
+      if (presetSelect && job.preset) {
+        presetSelect.value = job.preset;
+        this.selectedPreset = job.preset;
+      }
+    }, 0);
+
+    // Selection Status Display
+    const statusDisplay = document.createElement('div');
+    statusDisplay.id = 'ff-selection-status';
+    statusDisplay.style.cssText = `
+      margin-top: 20px;
+      padding: 12px 16px;
+      background: rgba(59, 130, 246, 0.08);
+      border: 1px solid rgba(59, 130, 246, 0.2);
+      border-radius: 8px;
+      display: none;
+      gap: 16px;
+      align-items: center;
+    `;
+
+    statusDisplay.innerHTML = `
+      <div style="flex: 1;">
+        <div style="font-size: 11px; color: rgba(255, 255, 255, 0.5); text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 4px;">Selected</div>
+        <div id="ff-status-format" style="font-size: 14px; color: #60a5fa; font-weight: 600;">No format selected</div>
+      </div>
+      <div style="flex: 1;">
+        <div style="font-size: 11px; color: rgba(255, 255, 255, 0.5); text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 4px;">Quality</div>
+        <div id="ff-status-preset" style="font-size: 14px; color: #60a5fa; font-weight: 600;">-</div>
+      </div>
+    `;
+
+    // Modal Footer with Confirm/Cancel buttons
+    const footer = document.createElement('div');
+    footer.style.cssText = `
+      display: flex;
+      gap: 12px;
+      margin-top: 24px;
+      padding-top: 20px;
+      border-top: 1px solid #474747;
+      justify-content: flex-end;
+    `;
+
+    const cancelBtn = document.createElement('button');
+    cancelBtn.textContent = 'Cancel';
+    cancelBtn.style.cssText = `
+      padding: 10px 24px;
+      background: #262626;
+      border: 1px solid #474747;
+      border-radius: 6px;
+      color: rgba(255, 255, 255, 0.8);
+      font-size: 14px;
+      font-weight: 500;
+      cursor: pointer;
+      transition: all 0.2s ease;
+    `;
+
+    cancelBtn.addEventListener('mouseenter', () => {
+      cancelBtn.style.background = '#333333';
+      cancelBtn.style.borderColor = '#5a5a5a';
+    });
+
+    cancelBtn.addEventListener('mouseleave', () => {
+      cancelBtn.style.background = '#262626';
+      cancelBtn.style.borderColor = '#474747';
+    });
+
+    cancelBtn.addEventListener('click', () => {
+      modal.remove();
+      this.editingJobId = null;
+      this.tempSelectedFormat = null;
+      this.tempSelectedType = null;
+    });
+
+    const confirmBtn = document.createElement('button');
+    confirmBtn.id = 'ff-modal-confirm';
+    confirmBtn.textContent = 'Confirm';
+    confirmBtn.disabled = true; // Disabled until format is selected
+    confirmBtn.style.cssText = `
+      padding: 10px 24px;
+      background: linear-gradient(135deg, #3b82f6, #60a5fa);
+      border: 1px solid #3b82f6;
+      border-radius: 6px;
+      color: #ffffff;
+      font-size: 14px;
+      font-weight: 500;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      opacity: 0.5;
+    `;
+
+    confirmBtn.addEventListener('mouseenter', () => {
+      if (!confirmBtn.disabled) {
+        confirmBtn.style.boxShadow = '0 4px 16px rgba(59, 130, 246, 0.4)';
+        confirmBtn.style.transform = 'translateY(-1px)';
+      }
+    });
+
+    confirmBtn.addEventListener('mouseleave', () => {
+      confirmBtn.style.boxShadow = 'none';
+      confirmBtn.style.transform = 'translateY(0)';
+    });
+
+    confirmBtn.addEventListener('click', () => {
+      if (!confirmBtn.disabled && this.tempSelectedFormat && this.tempSelectedType) {
+        this.onFormatSelected(this.tempSelectedFormat, this.tempSelectedType);
+      }
+    });
+
+    footer.appendChild(cancelBtn);
+    footer.appendChild(confirmBtn);
+
     // Assemble modal
     modalContent.appendChild(header);
     modalContent.appendChild(formatsContainer);
+    modalContent.appendChild(presetSection);
+    modalContent.appendChild(statusDisplay);
+    modalContent.appendChild(footer);
     modal.appendChild(modalContent);
     document.body.appendChild(modal);
+
+    // Pre-select the current job's format and enable confirm button
+    setTimeout(() => {
+      const allFormatBtns = modal.querySelectorAll('[data-format]');
+      allFormatBtns.forEach(btn => {
+        if (btn.dataset.format === job.outputFormat && btn.dataset.type === job.outputType) {
+          btn.classList.add('ff-format-selected');
+          this.tempSelectedFormat = job.outputFormat;
+          this.tempSelectedType = job.outputType;
+
+          // Enable confirm button and update status display
+          const confirmBtn = document.getElementById('ff-modal-confirm');
+          const statusDisplay = document.getElementById('ff-selection-status');
+          const statusFormat = document.getElementById('ff-status-format');
+          const statusPreset = document.getElementById('ff-status-preset');
+
+          if (confirmBtn) {
+            confirmBtn.disabled = false;
+            confirmBtn.style.opacity = '1';
+            confirmBtn.style.cursor = 'pointer';
+          }
+
+          // Show status with current selection
+          if (statusDisplay && statusFormat && statusPreset) {
+            statusDisplay.style.display = 'flex';
+            statusFormat.textContent = `${job.outputFormat.toUpperCase()} (${job.outputType})`;
+
+            const presetList = this.presets[job.outputType] || [];
+            const selectedPreset = presetList.find(p => p.id === (job.preset || 'source'));
+            statusPreset.textContent = selectedPreset ? selectedPreset.label : 'Source Quality';
+          }
+        }
+      });
+    }, 0);
 
     // Close button handler
     const closeBtn = modal.querySelector('#ff-modal-close');
     closeBtn.addEventListener('click', () => {
       modal.remove();
       this.editingJobId = null;
+      this.tempSelectedFormat = null;
+      this.tempSelectedType = null;
     });
 
     closeBtn.addEventListener('mouseenter', (e) => {
@@ -1225,6 +1876,67 @@ class FormatFactoryManager {
         this.editingJobId = null;
       }
     });
+  }
+
+  async openTrimmerForPendingFile(file) {
+    console.log('[Format Factory] Opening trimmer for pending file:', file.name);
+
+    try {
+      // Check if TrimmerModal is available
+      if (!window.TrimmerModal) {
+        console.error('[Format Factory] TrimmerModal not loaded');
+        alert('Trimmer component not loaded. Please restart the application.');
+        return;
+      }
+
+      // Determine file type
+      const fileType = file.type.startsWith('video/') ? 'video' : 'audio';
+
+      // Initialize modal if not exists
+      if (!this.trimmerModal) {
+        this.trimmerModal = new window.TrimmerModal();
+      }
+
+      // Open trimmer with current trim settings (if any)
+      const options = {
+        initialStart: this.tempTrimStart,
+        initialEnd: this.tempTrimEnd
+      };
+
+      const trimPoints = await this.trimmerModal.open(file, fileType, options);
+
+      if (trimPoints && trimPoints.start !== undefined && trimPoints.end !== undefined) {
+        // Store trim settings temporarily
+        this.tempTrimStart = trimPoints.start;
+        this.tempTrimEnd = trimPoints.end;
+
+        console.log('[Format Factory] Trim applied to pending file:',
+          `${trimPoints.start.toFixed(2)}s - ${trimPoints.end.toFixed(2)}s`);
+
+        // Update trim button to show it's active
+        const trimBtn = document.getElementById('ff-modal-trim');
+        if (trimBtn) {
+          trimBtn.style.borderColor = '#8b5cf6';
+          trimBtn.style.color = '#a78bfa';
+          trimBtn.innerHTML = `
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="margin-right: 6px;">
+              <circle cx="6" cy="6" r="3"/>
+              <circle cx="6" cy="18" r="3"/>
+              <line x1="20" y1="4" x2="8.12" y2="15.88"/>
+              <line x1="14.47" y1="14.48" x2="20" y2="20"/>
+              <line x1="8.12" y1="8.12" x2="12" y2="12"/>
+            </svg>
+            Trim (${trimPoints.start.toFixed(1)}s - ${trimPoints.end.toFixed(1)}s)
+          `;
+        }
+      } else {
+        console.log('[Format Factory] Trim cancelled');
+      }
+
+    } catch (error) {
+      console.error('[Format Factory] Trimmer error:', error);
+      // User canceled or error occurred
+    }
   }
 
   async openTrimmer(jobId) {

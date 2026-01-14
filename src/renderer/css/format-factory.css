@@ -233,10 +233,57 @@
   transform: translateX(4px);
 }
 
-.ff-format-tile.active {
-  background: rgba(59, 130, 246, 0.2);
+.ff-format-tile.active,
+.ff-format-tile.ff-format-selected {
+  background: linear-gradient(135deg, rgba(59, 130, 246, 0.25), rgba(96, 165, 250, 0.15));
   border-color: #3b82f6;
-  box-shadow: 0 0 12px rgba(59, 130, 246, 0.2);
+  border-width: 2px;
+  box-shadow: 0 0 16px rgba(59, 130, 246, 0.3), inset 0 1px 0 rgba(255, 255, 255, 0.1);
+  transform: translateX(4px) scale(1.02);
+}
+
+.ff-format-tile.ff-format-selected {
+  position: relative;
+}
+
+.ff-format-tile.ff-format-selected .ff-tile-icon {
+  filter: drop-shadow(0 0 8px rgba(59, 130, 246, 0.6));
+}
+
+.ff-format-tile.ff-format-selected .ff-tile-label {
+  color: #60a5fa;
+  font-weight: 600;
+}
+
+.ff-format-tile.ff-format-selected::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: linear-gradient(135deg, rgba(59, 130, 246, 0.15), transparent);
+  border-radius: 6px;
+  pointer-events: none;
+}
+
+.ff-format-tile.ff-format-selected::after {
+  content: '✓';
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  width: 22px;
+  height: 22px;
+  background: linear-gradient(135deg, #3b82f6, #60a5fa);
+  color: #ffffff;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 13px;
+  font-weight: bold;
+  box-shadow: 0 2px 8px rgba(59, 130, 246, 0.4);
+  z-index: 1;
 }
 
 /* Main Table View */
@@ -451,6 +498,31 @@
   color: rgba(255, 255, 255, 0.3);
   font-size: 11px;
   margin-top: 8px;
+}
+
+/* Preset Selector Dropdown Styling */
+#ff-preset-select {
+  /* Custom arrow handled in JS */
+}
+
+#ff-preset-select option {
+  background: #262626;
+  color: #ffffff;
+  padding: 8px 12px;
+}
+
+#ff-preset-select option:hover {
+  background: rgba(59, 130, 246, 0.2);
+}
+
+#ff-preset-select option:checked {
+  background: rgba(59, 130, 246, 0.3);
+  color: #3b82f6;
+}
+
+#ff-preset-select option:disabled {
+  background: #1a1a1a;
+  color: rgba(255, 255, 255, 0.3);
 }
 
 /* Scrollbar Styling */

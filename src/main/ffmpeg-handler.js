@@ -249,7 +249,7 @@ class FFmpegHandler {
    * Apply video conversion settings
    */
   applyVideoSettings(command, outputFormat, settings) {
-    const { resolution, bitrate, framerate, codec } = settings;
+    const { resolution, bitrate, framerate, codec, maxWidth, maxHeight } = settings;
 
     // ALWAYS use CPU encoding for maximum compatibility
     // The bundled FFmpeg is too old (2018) and has NVENC compatibility issues
@@ -260,14 +260,26 @@ class FFmpegHandler {
       '-crf', '23' // Balanced quality
     ]);
 
-    // Apply resolution if specified
-    if (resolution && resolution !== 'original') {
+    // Apply resolution based on preset
+    if (resolution === 'preset' && maxWidth && maxHeight) {
+      // Preset mode: scale to fit within maxWidth x maxHeight while maintaining aspect ratio
+      // Use FFmpeg's scale filter with force_original_aspect_ratio=decrease to prevent upscaling
+      console.log(`[FFmpeg Handler] Applying preset resolution: max ${maxWidth}x${maxHeight} (no upscaling)`);
+      command.outputOptions([
+        '-vf', `scale='min(${maxWidth},iw)':'min(${maxHeight},ih)':force_original_aspect_ratio=decrease`
+      ]);
+    } else if (resolution && resolution !== 'original' && resolution !== 'preset') {
+      // Legacy mode: direct resolution specification
       command.size(resolution);
     }
+    // If resolution is 'original' or not set, no scaling is applied
 
     // Apply bitrate if specified
     if (bitrate) {
-      command.videoBitrate(bitrate);
+      console.log(`[FFmpeg Handler] Applying video bitrate: ${bitrate}`);
+      // fluent-ffmpeg's videoBitrate() expects a number (in kbps) or string with unit
+      // Our presets use '20M', '10M' etc. which need to be passed as-is using outputOptions
+      command.outputOptions(['-b:v', bitrate]);
     }
 
     // Apply framerate if specified
@@ -297,9 +309,13 @@ class FFmpegHandler {
     command.audioCodec(audioCodec);
 
     // Apply settings
-    // Skip bitrate for lossless formats (WAV, FLAC)
+    // Skip bitrate for lossless formats (WAV, FLAC) or if null (source quality)
     if (audioBitrate && audioCodec !== 'flac' && audioCodec !== 'pcm_s16le') {
+      console.log(`[FFmpeg Handler] Applying audio bitrate: ${audioBitrate}`);
       command.audioBitrate(audioBitrate);
+    } else if (audioBitrate === null) {
+      console.log('[FFmpeg Handler] Using source audio bitrate (no re-encoding)');
+      // Don't set bitrate - FFmpeg will use source bitrate
     }
 
     if (sampleRate) {
@@ -315,7 +331,7 @@ class FFmpegHandler {
    * Apply image conversion settings
    */
   applyImageSettings(command, outputFormat, settings) {
-    const { quality, width, height } = settings;
+    const { quality, width, height, maxDimension } = settings;
 
     // Set codec based on output format using centralized mapping
     const codec = IMAGE_CODECS[outputFormat];
@@ -333,13 +349,26 @@ class FFmpegHandler {
       } else if (outputFormat === 'webp') {
         // WebP quality: 0-100 (higher is better)
         command.outputOptions(['-quality', quality.toString()]);
+      } else if (outputFormat === 'png') {
+        // PNG uses compression level 0-9 (higher = smaller file, slower)
+        // Map quality 0-100 to compression 9-0 (inverted)
+        const pngCompression = Math.floor((100 - quality) / 100 * 9);
+        command.outputOptions(['-compression_level', pngCompression.toString()]);
       }
     }
 
-    // Apply size if specified
-    if (width && height) {
+    // Apply size based on preset or explicit dimensions
+    if (maxDimension && maxDimension > 0) {
+      // Preset mode: scale to fit within maxDimension (no upscaling)
+      console.log(`[FFmpeg Handler] Applying image preset: max ${maxDimension}px (no upscaling)`);
+      command.outputOptions([
+        '-vf', `scale='min(${maxDimension},iw)':'min(${maxDimension},ih)':force_original_aspect_ratio=decrease`
+      ]);
+    } else if (width && height) {
+      // Legacy mode: explicit dimensions
       command.size(`${width}x${height}`);
     }
+    // If neither specified, maintain original size
   }
 
   /**
