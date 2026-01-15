@@ -810,24 +810,45 @@ class FormatFactoryManager {
       `;
 
       btn.addEventListener('mouseenter', () => {
-        btn.style.background = 'rgba(59, 130, 246, 0.15)';
-        btn.style.borderColor = '#3b82f6';
-        btn.style.transform = 'translateY(-2px)';
-        btn.style.boxShadow = '0 4px 12px rgba(59, 130, 246, 0.2)';
+        // Only apply hover effect if not selected
+        if (!btn.classList.contains('ff-format-selected')) {
+          btn.style.background = 'rgba(59, 130, 246, 0.15)';
+          btn.style.borderColor = '#3b82f6';
+          btn.style.transform = 'translateY(-2px)';
+          btn.style.boxShadow = '0 4px 12px rgba(59, 130, 246, 0.2)';
+        }
       });
 
       btn.addEventListener('mouseleave', () => {
-        btn.style.background = '#262626';
-        btn.style.borderColor = '#474747';
-        btn.style.transform = 'translateY(0)';
-        btn.style.boxShadow = 'none';
+        // Only reset to default if not selected
+        if (!btn.classList.contains('ff-format-selected')) {
+          btn.style.background = '#262626';
+          btn.style.borderColor = '#474747';
+          btn.style.transform = 'translateY(0)';
+          btn.style.boxShadow = 'none';
+        }
       });
 
       btn.addEventListener('click', () => {
         // Toggle selection instead of auto-applying
         const allBtns = grid.querySelectorAll('button');
-        allBtns.forEach(b => b.classList.remove('ff-format-selected'));
+        allBtns.forEach(b => {
+          b.classList.remove('ff-format-selected');
+          // Reset to default styles for unselected buttons
+          b.style.background = '#262626';
+          b.style.borderColor = '#474747';
+          b.style.borderWidth = '1px';
+          b.style.transform = 'translateY(0)';
+          b.style.boxShadow = 'none';
+        });
+
         btn.classList.add('ff-format-selected');
+        // Apply selected state styles explicitly
+        btn.style.background = 'linear-gradient(135deg, rgba(59, 130, 246, 0.25), rgba(96, 165, 250, 0.15))';
+        btn.style.borderColor = '#3b82f6';
+        btn.style.borderWidth = '2px';
+        btn.style.boxShadow = '0 0 16px rgba(59, 130, 246, 0.3), inset 0 1px 0 rgba(255, 255, 255, 0.1)';
+        btn.style.transform = 'translateY(0)';
 
         // Store temporary selection
         this.tempSelectedFormat = fmt.format;

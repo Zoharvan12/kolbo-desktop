@@ -1,6 +1,6 @@
 {
   "name": "kolbo-desktop",
-  "version": "1.1.2",
+  "version": "1.1.3",
   "description": "Kolbo Studio - AI Creative Platform for Video Editors",
   "main": "src/main/main.js",
   "author": {
@@ -73,6 +73,9 @@
       "!node_modules/*/{CHANGELOG.md,README.md,readme.md,LICENSE,license,License}",
       "!node_modules/*/{test,__tests__,tests,powered-test,example,examples}",
       "!node_modules/.cache/**/*"
+    ],
+    "asarUnpack": [
+      "node_modules/@ffmpeg-installer/**/*"
     ],
     "extraMetadata": {
       "main": "src/main/main.js"

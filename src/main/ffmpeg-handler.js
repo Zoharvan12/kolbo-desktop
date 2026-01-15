@@ -2,10 +2,17 @@
 // Handles all media file conversions with hardware acceleration
 
 const ffmpeg = require('fluent-ffmpeg');
-const ffmpegPath = require('@ffmpeg-installer/ffmpeg').path;
+let ffmpegPath = require('@ffmpeg-installer/ffmpeg').path;
 const path = require('path');
 const fs = require('fs');
 const GPUDetector = require('./gpu-detector');
+
+// Fix FFmpeg path when running from asar archive
+// Electron's asar archives can't execute binaries, so we need to use the unpacked path
+if (ffmpegPath.includes('app.asar')) {
+  ffmpegPath = ffmpegPath.replace('app.asar', 'app.asar.unpacked');
+  console.log('[FFmpeg Handler] Detected asar path, using unpacked path');
+}
 
 // Set FFmpeg path
 ffmpeg.setFfmpegPath(ffmpegPath);
