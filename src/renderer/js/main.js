@@ -77,6 +77,11 @@ class KolboApp {
     this.selectedProjectId = localStorage.getItem('kolbo_selected_project') || 'all';
     this.gridSize = parseInt(localStorage.getItem('kolbo_grid_size')) || 3;
 
+    // Project Selector State (custom dropdown)
+    this.projectSortBy = localStorage.getItem('kolbo_project_sort') || 'createdAt';
+    this.projectSearchTerm = '';
+    this.projectDropdownOpen = false;
+
     // Media & Pagination State
     this.media = [];
     this.projects = [];
@@ -92,7 +97,10 @@ class KolboApp {
     // Selection & Interaction State
     this.observer = null;
     this.selectedItems = new Set();
+    this.lastSelectedItemId = null;  // For Shift+Click range selection
     this.playingVideoId = null;
+    this.playingAudioElement = null;
+    this.playingAudioId = null;
 
     // No drag-and-drop state needed
 
@@ -326,7 +334,10 @@ class KolboApp {
     // Controls
     this.getElement('grid-size-slider');
     this.getElement('grid-size-value');
-    this.getElement('project-select');
+    this.getElement('project-dropdown-trigger');
+    this.getElement('project-dropdown-content');
+    this.getElement('project-search-input');
+    this.getElement('project-list');
 
     // Input fields
     this.getElement('email');
@@ -422,11 +433,8 @@ class KolboApp {
       retryBtn.addEventListener('click', () => this.loadMedia(true));
     }
 
-    // Project selector
-    const projectSelect = document.getElementById('project-select');
-    if (projectSelect) {
-      projectSelect.addEventListener('change', (e) => this.handleProjectChange(e));
-    }
+    // Project selector (custom dropdown)
+    this.initProjectSelector();
 
     // Filters
     document.querySelectorAll('.filter-btn').forEach(btn => {
@@ -1030,41 +1038,217 @@ class KolboApp {
     }
   }
 
-  async loadProjects() {
-    try {
-      if (this.DEBUG_MODE) {
-        console.log('Loading projects...');
+  // ============================================================================
+  // PROJECT SELECTOR - Custom dropdown with search and sort
+  // ============================================================================
+
+  initProjectSelector() {
+    // State variables are initialized in constructor
+
+    const trigger = document.getElementById('project-dropdown-trigger');
+    const content = document.getElementById('project-dropdown-content');
+    const searchInput = document.getElementById('project-search-input');
+    const sortDateBtn = document.getElementById('project-sort-date');
+    const sortNameBtn = document.getElementById('project-sort-name');
+
+    if (!trigger || !content) return;
+
+    // Toggle dropdown
+    trigger.addEventListener('click', (e) => {
+      e.stopPropagation();
+      this.toggleProjectDropdown();
+    });
+
+    // Close dropdown when clicking outside
+    document.addEventListener('click', (e) => {
+      if (this.projectDropdownOpen && !content.contains(e.target) && !trigger.contains(e.target)) {
+        this.closeProjectDropdown();
       }
+    });
 
-      const response = await kolboAPI.getProjects();
-      this.projects = response.data || response.projects || [];
+    // Search input
+    if (searchInput) {
+      searchInput.addEventListener('input', (e) => {
+        this.projectSearchTerm = e.target.value;
+        this.renderProjectList();
+      });
 
-      const projectSelect = document.getElementById('project-select');
-      if (projectSelect && this.projects.length > 0) {
-        projectSelect.innerHTML = '<option value="all">All Projects</option>';
+      // Prevent dropdown close when interacting with search
+      searchInput.addEventListener('click', (e) => e.stopPropagation());
+    }
 
-        this.projects.forEach(project => {
-          const option = document.createElement('option');
-          option.value = project._id;
-          option.textContent = project.name || project.title || 'Unnamed Project';
-          projectSelect.appendChild(option);
-        });
+    // Sort buttons
+    if (sortDateBtn) {
+      sortDateBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        this.setProjectSort('createdAt');
+      });
+    }
 
-        // Ensure default is always 'all' if no valid selection exists
-        projectSelect.value = this.selectedProjectId || 'all';
-      }
+    if (sortNameBtn) {
+      sortNameBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        this.setProjectSort('name');
+      });
+    }
 
-      if (this.DEBUG_MODE) {
-        console.log(`Loaded ${this.projects.length} projects`);
-      }
-    } catch (error) {
-      console.error('Failed to load projects:', error);
+    // Update sort button states
+    this.updateSortButtonStates();
+  }
+
+  toggleProjectDropdown() {
+    if (this.projectDropdownOpen) {
+      this.closeProjectDropdown();
+    } else {
+      this.openProjectDropdown();
     }
   }
 
-  handleProjectChange(e) {
-    this.selectedProjectId = e.target.value;
-    localStorage.setItem('kolbo_selected_project', this.selectedProjectId);
+  openProjectDropdown() {
+    const trigger = document.getElementById('project-dropdown-trigger');
+    const content = document.getElementById('project-dropdown-content');
+    const searchInput = document.getElementById('project-search-input');
+
+    if (!trigger || !content) return;
+
+    this.projectDropdownOpen = true;
+    trigger.classList.add('open');
+    content.classList.remove('hidden');
+
+    // Focus search input
+    if (searchInput) {
+      setTimeout(() => searchInput.focus(), 50);
+    }
+  }
+
+  closeProjectDropdown() {
+    const trigger = document.getElementById('project-dropdown-trigger');
+    const content = document.getElementById('project-dropdown-content');
+    const searchInput = document.getElementById('project-search-input');
+
+    if (!trigger || !content) return;
+
+    this.projectDropdownOpen = false;
+    trigger.classList.remove('open');
+    content.classList.add('hidden');
+
+    // Clear search
+    if (searchInput) {
+      searchInput.value = '';
+      this.projectSearchTerm = '';
+    }
+  }
+
+  setProjectSort(sortBy) {
+    this.projectSortBy = sortBy;
+    localStorage.setItem('kolbo_project_sort', sortBy);
+    this.updateSortButtonStates();
+    this.renderProjectList();
+  }
+
+  updateSortButtonStates() {
+    const sortDateBtn = document.getElementById('project-sort-date');
+    const sortNameBtn = document.getElementById('project-sort-name');
+
+    if (sortDateBtn) {
+      sortDateBtn.classList.toggle('active', this.projectSortBy === 'createdAt');
+    }
+    if (sortNameBtn) {
+      sortNameBtn.classList.toggle('active', this.projectSortBy === 'name');
+    }
+  }
+
+  getFilteredAndSortedProjects() {
+    let filtered = this.projects.filter(project => {
+      const name = (project.name || project.title || '').toLowerCase();
+      return !project.isArchived && name.includes(this.projectSearchTerm.toLowerCase());
+    });
+
+    filtered.sort((a, b) => {
+      if (this.projectSortBy === 'name') {
+        return (a.name || a.title || '').localeCompare(b.name || b.title || '');
+      } else {
+        // Sort by createdAt (newest first)
+        return new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime();
+      }
+    });
+
+    return filtered;
+  }
+
+  renderProjectList() {
+    const projectList = document.getElementById('project-list');
+    if (!projectList) return;
+
+    const filteredProjects = this.getFilteredAndSortedProjects();
+
+    // Build HTML
+    let html = `
+      <div class="project-item ${this.selectedProjectId === 'all' ? 'active' : ''}" data-value="all">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <rect x="3" y="3" width="7" height="7"></rect>
+          <rect x="14" y="3" width="7" height="7"></rect>
+          <rect x="14" y="14" width="7" height="7"></rect>
+          <rect x="3" y="14" width="7" height="7"></rect>
+        </svg>
+        <span>All Projects</span>
+      </div>
+    `;
+
+    if (filteredProjects.length === 0 && this.projectSearchTerm) {
+      html += `<div class="project-item-empty">No projects found</div>`;
+    } else {
+      filteredProjects.forEach(project => {
+        const isActive = this.selectedProjectId === project._id;
+        const name = project.name || project.title || 'Unnamed Project';
+        html += `
+          <div class="project-item ${isActive ? 'active' : ''}" data-value="${project._id}">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"></path>
+            </svg>
+            <span>${this.escapeHtml(name)}</span>
+          </div>
+        `;
+      });
+    }
+
+    projectList.innerHTML = html;
+
+    // Add click handlers
+    projectList.querySelectorAll('.project-item').forEach(item => {
+      item.addEventListener('click', () => {
+        const value = item.dataset.value;
+        this.selectProject(value);
+      });
+    });
+  }
+
+  escapeHtml(text) {
+    const div = document.createElement('div');
+    div.textContent = text;
+    return div.innerHTML;
+  }
+
+  selectProject(projectId) {
+    this.selectedProjectId = projectId;
+    localStorage.setItem('kolbo_selected_project', projectId);
+
+    // Update display name
+    const selectedNameEl = document.getElementById('project-selected-name');
+    if (selectedNameEl) {
+      if (projectId === 'all') {
+        selectedNameEl.textContent = 'All Projects';
+      } else {
+        const project = this.projects.find(p => p._id === projectId);
+        selectedNameEl.textContent = project ? (project.name || project.title || 'Unnamed Project') : 'All Projects';
+      }
+    }
+
+    // Update active states in list
+    this.renderProjectList();
+
+    // Close dropdown
+    this.closeProjectDropdown();
 
     if (this.DEBUG_MODE) {
       console.log('Project changed to:', this.selectedProjectId);
@@ -1079,6 +1263,52 @@ class KolboApp {
     this.filterDebounceTimer = setTimeout(() => {
       this.loadMedia(true);
     }, this.filterDebounceDelay);
+  }
+
+  async loadProjects() {
+    try {
+      if (this.DEBUG_MODE) {
+        console.log('Loading projects...');
+      }
+
+      const response = await kolboAPI.getProjects();
+
+      // Handle different response structures
+      if (Array.isArray(response)) {
+        this.projects = response;
+      } else if (response && response.data) {
+        this.projects = response.data;
+      } else if (response && response.projects) {
+        this.projects = response.projects;
+      } else {
+        this.projects = [];
+      }
+
+      // Render the project list in custom dropdown
+      this.renderProjectList();
+
+      // Update the selected project name display
+      const selectedNameEl = document.getElementById('project-selected-name');
+      if (selectedNameEl) {
+        if (this.selectedProjectId === 'all') {
+          selectedNameEl.textContent = 'All Projects';
+        } else {
+          const project = this.projects.find(p => p._id === this.selectedProjectId);
+          selectedNameEl.textContent = project ? (project.name || project.title || 'Unnamed Project') : 'All Projects';
+        }
+      }
+
+      if (this.DEBUG_MODE) {
+        console.log(`Loaded ${this.projects.length} projects`);
+      }
+    } catch (error) {
+      console.error('Failed to load projects:', error);
+    }
+  }
+
+  handleProjectChange(e) {
+    // Legacy method - now handled by selectProject
+    this.selectProject(e.target.value);
   }
 
   handleLogout(skipConfirmation = false) {
@@ -1797,6 +2027,25 @@ class KolboApp {
     const audioUrl = item.url || item.audio_url || '';
     const isSelected = this.selectedItems.has(item.id);
 
+    // Determine category badge styling
+    const categoryLower = (category || 'audio').toLowerCase();
+    let categoryClass = 'category-other';
+    let categoryLabel = category || 'Audio';
+
+    if (categoryLower.includes('music') || categoryLower.includes('suno')) {
+      categoryClass = 'category-music';
+      categoryLabel = 'Music';
+    } else if (categoryLower.includes('tts') || categoryLower.includes('speech') || categoryLower.includes('voice')) {
+      categoryClass = 'category-tts';
+      categoryLabel = 'TTS';
+    } else if (categoryLower.includes('sound') || categoryLower.includes('effect') || categoryLower.includes('sfx')) {
+      categoryClass = 'category-sfx';
+      categoryLabel = 'SFX';
+    }
+
+    // Generate random waveform bars for visual appeal
+    const waveformBars = this.generateWaveformBars(32);
+
     return `
       <div class="media-item media-item-audio ${isSelected ? 'selected' : ''}" data-id="${item.id}" draggable="true" data-filename="${fileName}" data-url="${item.url}" data-type="${item.type}">
         <div class="selection-checkbox ${isSelected ? 'checked' : ''}" data-id="${item.id}"></div>
@@ -1806,16 +2055,50 @@ class KolboApp {
           </svg>
         </div>
         <div class="audio-card">
-          <div class="audio-title" title="${title}">${title}</div>
-          <div class="audio-player-wrapper">
-            <audio controls class="audio-player" preload="none">
-              <source src="${audioUrl}" type="audio/mpeg">
-              Your browser does not support audio playback.
-            </audio>
+          <div class="audio-card-header">
+            <span class="audio-category-badge ${categoryClass}">${categoryLabel}</span>
           </div>
+          <div class="audio-title" title="${title}">${title}</div>
+          <div class="audio-waveform-container">
+            <div class="audio-waveform" data-id="${item.id}">
+              ${waveformBars}
+              <div class="waveform-progress" data-id="${item.id}"></div>
+            </div>
+          </div>
+          <div class="audio-controls">
+            <button class="audio-play-btn" data-id="${item.id}" data-url="${audioUrl}">
+              <svg class="play-icon" width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
+                <path d="M8 5v14l11-7z"/>
+              </svg>
+              <svg class="pause-icon" width="18" height="18" viewBox="0 0 24 24" fill="currentColor" style="display: none;">
+                <path d="M6 4h4v16H6V4zm8 0h4v16h-4V4z"/>
+              </svg>
+            </button>
+            <div class="audio-time">
+              <span class="audio-current-time" data-id="${item.id}">0:00</span>
+              <span class="audio-separator">/</span>
+              <span class="audio-duration" data-id="${item.id}">--:--</span>
+            </div>
+          </div>
+          <audio class="audio-element" data-id="${item.id}" preload="metadata">
+            <source src="${audioUrl}" type="audio/mpeg">
+          </audio>
         </div>
       </div>
     `;
+  }
+
+  generateWaveformBars(count) {
+    // Generate pseudo-random but consistent waveform pattern
+    const bars = [];
+    for (let i = 0; i < count; i++) {
+      // Create a wave pattern with some randomness
+      const baseHeight = Math.sin((i / count) * Math.PI) * 60 + 20;
+      const variance = Math.sin(i * 0.5) * 15 + Math.cos(i * 0.8) * 10;
+      const height = Math.max(15, Math.min(95, baseHeight + variance));
+      bars.push(`<div class="waveform-bar" style="height: ${height}%"></div>`);
+    }
+    return bars.join('');
   }
 
   getFileName(item) {
@@ -1876,7 +2159,11 @@ class KolboApp {
       if (checkbox) {
         e.stopPropagation();
         const itemId = checkbox.closest('.media-item').dataset.id;
-        this.toggleSelection(itemId);
+        if (e.shiftKey && this.lastSelectedItemId) {
+          this.selectRange(this.lastSelectedItemId, itemId);
+        } else {
+          this.toggleSelection(itemId);
+        }
         return;
       }
 
@@ -1885,7 +2172,11 @@ class KolboApp {
       if (mediaItem) {
         e.stopPropagation();
         const itemId = mediaItem.dataset.id;
-        this.toggleSelection(itemId);
+        if (e.shiftKey && this.lastSelectedItemId) {
+          this.selectRange(this.lastSelectedItemId, itemId);
+        } else {
+          this.toggleSelection(itemId);
+        }
       }
     };
 
@@ -1913,6 +2204,9 @@ class KolboApp {
 
     // Add drag-and-drop handlers
     this.setupDragAndDrop(gridEl);
+
+    // Add audio playback listeners to ensure only one media plays at a time
+    this.setupAudioPlaybackListeners();
   }
 
   setupDragAndDrop(gridEl) {
@@ -2177,6 +2471,16 @@ class KolboApp {
     const button = document.querySelector(`.video-play-btn[data-id="${videoId}"]`);
     if (!video || !button) return;
 
+    // Pause any playing audio first and reset its UI
+    if (this.playingAudioElement) {
+      this.playingAudioElement.pause();
+      if (this.playingAudioId) {
+        this.updateAudioUI(this.playingAudioId, false);
+      }
+      this.playingAudioElement = null;
+      this.playingAudioId = null;
+    }
+
     // Pause currently playing video if different
     if (this.playingVideoId && this.playingVideoId !== videoId) {
       const currentVideo = document.getElementById(`video-${this.playingVideoId}`);
@@ -2219,6 +2523,184 @@ class KolboApp {
     }
   }
 
+  handleAudioPlay(audioElement, audioId) {
+    // Pause any currently playing video
+    if (this.playingVideoId) {
+      const currentVideo = document.getElementById(`video-${this.playingVideoId}`);
+      const currentButton = document.querySelector(`.video-play-btn[data-id="${this.playingVideoId}"]`);
+      if (currentVideo) {
+        currentVideo.pause();
+        currentVideo.muted = true;
+      }
+      if (currentButton) {
+        currentButton.classList.remove('playing');
+        currentButton.innerHTML = `
+          <svg width="32" height="32" viewBox="0 0 24 24" fill="white">
+            <path d="M8 5v14l11-7z"/>
+          </svg>
+        `;
+      }
+      this.playingVideoId = null;
+    }
+
+    // Pause any other playing audio and reset its UI
+    if (this.playingAudioElement && this.playingAudioElement !== audioElement) {
+      this.playingAudioElement.pause();
+      const prevId = this.playingAudioElement.dataset.id;
+      this.updateAudioUI(prevId, false);
+    }
+
+    // Track the new playing audio
+    this.playingAudioElement = audioElement;
+    this.playingAudioId = audioId;
+  }
+
+  updateAudioUI(audioId, isPlaying) {
+    const mediaItem = document.querySelector(`.media-item-audio[data-id="${audioId}"]`);
+    if (!mediaItem) return;
+
+    const playBtn = mediaItem.querySelector('.audio-play-btn');
+    const playIcon = playBtn?.querySelector('.play-icon');
+    const pauseIcon = playBtn?.querySelector('.pause-icon');
+
+    if (isPlaying) {
+      mediaItem.classList.add('playing');
+      if (playIcon) playIcon.style.display = 'none';
+      if (pauseIcon) pauseIcon.style.display = 'block';
+    } else {
+      mediaItem.classList.remove('playing');
+      if (playIcon) playIcon.style.display = 'block';
+      if (pauseIcon) pauseIcon.style.display = 'none';
+    }
+  }
+
+  updateWaveformProgress(audioId, progress) {
+    const mediaItem = document.querySelector(`.media-item-audio[data-id="${audioId}"]`);
+    if (!mediaItem) return;
+
+    const waveform = mediaItem.querySelector('.audio-waveform');
+    if (!waveform) return;
+
+    const bars = waveform.querySelectorAll('.waveform-bar');
+    const playedCount = Math.floor(bars.length * progress);
+
+    bars.forEach((bar, index) => {
+      if (index < playedCount) {
+        bar.classList.add('played');
+      } else {
+        bar.classList.remove('played');
+      }
+    });
+  }
+
+  formatAudioTime(seconds) {
+    if (!seconds || isNaN(seconds)) return '--:--';
+    const mins = Math.floor(seconds / 60);
+    const secs = Math.floor(seconds % 60);
+    return `${mins}:${secs.toString().padStart(2, '0')}`;
+  }
+
+  setupAudioPlaybackListeners() {
+    const audioCards = document.querySelectorAll('.media-item-audio');
+
+    audioCards.forEach(card => {
+      const audioId = card.dataset.id;
+      const audio = card.querySelector('.audio-element');
+      const playBtn = card.querySelector('.audio-play-btn');
+      const waveform = card.querySelector('.audio-waveform');
+      const currentTimeEl = card.querySelector('.audio-current-time');
+      const durationEl = card.querySelector('.audio-duration');
+
+      if (!audio || !playBtn) return;
+
+      // Remove existing listeners
+      if (playBtn._clickHandler) {
+        playBtn.removeEventListener('click', playBtn._clickHandler);
+      }
+      if (audio._timeUpdateHandler) {
+        audio.removeEventListener('timeupdate', audio._timeUpdateHandler);
+      }
+      if (audio._loadedHandler) {
+        audio.removeEventListener('loadedmetadata', audio._loadedHandler);
+      }
+      if (audio._endedHandler) {
+        audio.removeEventListener('ended', audio._endedHandler);
+      }
+      if (waveform?._clickHandler) {
+        waveform.removeEventListener('click', waveform._clickHandler);
+      }
+
+      // Play/Pause button handler
+      const clickHandler = (e) => {
+        e.stopPropagation();
+
+        if (audio.paused) {
+          this.handleAudioPlay(audio, audioId);
+          audio.play();
+          this.updateAudioUI(audioId, true);
+        } else {
+          audio.pause();
+          this.updateAudioUI(audioId, false);
+          this.playingAudioElement = null;
+          this.playingAudioId = null;
+        }
+      };
+      playBtn._clickHandler = clickHandler;
+      playBtn.addEventListener('click', clickHandler);
+
+      // Time update handler
+      const timeUpdateHandler = () => {
+        const progress = audio.currentTime / audio.duration;
+        this.updateWaveformProgress(audioId, progress);
+        if (currentTimeEl) {
+          currentTimeEl.textContent = this.formatAudioTime(audio.currentTime);
+        }
+      };
+      audio._timeUpdateHandler = timeUpdateHandler;
+      audio.addEventListener('timeupdate', timeUpdateHandler);
+
+      // Loaded metadata handler
+      const loadedHandler = () => {
+        if (durationEl) {
+          durationEl.textContent = this.formatAudioTime(audio.duration);
+        }
+      };
+      audio._loadedHandler = loadedHandler;
+      audio.addEventListener('loadedmetadata', loadedHandler);
+
+      // Ended handler
+      const endedHandler = () => {
+        this.updateAudioUI(audioId, false);
+        this.updateWaveformProgress(audioId, 0);
+        if (currentTimeEl) currentTimeEl.textContent = '0:00';
+        this.playingAudioElement = null;
+        this.playingAudioId = null;
+      };
+      audio._endedHandler = endedHandler;
+      audio.addEventListener('ended', endedHandler);
+
+      // Waveform click for seeking
+      if (waveform) {
+        const waveformClickHandler = (e) => {
+          e.stopPropagation();
+          const rect = waveform.getBoundingClientRect();
+          const clickX = e.clientX - rect.left;
+          const progress = clickX / rect.width;
+          audio.currentTime = progress * audio.duration;
+
+          // If not playing, start playback
+          if (audio.paused) {
+            this.handleAudioPlay(audio, audioId);
+            audio.play();
+            this.updateAudioUI(audioId, true);
+          }
+        };
+        waveform._clickHandler = waveformClickHandler;
+        waveform.addEventListener('click', waveformClickHandler);
+      }
+    });
+  }
+
   toggleSelection(itemId) {
     const wasSelected = this.selectedItems.has(itemId);
 
@@ -2226,6 +2708,8 @@ class KolboApp {
       this.selectedItems.delete(itemId);
     } else {
       this.selectedItems.add(itemId);
+      // Track last selected item for Shift+Click range selection
+      this.lastSelectedItemId = itemId;
 
       // Pre-download file to cache when selected (for instant drag-and-drop)
       const item = document.querySelector(`[data-id="${itemId}"]`);
@@ -2302,6 +2786,86 @@ class KolboApp {
     this.updateBatchMenu();
   }
 
+  selectRange(startItemId, endItemId) {
+    // Get all media items in their DOM order
+    const mediaGrid = document.getElementById('media-grid');
+    if (!mediaGrid) return;
+
+    const allItems = Array.from(mediaGrid.querySelectorAll('.media-item'));
+    const itemIds = allItems.map(item => item.dataset.id);
+
+    // Find indices
+    const startIndex = itemIds.indexOf(startItemId);
+    const endIndex = itemIds.indexOf(endItemId);
+
+    if (startIndex === -1 || endIndex === -1) return;
+
+    // Determine range (handle both directions)
+    const minIndex = Math.min(startIndex, endIndex);
+    const maxIndex = Math.max(startIndex, endIndex);
+
+    // Select all items in range
+    for (let i = minIndex; i <= maxIndex; i++) {
+      const itemId = itemIds[i];
+      const item = allItems[i];
+
+      // Skip if already selected
+      if (this.selectedItems.has(itemId)) continue;
+
+      // Add to selection
+      this.selectedItems.add(itemId);
+
+      // Update UI
+      item.classList.add('selected');
+      const checkbox = item.querySelector('.selection-checkbox');
+      if (checkbox) {
+        checkbox.classList.add('checked');
+      }
+
+      // Pre-cache the item (same logic as toggleSelection)
+      const fileName = item.dataset.filename;
+      const url = item.dataset.url;
+      const type = item.dataset.type;
+
+      if (fileName && url) {
+        window.kolboDesktop.getCachedFilePath(itemId).then(cacheResult => {
+          if (cacheResult.cached) {
+            this.dragCacheStatus.set(itemId, cacheResult.filePath);
+            const cacheStatus = item.querySelector('.cache-status');
+            if (cacheStatus) {
+              cacheStatus.style.display = 'block';
+            }
+          } else {
+            window.kolboDesktop.preloadCache([{
+              id: itemId,
+              fileName,
+              url,
+              type
+            }]).then(result => {
+              if (result.success && result.successful > 0) {
+                window.kolboDesktop.getCachedFilePath(itemId).then(cacheResult => {
+                  if (cacheResult.cached) {
+                    this.dragCacheStatus.set(itemId, cacheResult.filePath);
+                    const cacheStatus = item.querySelector('.cache-status');
+                    if (cacheStatus) {
+                      cacheStatus.style.display = 'block';
+                    }
+                  }
+                });
+              }
+            }).catch(error => {
+              console.error('[Selection] Range download error:', error);
+            });
+          }
+        });
+      }
+    }
+
+    // Update last selected to end of range
+    this.lastSelectedItemId = endItemId;
+
+    this.updateBatchMenu();
+  }
 
   updateBatchMenu() {
     const menu = document.getElementById('floating-batch-menu');

@@ -1562,8 +1562,24 @@ function setupDownloadHandler() {
 function setupPermissionHandlers() {
   const { session, systemPreferences } = require('electron');
 
-  // Track if we've already requested system permissions to prevent infinite loops
-  const requestedPermissions = new Set();
+  // Track permission states to prevent infinite loops
+  // State can be: 'idle', 'requesting', 'granted', 'denied'
+  const permissionState = {
+    camera: 'idle',
+    microphone: 'idle'
+  };
+
+  // Queue of pending callbacks waiting for permission result
+  const pendingCallbacks = {
+    camera: [],
+    microphone: []
+  };
+
+  // Track if we've shown the "denied" dialog to avoid spamming
+  const deniedDialogShown = {
+    camera: false,
+    microphone: false
+  };
 
   // Handle permission requests from web content (iframes)
   session.defaultSession.setPermissionRequestHandler(async (webContents, permission, callback) => {
@@ -1597,45 +1613,19 @@ function setupPermissionHandlers() {
     if (process.platform === 'darwin' && (permission === 'media' || permission === 'camera' || permission === 'microphone')) {
       const mediaType = permission === 'microphone' ? 'microphone' : 'camera';
 
-      // Create a unique key for this permission request
-      const permissionKey = `${mediaType}_${Date.now()}`;
-
-      // Check if we've already requested this permission in the last 5 seconds
-      const recentRequest = Array.from(requestedPermissions).find(key => {
-        const [type, timestamp] = key.split('_');
-        return type === mediaType && (Date.now() - parseInt(timestamp)) < 5000;
-      });
-
-      if (recentRequest) {
-        // We already requested this recently, just grant without asking again
+      // If we've already determined the permission, return cached result immediately
+      if (permissionState[mediaType] === 'granted') {
         console.log(`[Permissions] ✅ Granted (cached): ${permission}`);
         callback(true);
         return;
       }
 
-      // Mark this permission as requested
-      requestedPermissions.add(permissionKey);
-
-      // Clean up old entries (older than 5 seconds)
-      setTimeout(() => {
-        requestedPermissions.delete(permissionKey);
-      }, 5000);
-
-      try {
-        // Check macOS system permission status
-        const status = systemPreferences.getMediaAccessStatus(mediaType);
-        console.log(`[Permissions] macOS ${mediaType} status:`, status);
-
-        if (status === 'granted') {
-          // Already granted at system level
-          console.log(`[Permissions] ✅ Granted (system): ${permission}`);
-          callback(true);
-        } else if (status === 'denied') {
-          // User denied at system level - show helpful message
-          console.log(`[Permissions] ❌ Denied (system): ${permission}`);
-
+      if (permissionState[mediaType] === 'denied') {
+        console.log(`[Permissions] ❌ Denied (cached): ${permission}`);
+        // Show dialog only once per session
+        if (!deniedDialogShown[mediaType]) {
+          deniedDialogShown[mediaType] = true;
           const { dialog } = require('electron');
-          // Check if window still exists before showing dialog
           if (mainWindow && !mainWindow.isDestroyed()) {
             dialog.showMessageBox(mainWindow, {
               type: 'warning',
@@ -1645,17 +1635,80 @@ function setupPermissionHandlers() {
               buttons: ['OK']
             });
           }
+        }
+        callback(false);
+        return;
+      }
+
+      // If a request is already in progress, queue this callback
+      if (permissionState[mediaType] === 'requesting') {
+        console.log(`[Permissions] ⏳ Request in progress, queuing callback for: ${mediaType}`);
+        pendingCallbacks[mediaType].push(callback);
+        return;
+      }
+
+      try {
+        // Check macOS system permission status
+        const status = systemPreferences.getMediaAccessStatus(mediaType);
+        console.log(`[Permissions] macOS ${mediaType} status:`, status);
+
+        if (status === 'granted') {
+          // Already granted at system level - cache and return
+          permissionState[mediaType] = 'granted';
+          console.log(`[Permissions] ✅ Granted (system): ${permission}`);
+          callback(true);
+        } else if (status === 'denied') {
+          // User denied at system level - cache and show helpful message
+          permissionState[mediaType] = 'denied';
+          console.log(`[Permissions] ❌ Denied (system): ${permission}`);
+
+          if (!deniedDialogShown[mediaType]) {
+            deniedDialogShown[mediaType] = true;
+            const { dialog } = require('electron');
+            if (mainWindow && !mainWindow.isDestroyed()) {
+              dialog.showMessageBox(mainWindow, {
+                type: 'warning',
+                title: `${mediaType === 'camera' ? 'Camera' : 'Microphone'} Access Denied`,
+                message: `Kolbo Studio needs ${mediaType} access`,
+                detail: `Please enable ${mediaType} access in System Preferences → Security & Privacy → Privacy → ${mediaType === 'camera' ? 'Camera' : 'Microphone'}`,
+                buttons: ['OK']
+              });
+            }
+          }
 
           callback(false);
         } else if (status === 'not-determined' || status === 'restricted') {
-          // Need to request permission - this will show the system dialog ONCE
+          // Need to request permission - mark as requesting to prevent concurrent requests
+          permissionState[mediaType] = 'requesting';
           console.log(`[Permissions] 🔄 Requesting macOS ${mediaType} permission...`);
 
-          // Request access - this triggers the macOS system dialog
-          const granted = await systemPreferences.askForMediaAccess(mediaType);
+          try {
+            // Request access - this triggers the macOS system dialog ONCE
+            const granted = await systemPreferences.askForMediaAccess(mediaType);
 
-          console.log(`[Permissions] ${granted ? '✅' : '❌'} macOS ${mediaType} permission ${granted ? 'granted' : 'denied'}`);
-          callback(granted);
+            // Update state based on result
+            permissionState[mediaType] = granted ? 'granted' : 'denied';
+            console.log(`[Permissions] ${granted ? '✅' : '❌'} macOS ${mediaType} permission ${granted ? 'granted' : 'denied'}`);
+
+            // Respond to this callback
+            callback(granted);
+
+            // Respond to all queued callbacks with the same result
+            const queued = pendingCallbacks[mediaType];
+            pendingCallbacks[mediaType] = [];
+            console.log(`[Permissions] Resolving ${queued.length} queued callbacks for ${mediaType}`);
+            queued.forEach(queuedCallback => queuedCallback(granted));
+          } catch (requestError) {
+            console.error(`[Permissions] Error requesting ${mediaType} permission:`, requestError);
+            // Reset state so it can be tried again
+            permissionState[mediaType] = 'idle';
+            // Grant on error (fallback behavior)
+            callback(true);
+            // Resolve queued callbacks too
+            const queued = pendingCallbacks[mediaType];
+            pendingCallbacks[mediaType] = [];
+            queued.forEach(queuedCallback => queuedCallback(true));
+          }
         } else {
           // Unknown status, grant anyway
           console.log(`[Permissions] ✅ Granted (unknown status): ${permission}`);
@@ -2848,17 +2901,14 @@ function setupSessionCSP() {
                 : [details.responseHeaders[headerName]];
 
               const modifiedCSP = cspArray.map(csp => {
-                // Replace frame-ancestors * with explicit protocols including file://
-                // Also handle cases where frame-ancestors might be missing
+                // IMPORTANT: frame-ancestors directive does NOT support file://, app://, or
+                // non-network schemes per CSP spec. The wildcard * only matches http/https.
+                // Solution: REMOVE any frame-ancestors directive entirely for Electron compatibility.
+                // If frame-ancestors exists, remove it completely
                 if (csp.includes('frame-ancestors')) {
-                  return csp.replace(
-                    /frame-ancestors\s+[^;]+/gi,
-                    "frame-ancestors * file:// app:// http:// https://"
-                  );
-                } else if (csp.includes("'self'") || csp.includes('*')) {
-                  // If no frame-ancestors directive, add it
-                  return csp + "; frame-ancestors * file:// app:// http:// https://";
+                  return csp.replace(/frame-ancestors\s+[^;]+;?\s*/gi, '').trim();
                 }
+                // Don't add frame-ancestors - just return the CSP as-is
                 return csp;
               });
 

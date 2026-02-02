@@ -19,10 +19,10 @@ class FormatFactoryManager {
     this.presets = {
       video: [
         { id: 'source', label: 'Source Quality', desc: 'Maintain original resolution and quality' },
-        { id: '4k', label: '4K (3840×2160, 20Mbps)', desc: 'Ultra HD quality', maxWidth: 3840, maxHeight: 2160, bitrate: '20M' },
-        { id: '1080p', label: '1080p (1920×1080, 10Mbps)', desc: 'Full HD quality', maxWidth: 1920, maxHeight: 1080, bitrate: '10M' },
-        { id: '720p', label: '720p (1280×720, 6Mbps)', desc: 'HD quality', maxWidth: 1280, maxHeight: 720, bitrate: '6M' },
-        { id: '480p', label: '480p (854×480, 3Mbps)', desc: 'SD quality', maxWidth: 854, maxHeight: 480, bitrate: '3M' }
+        { id: '4k', label: '4K (3840×2160)', desc: 'Ultra HD quality', maxWidth: 3840, maxHeight: 2160, defaultBitrate: '20M' },
+        { id: '1080p', label: '1080p (1920×1080)', desc: 'Full HD quality', maxWidth: 1920, maxHeight: 1080, defaultBitrate: '10M' },
+        { id: '720p', label: '720p (1280×720)', desc: 'HD quality', maxWidth: 1280, maxHeight: 720, defaultBitrate: '6M' },
+        { id: '480p', label: '480p (854×480)', desc: 'SD quality', maxWidth: 854, maxHeight: 480, defaultBitrate: '3M' }
       ],
       audio: [
         { id: 'source', label: 'Source Quality', desc: 'Maintain original quality' },
@@ -38,6 +38,20 @@ class FormatFactoryManager {
         { id: 'web', label: 'Web Optimized (800px)', desc: 'Small file size', maxDimension: 800, quality: 80 }
       ]
     };
+
+    // Video bitrate presets (in Mbps)
+    this.videoBitratePresets = [
+      { id: 'auto', label: 'Auto (Based on Resolution)', desc: 'Automatically set based on resolution preset', value: null },
+      { id: 'high', label: 'High Quality (15 Mbps)', desc: 'Best quality, larger file size', value: 15 },
+      { id: 'medium', label: 'Medium Quality (8 Mbps)', desc: 'Balanced quality and size', value: 8 },
+      { id: 'low', label: 'Low Quality (4 Mbps)', desc: 'Smaller file, lower quality', value: 4 },
+      { id: 'very-low', label: 'Very Low (2 Mbps)', desc: 'Minimum size, reduced quality', value: 2 },
+      { id: 'custom', label: 'Custom...', desc: 'Enter your own bitrate', value: 'custom' }
+    ];
+
+    // Selected bitrate state
+    this.selectedBitrate = 'auto';
+    this.customBitrateValue = null;
 
     this.init();
   }
@@ -542,6 +556,9 @@ class FormatFactoryManager {
     // Preset Selector
     const presetSection = this.createPresetSelector(hasVideo, hasAudio, hasImage);
 
+    // Bitrate Selector (for video only)
+    const bitrateSection = this.createBitrateSelector();
+
     // Selection Status Display
     const statusDisplay = document.createElement('div');
     statusDisplay.id = 'ff-selection-status';
@@ -609,6 +626,8 @@ class FormatFactoryManager {
       this.tempSelectedType = null;
       this.tempTrimStart = null;
       this.tempTrimEnd = null;
+      this.selectedBitrate = 'auto';
+      this.customBitrateValue = null;
     });
 
     // Trim button (only for single video/audio file)
@@ -707,6 +726,7 @@ class FormatFactoryManager {
     modalContent.appendChild(header);
     modalContent.appendChild(formatsContainer);
     modalContent.appendChild(presetSection);
+    modalContent.appendChild(bitrateSection);
     modalContent.appendChild(statusDisplay);
     modalContent.appendChild(footer);
     modal.appendChild(modalContent);
@@ -719,6 +739,8 @@ class FormatFactoryManager {
       this.pendingFiles = null;
       this.tempTrimStart = null;
       this.tempTrimEnd = null;
+      this.selectedBitrate = 'auto';
+      this.customBitrateValue = null;
     });
 
     closeBtn.addEventListener('mouseenter', (e) => {
@@ -1010,6 +1032,389 @@ class FormatFactoryManager {
     return section;
   }
 
+  createBitrateSelector() {
+    const section = document.createElement('div');
+    section.id = 'ff-bitrate-section';
+    section.style.cssText = `
+      display: none;
+      flex-direction: column;
+      gap: 8px;
+      margin-top: 12px;
+      padding: 12px;
+      background: rgba(59, 130, 246, 0.05);
+      border: 1px solid rgba(59, 130, 246, 0.15);
+      border-radius: 8px;
+    `;
+
+    // Title row with value display
+    const titleRow = document.createElement('div');
+    titleRow.style.cssText = `
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 8px;
+    `;
+
+    const titleEl = document.createElement('h4');
+    titleEl.textContent = 'Video Bitrate';
+    titleEl.style.cssText = `
+      margin: 0;
+      color: rgba(255, 255, 255, 0.8);
+      font-size: 13px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    `;
+
+    const valueDisplay = document.createElement('span');
+    valueDisplay.id = 'ff-bitrate-value-display';
+    valueDisplay.style.cssText = `
+      color: #60a5fa;
+      font-size: 14px;
+      font-weight: 600;
+    `;
+    valueDisplay.textContent = 'Auto';
+
+    titleRow.appendChild(titleEl);
+    titleRow.appendChild(valueDisplay);
+    section.appendChild(titleRow);
+
+    // Slider container
+    const sliderContainer = document.createElement('div');
+    sliderContainer.style.cssText = `
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    `;
+
+    // Slider with labels
+    const sliderRow = document.createElement('div');
+    sliderRow.style.cssText = `
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    `;
+
+    const minLabel = document.createElement('span');
+    minLabel.textContent = '0.5';
+    minLabel.style.cssText = `
+      color: rgba(255, 255, 255, 0.5);
+      font-size: 11px;
+      min-width: 24px;
+    `;
+
+    // Create slider input
+    const slider = document.createElement('input');
+    slider.type = 'range';
+    slider.id = 'ff-bitrate-slider';
+    slider.min = '0.5';
+    slider.max = '50';
+    slider.step = '0.1';
+    slider.value = '8';
+    slider.style.cssText = `
+      flex: 1;
+      height: 6px;
+      -webkit-appearance: none;
+      appearance: none;
+      background: linear-gradient(to right, #3b82f6 0%, #3b82f6 15%, #262626 15%, #262626 100%);
+      border-radius: 3px;
+      outline: none;
+      cursor: pointer;
+    `;
+
+    const maxLabel = document.createElement('span');
+    maxLabel.textContent = '50';
+    maxLabel.style.cssText = `
+      color: rgba(255, 255, 255, 0.5);
+      font-size: 11px;
+      min-width: 24px;
+      text-align: right;
+    `;
+
+    sliderRow.appendChild(minLabel);
+    sliderRow.appendChild(slider);
+    sliderRow.appendChild(maxLabel);
+    sliderContainer.appendChild(sliderRow);
+
+    // Preset buttons row
+    const presetRow = document.createElement('div');
+    presetRow.style.cssText = `
+      display: flex;
+      gap: 6px;
+      flex-wrap: wrap;
+      margin-top: 4px;
+    `;
+
+    const presetButtons = [
+      { label: 'Auto', value: null },
+      { label: '2', value: 2 },
+      { label: '4', value: 4 },
+      { label: '8', value: 8 },
+      { label: '15', value: 15 },
+      { label: '25', value: 25 }
+    ];
+
+    presetButtons.forEach(preset => {
+      const btn = document.createElement('button');
+      btn.textContent = preset.value ? `${preset.value} Mbps` : 'Auto';
+      btn.dataset.value = preset.value !== null ? preset.value : 'auto';
+      btn.style.cssText = `
+        padding: 4px 10px;
+        background: ${preset.value === null ? 'rgba(59, 130, 246, 0.2)' : '#262626'};
+        border: 1px solid ${preset.value === null ? '#3b82f6' : '#474747'};
+        border-radius: 4px;
+        color: ${preset.value === null ? '#60a5fa' : 'rgba(255, 255, 255, 0.7)'};
+        font-size: 11px;
+        cursor: pointer;
+        transition: all 0.2s ease;
+      `;
+
+      btn.addEventListener('mouseenter', () => {
+        if (!btn.classList.contains('active')) {
+          btn.style.borderColor = '#3b82f6';
+          btn.style.background = 'rgba(59, 130, 246, 0.1)';
+        }
+      });
+
+      btn.addEventListener('mouseleave', () => {
+        if (!btn.classList.contains('active')) {
+          btn.style.borderColor = '#474747';
+          btn.style.background = '#262626';
+        }
+      });
+
+      btn.addEventListener('click', () => {
+        // Update all buttons
+        presetRow.querySelectorAll('button').forEach(b => {
+          b.classList.remove('active');
+          b.style.background = '#262626';
+          b.style.borderColor = '#474747';
+          b.style.color = 'rgba(255, 255, 255, 0.7)';
+        });
+
+        btn.classList.add('active');
+        btn.style.background = 'rgba(59, 130, 246, 0.2)';
+        btn.style.borderColor = '#3b82f6';
+        btn.style.color = '#60a5fa';
+
+        if (preset.value === null) {
+          this.selectedBitrate = 'auto';
+          this.customBitrateValue = null;
+          valueDisplay.textContent = 'Auto';
+          // Keep slider enabled - user can drag to switch to custom mode
+          slider.value = 8; // Default visual position
+          this.updateSliderBackground(slider);
+        } else {
+          this.selectedBitrate = 'custom';
+          this.customBitrateValue = preset.value;
+          slider.value = preset.value;
+          valueDisplay.textContent = `${preset.value.toFixed(1)} Mbps`;
+          this.updateSliderBackground(slider);
+        }
+
+        this.updateBitrateStatus();
+      });
+
+      presetRow.appendChild(btn);
+    });
+
+    sliderContainer.appendChild(presetRow);
+    section.appendChild(sliderContainer);
+
+    // Hint text
+    const hintText = document.createElement('p');
+    hintText.id = 'ff-bitrate-hint';
+    hintText.style.cssText = `
+      margin: 8px 0 0 0;
+      color: rgba(255, 255, 255, 0.5);
+      font-size: 11px;
+      line-height: 1.4;
+    `;
+    hintText.textContent = 'Higher bitrate = better quality but larger file size. Recommended: 8-15 Mbps for 1080p, 15-30 Mbps for 4K.';
+    section.appendChild(hintText);
+
+    // Slider event handlers
+    slider.addEventListener('input', () => {
+      const value = parseFloat(slider.value);
+      this.selectedBitrate = 'custom';
+      this.customBitrateValue = Math.round(value * 10) / 10;
+      valueDisplay.textContent = `${this.customBitrateValue.toFixed(1)} Mbps`;
+      this.updateSliderBackground(slider);
+      this.updateBitrateStatus();
+
+      // Update preset buttons state
+      presetRow.querySelectorAll('button').forEach(b => {
+        const btnValue = b.dataset.value;
+        if (btnValue === 'auto') {
+          b.classList.remove('active');
+          b.style.background = '#262626';
+          b.style.borderColor = '#474747';
+          b.style.color = 'rgba(255, 255, 255, 0.7)';
+        } else if (parseFloat(btnValue) === this.customBitrateValue) {
+          b.classList.add('active');
+          b.style.background = 'rgba(59, 130, 246, 0.2)';
+          b.style.borderColor = '#3b82f6';
+          b.style.color = '#60a5fa';
+        } else {
+          b.classList.remove('active');
+          b.style.background = '#262626';
+          b.style.borderColor = '#474747';
+          b.style.color = 'rgba(255, 255, 255, 0.7)';
+        }
+      });
+    });
+
+    // Add slider styles
+    if (!document.getElementById('ff-slider-styles')) {
+      const style = document.createElement('style');
+      style.id = 'ff-slider-styles';
+      style.textContent = `
+        #ff-bitrate-slider::-webkit-slider-thumb {
+          -webkit-appearance: none;
+          appearance: none;
+          width: 18px;
+          height: 18px;
+          background: #3b82f6;
+          border-radius: 50%;
+          cursor: pointer;
+          border: 2px solid #ffffff;
+          box-shadow: 0 2px 6px rgba(0, 0, 0, 0.3);
+          transition: transform 0.1s ease;
+        }
+        #ff-bitrate-slider::-webkit-slider-thumb:hover {
+          transform: scale(1.1);
+        }
+        #ff-bitrate-slider::-moz-range-thumb {
+          width: 18px;
+          height: 18px;
+          background: #3b82f6;
+          border-radius: 50%;
+          cursor: pointer;
+          border: 2px solid #ffffff;
+          box-shadow: 0 2px 6px rgba(0, 0, 0, 0.3);
+        }
+      `;
+      document.head.appendChild(style);
+    }
+
+    // Initialize with Auto selected (slider always enabled for easy switching)
+    slider.value = 8; // Default visual position
+    this.updateSliderBackground(slider);
+
+    return section;
+  }
+
+  updateSliderBackground(slider) {
+    const min = parseFloat(slider.min);
+    const max = parseFloat(slider.max);
+    const value = parseFloat(slider.value);
+    const percentage = ((value - min) / (max - min)) * 100;
+    slider.style.background = `linear-gradient(to right, #3b82f6 0%, #3b82f6 ${percentage}%, #262626 ${percentage}%, #262626 100%)`;
+  }
+
+  restoreBitrateFromSettings(bitrateSetting) {
+    // Parse bitrate setting like "10M" or "8.5M"
+    if (!bitrateSetting) {
+      this.selectedBitrate = 'auto';
+      this.customBitrateValue = null;
+      return;
+    }
+
+    const bitrateValue = parseFloat(bitrateSetting.replace('M', ''));
+
+    // Set custom value
+    this.selectedBitrate = 'custom';
+    this.customBitrateValue = bitrateValue;
+
+    // Update UI elements
+    const slider = document.getElementById('ff-bitrate-slider');
+    const valueDisplay = document.getElementById('ff-bitrate-value-display');
+    const bitrateSection = document.getElementById('ff-bitrate-section');
+
+    if (slider) {
+      slider.value = bitrateValue;
+      this.updateSliderBackground(slider);
+    }
+
+    if (valueDisplay) {
+      valueDisplay.textContent = `${bitrateValue.toFixed(1)} Mbps`;
+    }
+
+    // Update preset buttons state
+    if (bitrateSection) {
+      const presetButtons = bitrateSection.querySelectorAll('button[data-value]');
+      presetButtons.forEach(btn => {
+        const btnValue = btn.dataset.value;
+        if (btnValue === 'auto') {
+          btn.classList.remove('active');
+          btn.style.background = '#262626';
+          btn.style.borderColor = '#474747';
+          btn.style.color = 'rgba(255, 255, 255, 0.7)';
+        } else if (parseFloat(btnValue) === bitrateValue) {
+          btn.classList.add('active');
+          btn.style.background = 'rgba(59, 130, 246, 0.2)';
+          btn.style.borderColor = '#3b82f6';
+          btn.style.color = '#60a5fa';
+        } else {
+          btn.classList.remove('active');
+          btn.style.background = '#262626';
+          btn.style.borderColor = '#474747';
+          btn.style.color = 'rgba(255, 255, 255, 0.7)';
+        }
+      });
+    }
+
+    this.updateBitrateStatus();
+  }
+
+  getSelectedBitrate(preset) {
+    // If auto, use preset's default bitrate
+    if (this.selectedBitrate === 'auto') {
+      return preset.defaultBitrate || null;
+    }
+
+    // If custom, use the custom value from slider
+    if (this.selectedBitrate === 'custom' && this.customBitrateValue) {
+      return `${this.customBitrateValue}M`;
+    }
+
+    return preset.defaultBitrate || null;
+  }
+
+  updateBitrateStatus() {
+    const statusPreset = document.getElementById('ff-status-preset');
+    if (!statusPreset) return;
+
+    // Get resolution preset label
+    const presetSelect = document.getElementById('ff-preset-select');
+    const resPresetList = this.presets.video || [];
+    const resPresetId = presetSelect?.value || 'source';
+    const resPreset = resPresetList.find(p => p.id === resPresetId);
+    const resLabel = resPreset ? resPreset.label : 'Source Quality';
+
+    // For source quality, don't show bitrate
+    if (resPresetId === 'source') {
+      statusPreset.textContent = resLabel;
+      return;
+    }
+
+    // Get bitrate label
+    let bitrateLabel = '';
+    if (this.selectedBitrate === 'auto') {
+      // Show the default bitrate for the preset
+      const defaultBitrate = resPreset?.defaultBitrate;
+      if (defaultBitrate) {
+        bitrateLabel = `Auto (${defaultBitrate.replace('M', '')} Mbps)`;
+      } else {
+        bitrateLabel = 'Auto bitrate';
+      }
+    } else if (this.selectedBitrate === 'custom' && this.customBitrateValue) {
+      bitrateLabel = `${this.customBitrateValue.toFixed(1)} Mbps`;
+    }
+
+    statusPreset.textContent = bitrateLabel ? `${resLabel} @ ${bitrateLabel}` : resLabel;
+  }
+
   filterPresetsForResolution(presetList, type, sourceResolution) {
     // Only filter video presets for upscaling prevention
     if (type !== 'video' || !sourceResolution) {
@@ -1037,12 +1442,33 @@ class FormatFactoryManager {
 
   updatePresetDropdownForType(type) {
     const presetSelect = document.getElementById('ff-preset-select');
+    const bitrateSection = document.getElementById('ff-bitrate-section');
     const confirmBtn = document.getElementById('ff-modal-confirm');
     const statusDisplay = document.getElementById('ff-selection-status');
     const statusFormat = document.getElementById('ff-status-format');
     const statusPreset = document.getElementById('ff-status-preset');
 
     if (!presetSelect) return;
+
+    // Show/hide bitrate section based on type and preset
+    if (bitrateSection) {
+      if (type === 'video') {
+        // Only show bitrate for non-source presets
+        const savedPresetId = this.getRememberedPreset(type);
+        const isSourcePreset = !savedPresetId || savedPresetId === 'source';
+        bitrateSection.style.display = isSourcePreset ? 'none' : 'flex';
+
+        // Reset bitrate selection
+        this.selectedBitrate = 'auto';
+        this.customBitrateValue = null;
+        const bitrateSelect = document.getElementById('ff-bitrate-select');
+        const customContainer = document.getElementById('ff-custom-bitrate-container');
+        if (bitrateSelect) bitrateSelect.value = 'auto';
+        if (customContainer) customContainer.style.display = 'none';
+      } else {
+        bitrateSection.style.display = 'none';
+      }
+    }
 
     // Clear and repopulate dropdown with presets for this type
     presetSelect.innerHTML = '';
@@ -1078,7 +1504,11 @@ class FormatFactoryManager {
       statusFormat.textContent = `${this.tempSelectedFormat.toUpperCase()} (${type})`;
 
       const selectedPreset = presetList.find(p => p.id === (savedPresetId || 'source'));
-      statusPreset.textContent = selectedPreset ? selectedPreset.label : 'Source Quality';
+      if (type === 'video') {
+        this.updateBitrateStatus();
+      } else {
+        statusPreset.textContent = selectedPreset ? selectedPreset.label : 'Source Quality';
+      }
     }
 
     // Enable confirm button
@@ -1091,9 +1521,24 @@ class FormatFactoryManager {
     // Update status when preset changes
     if (presetSelect) {
       presetSelect.addEventListener('change', () => {
+        const bitrateSection = document.getElementById('ff-bitrate-section');
+
+        if (type === 'video' && bitrateSection) {
+          // Show bitrate section only for non-source presets
+          if (presetSelect.value === 'source') {
+            bitrateSection.style.display = 'none';
+          } else {
+            bitrateSection.style.display = 'flex';
+          }
+        }
+
         if (statusPreset) {
-          const selectedPreset = presetList.find(p => p.id === presetSelect.value);
-          statusPreset.textContent = selectedPreset ? selectedPreset.label : 'Source Quality';
+          if (type === 'video') {
+            this.updateBitrateStatus();
+          } else {
+            const selectedPreset = presetList.find(p => p.id === presetSelect.value);
+            statusPreset.textContent = selectedPreset ? selectedPreset.label : 'Source Quality';
+          }
         }
       });
     }
@@ -1215,11 +1660,13 @@ class FormatFactoryManager {
         settings.resolution = 'original';
         settings.bitrate = null; // Auto bitrate
       } else {
-        // Apply preset resolution and bitrate
+        // Apply preset resolution
         settings.maxWidth = preset.maxWidth;
         settings.maxHeight = preset.maxHeight;
-        settings.bitrate = preset.bitrate;
         settings.resolution = 'preset'; // Flag to indicate preset mode
+
+        // Determine bitrate based on user selection
+        settings.bitrate = this.getSelectedBitrate(preset);
       }
     } else if (type === 'audio') {
       settings.sampleRate = 44100;
@@ -1320,9 +1767,10 @@ class FormatFactoryManager {
 
       // Output cell
       const outputCell = document.createElement('td');
+      const outputDetails = this.getOutputDetails(job);
       outputCell.innerHTML = `
         <div class="ff-output-info">
-          <div class="ff-output-format">→ ${job.outputFormat.toUpperCase()}</div>
+          <div class="ff-output-format">→ ${job.outputFormat.toUpperCase()}${outputDetails ? ` <span style="color: rgba(255,255,255,0.5); font-size: 11px;">${outputDetails}</span>` : ''}</div>
           <div class="ff-progress-container">
             <div class="ff-progress-bar">
               <div class="ff-progress-fill" style="width: ${job.progress}%"></div>
@@ -1583,6 +2031,36 @@ class FormatFactoryManager {
     }
   }
 
+  getOutputDetails(job) {
+    if (!job.settings) return '';
+
+    const parts = [];
+
+    // For video, show resolution and bitrate
+    if (job.outputType === 'video') {
+      if (job.settings.resolution === 'preset' && job.settings.maxWidth) {
+        parts.push(`${job.settings.maxWidth}×${job.settings.maxHeight}`);
+      }
+      if (job.settings.bitrate) {
+        // Format bitrate nicely (e.g., "10M" -> "10 Mbps")
+        const bitrateStr = job.settings.bitrate.replace('M', ' Mbps');
+        parts.push(bitrateStr);
+      }
+    }
+
+    // For audio, show bitrate
+    if (job.outputType === 'audio' && job.settings.audioBitrate) {
+      parts.push(job.settings.audioBitrate);
+    }
+
+    // For image, show quality
+    if (job.outputType === 'image' && job.settings.maxDimension) {
+      parts.push(`max ${job.settings.maxDimension}px`);
+    }
+
+    return parts.length > 0 ? `(${parts.join(', ')})` : '';
+  }
+
   changeJobFormat(jobId) {
     const job = this.queue.find(j => j.id === jobId);
     if (!job) return;
@@ -1716,12 +2194,20 @@ class FormatFactoryManager {
     // Preset Selector - set initial value to job's current preset
     const presetSection = this.createPresetSelector(hasVideo, hasAudio, hasImage);
 
-    // After adding to DOM, set the current job's preset as selected
+    // Bitrate Selector (for video only)
+    const bitrateSection = this.createBitrateSelector();
+
+    // After adding to DOM, set the current job's preset and bitrate as selected
     setTimeout(() => {
       const presetSelect = document.getElementById('ff-preset-select');
       if (presetSelect && job.preset) {
         presetSelect.value = job.preset;
         this.selectedPreset = job.preset;
+      }
+
+      // Restore bitrate settings from job if video
+      if (hasVideo && job.settings && job.settings.bitrate) {
+        this.restoreBitrateFromSettings(job.settings.bitrate);
       }
     }, 0);
 
@@ -1790,6 +2276,8 @@ class FormatFactoryManager {
       this.editingJobId = null;
       this.tempSelectedFormat = null;
       this.tempSelectedType = null;
+      this.selectedBitrate = 'auto';
+      this.customBitrateValue = null;
     });
 
     const confirmBtn = document.createElement('button');
@@ -1834,6 +2322,7 @@ class FormatFactoryManager {
     modalContent.appendChild(header);
     modalContent.appendChild(formatsContainer);
     modalContent.appendChild(presetSection);
+    modalContent.appendChild(bitrateSection);
     modalContent.appendChild(statusDisplay);
     modalContent.appendChild(footer);
     modal.appendChild(modalContent);
@@ -1853,11 +2342,17 @@ class FormatFactoryManager {
           const statusDisplay = document.getElementById('ff-selection-status');
           const statusFormat = document.getElementById('ff-status-format');
           const statusPreset = document.getElementById('ff-status-preset');
+          const bitrateSection = document.getElementById('ff-bitrate-section');
 
           if (confirmBtn) {
             confirmBtn.disabled = false;
             confirmBtn.style.opacity = '1';
             confirmBtn.style.cursor = 'pointer';
+          }
+
+          // Show/hide bitrate section for video
+          if (bitrateSection) {
+            bitrateSection.style.display = job.outputType === 'video' ? 'flex' : 'none';
           }
 
           // Show status with current selection
@@ -1867,7 +2362,11 @@ class FormatFactoryManager {
 
             const presetList = this.presets[job.outputType] || [];
             const selectedPreset = presetList.find(p => p.id === (job.preset || 'source'));
-            statusPreset.textContent = selectedPreset ? selectedPreset.label : 'Source Quality';
+            if (job.outputType === 'video') {
+              this.updateBitrateStatus();
+            } else {
+              statusPreset.textContent = selectedPreset ? selectedPreset.label : 'Source Quality';
+            }
           }
         }
       });

@@ -262,10 +262,32 @@ class FFmpegHandler {
     // The bundled FFmpeg is too old (2018) and has NVENC compatibility issues
     console.log('[FFmpeg Handler] Using CPU encoder: libx264 (for compatibility)');
     command.videoCodec('libx264');
-    command.outputOptions([
-      '-preset', 'medium',
-      '-crf', '23' // Balanced quality
-    ]);
+
+    // Encoding mode depends on whether bitrate is specified
+    // CRF mode (quality-based) vs ABR mode (bitrate-based)
+    if (bitrate) {
+      // ABR (Average Bitrate) mode - use specified bitrate with buffer constraints
+      console.log(`[FFmpeg Handler] Using ABR mode with bitrate: ${bitrate}`);
+
+      // Parse bitrate value (e.g., "10M" -> 10)
+      const bitrateValue = parseFloat(bitrate.replace('M', ''));
+      const maxrate = `${(bitrateValue * 1.5).toFixed(1)}M`; // Allow 50% headroom for peaks
+      const bufsize = `${(bitrateValue * 2).toFixed(1)}M`;   // 2x bitrate buffer
+
+      command.outputOptions([
+        '-preset', 'medium',
+        '-b:v', bitrate,
+        '-maxrate', maxrate,
+        '-bufsize', bufsize
+      ]);
+    } else {
+      // CRF mode (quality-based) - let FFmpeg decide bitrate based on quality
+      console.log('[FFmpeg Handler] Using CRF mode (quality-based)');
+      command.outputOptions([
+        '-preset', 'medium',
+        '-crf', '23' // Balanced quality
+      ]);
+    }
 
     // Apply resolution based on preset
     if (resolution === 'preset' && maxWidth && maxHeight) {
@@ -280,14 +302,6 @@ class FFmpegHandler {
       command.size(resolution);
     }
     // If resolution is 'original' or not set, no scaling is applied
-
-    // Apply bitrate if specified
-    if (bitrate) {
-      console.log(`[FFmpeg Handler] Applying video bitrate: ${bitrate}`);
-      // fluent-ffmpeg's videoBitrate() expects a number (in kbps) or string with unit
-      // Our presets use '20M', '10M' etc. which need to be passed as-is using outputOptions
-      command.outputOptions(['-b:v', bitrate]);
-    }
 
     // Apply framerate if specified
     if (framerate) {

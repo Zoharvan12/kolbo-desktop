@@ -9,9 +9,9 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&display=swap" rel="stylesheet">
   <!-- CSS Variables (Design System) -->
-  <link rel="stylesheet" href="css/variables.css?v=6">
+  <link rel="stylesheet" href="css/variables.css?v=7">
   <!-- Main Styles -->
-  <link rel="stylesheet" href="css/styles.css?v=6">
+  <link rel="stylesheet" href="css/styles.css?v=7">
   <!-- Custom Context Menu Styles -->
   <link rel="stylesheet" href="css/context-menu.css?v=6">
   <!-- Format Factory Styles -->
@@ -199,10 +199,60 @@
       <div id="media-library-view" class="view-content active">
       <!-- Project Selector -->
       <div class="project-selector">
-        <select id="project-select" class="project-dropdown">
-          <option value="all">All Projects</option>
-          <!-- Projects will be populated here -->
-        </select>
+        <div class="project-dropdown-wrapper">
+          <button id="project-dropdown-trigger" class="project-dropdown-trigger">
+            <svg class="project-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"></path>
+            </svg>
+            <span id="project-selected-name" class="project-selected-name">All Projects</span>
+            <svg class="project-chevron" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="m6 9 6 6 6-6"></path>
+            </svg>
+          </button>
+
+          <!-- Custom Dropdown Content -->
+          <div id="project-dropdown-content" class="project-dropdown-content hidden">
+            <!-- Search Input -->
+            <div class="project-search-wrapper">
+              <svg class="project-search-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <circle cx="11" cy="11" r="8"></circle>
+                <path d="m21 21-4.35-4.35"></path>
+              </svg>
+              <input type="text" id="project-search-input" class="project-search-input" placeholder="Search projects...">
+            </div>
+
+            <!-- Sort Options -->
+            <div class="project-sort-wrapper">
+              <button id="project-sort-date" class="project-sort-btn active" data-sort="createdAt">
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <circle cx="12" cy="12" r="10"></circle>
+                  <polyline points="12 6 12 12 16 14"></polyline>
+                </svg>
+                Date
+              </button>
+              <button id="project-sort-name" class="project-sort-btn" data-sort="name">
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <path d="M3 6h18M3 12h12M3 18h6"></path>
+                </svg>
+                Name
+              </button>
+            </div>
+
+            <!-- Project List -->
+            <div id="project-list" class="project-list">
+              <div class="project-item active" data-value="all">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <rect x="3" y="3" width="7" height="7"></rect>
+                  <rect x="14" y="3" width="7" height="7"></rect>
+                  <rect x="14" y="14" width="7" height="7"></rect>
+                  <rect x="3" y="14" width="7" height="7"></rect>
+                </svg>
+                <span>All Projects</span>
+              </div>
+              <!-- Projects will be populated here -->
+            </div>
+          </div>
+        </div>
       </div>
 
       <!-- Filters -->
@@ -1085,6 +1135,6 @@
   <script src="js/trimmer/audio-trimmer.js?v=1"></script>
   <script src="js/trimmer/trimmer-modal.js?v=1"></script>
   <script src="js/format-factory-manager.js?v=1"></script> <!-- Format Factory manager -->
-  <script src="js/main.js?v=5"></script>
+  <script src="js/main.js?v=7"></script>
 </body>
 </html>

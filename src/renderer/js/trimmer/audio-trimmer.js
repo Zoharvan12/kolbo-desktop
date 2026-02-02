@@ -62,12 +62,20 @@ class AudioTrimmer {
           </svg>
         </button>
 
+        <button class="ff-trimmer-btn ff-trimmer-btn-in" title="Set In Point (I)">
+          <span class="ff-trimmer-btn-label">In</span>
+        </button>
+
         <div class="ff-trimmer-time-display">
           <span class="ff-trimmer-time-start">0:00</span>
           <span class="ff-trimmer-time-separator"> - </span>
           <span class="ff-trimmer-time-end">0:00</span>
           <span class="ff-trimmer-time-duration"> (0:00)</span>
         </div>
+
+        <button class="ff-trimmer-btn ff-trimmer-btn-out" title="Set Out Point (O)">
+          <span class="ff-trimmer-btn-label">Out</span>
+        </button>
 
         <button class="ff-trimmer-btn ff-trimmer-btn-reset" title="Reset to original">
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -89,6 +97,8 @@ class AudioTrimmer {
     this.endHandleElement = container.querySelector('.ff-trimmer-handle-end');
     this.playheadElement = container.querySelector('.ff-trimmer-playhead');
     this.playButton = container.querySelector('.ff-trimmer-btn-play');
+    this.inButton = container.querySelector('.ff-trimmer-btn-in');
+    this.outButton = container.querySelector('.ff-trimmer-btn-out');
     this.resetButton = container.querySelector('.ff-trimmer-btn-reset');
     this.timeDisplays = {
       start: container.querySelector('.ff-trimmer-time-start'),
@@ -272,10 +282,38 @@ class AudioTrimmer {
       this.togglePlay();
     });
 
+    // In button - set start point at current time
+    this.inButton.addEventListener('click', () => {
+      this.setInPoint();
+    });
+
+    // Out button - set end point at current time
+    this.outButton.addEventListener('click', () => {
+      this.setOutPoint();
+    });
+
     // Reset button
     this.resetButton.addEventListener('click', () => {
       this.resetTrimPoints();
     });
+
+    // Keyboard shortcuts
+    this.keyboardHandler = (e) => {
+      // Only handle if trimmer is active
+      if (!this.audioElement) return;
+
+      if (e.key === 'i' || e.key === 'I') {
+        e.preventDefault();
+        this.setInPoint();
+      } else if (e.key === 'o' || e.key === 'O') {
+        e.preventDefault();
+        this.setOutPoint();
+      } else if (e.key === ' ') {
+        e.preventDefault();
+        this.togglePlay();
+      }
+    };
+    document.addEventListener('keydown', this.keyboardHandler);
 
     // Waveform interaction
     this.setupWaveformInteraction();
@@ -427,6 +465,66 @@ class AudioTrimmer {
   }
 
   /**
+   * Set In point (start) at current playback position
+   */
+  setInPoint() {
+    const currentTime = this.audioElement.currentTime;
+
+    // Don't allow start to go past end (minus minimum duration)
+    const maxStart = this.trimPoints[1] - this.minDuration;
+    this.trimPoints[0] = Math.min(currentTime, maxStart);
+
+    // Update UI
+    this.updateTimelineSelection();
+    this.updateTimeDisplays();
+    this.onTrimChange(this.trimPoints);
+
+    // Visual feedback - flash the button
+    this.flashButton(this.inButton);
+
+    console.log('[AudioTrimmer] In point set to:', this.formatTime(this.trimPoints[0]));
+  }
+
+  /**
+   * Set Out point (end) at current playback position
+   */
+  setOutPoint() {
+    const currentTime = this.audioElement.currentTime;
+
+    // Don't allow end to go before start (plus minimum duration)
+    const minEnd = this.trimPoints[0] + this.minDuration;
+    let newEnd = Math.max(currentTime, minEnd);
+
+    // Enforce max duration
+    const proposedDuration = newEnd - this.trimPoints[0];
+    if (proposedDuration > this.maxDuration) {
+      newEnd = this.trimPoints[0] + this.maxDuration;
+    }
+
+    this.trimPoints[1] = newEnd;
+
+    // Update UI
+    this.updateTimelineSelection();
+    this.updateTimeDisplays();
+    this.onTrimChange(this.trimPoints);
+
+    // Visual feedback - flash the button
+    this.flashButton(this.outButton);
+
+    console.log('[AudioTrimmer] Out point set to:', this.formatTime(this.trimPoints[1]));
+  }
+
+  /**
+   * Flash a button for visual feedback
+   */
+  flashButton(button) {
+    button.classList.add('ff-trimmer-btn-flash');
+    setTimeout(() => {
+      button.classList.remove('ff-trimmer-btn-flash');
+    }, 200);
+  }
+
+  /**
    * Reset trim points to original
    */
   resetTrimPoints() {
@@ -464,6 +562,11 @@ class AudioTrimmer {
    * Cleanup resources
    */
   destroy() {
+    // Remove keyboard listener
+    if (this.keyboardHandler) {
+      document.removeEventListener('keydown', this.keyboardHandler);
+    }
+
     if (this.audioElement) {
       this.audioElement.pause();
       this.audioElement.src = '';
