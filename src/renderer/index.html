@@ -16,8 +16,12 @@
   <link rel="stylesheet" href="css/context-menu.css?v=6">
   <!-- Format Factory Styles -->
   <link rel="stylesheet" href="css/format-factory.css?v=1">
+  <!-- Downloader Styles -->
+  <link rel="stylesheet" href="css/downloader.css?v=1">
   <!-- Trimmer Styles -->
   <link rel="stylesheet" href="css/trimmer.css?v=1">
+  <!-- Quick Tools Styles -->
+  <link rel="stylesheet" href="css/quick-tools.css?v=1">
 </head>
 <body>
   <div id="app">
@@ -141,6 +145,20 @@
                 <path d="M22 12A10 10 0 0 0 12 2v10z"></path>
               </svg>
               Format Factory
+            </button>
+            <button id="downloader-tab" class="tab-btn" data-view="downloader">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+                <polyline points="7 10 12 15 17 10"/>
+                <line x1="12" y1="15" x2="12" y2="3"/>
+              </svg>
+              Downloader
+            </button>
+            <button id="quick-tools-tab" class="tab-btn" data-view="quick-tools">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/>
+              </svg>
+              Quick Tools
             </button>
           </div>
           <span id="media-count" class="media-count">0 items</span>
@@ -987,6 +1005,347 @@
           </div>
         </div>
       </div>
+
+      <!-- Downloader View -->
+      <div id="downloader-view" class="view-content hidden">
+        <div class="dl-layout">
+
+          <!-- Main Content -->
+          <div class="dl-content">
+
+            <!-- Download Folder Section - Prominent at top -->
+            <div class="dl-folder-section">
+              <div class="dl-folder-label">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"></path>
+                </svg>
+                <span>Download to:</span>
+              </div>
+              <div class="dl-folder-path-wrapper">
+                <span class="dl-folder-path" id="dl-folder-path" title="Click to change">C:\Users\Downloads</span>
+                <button class="dl-folder-change-btn" id="dl-output-folder-btn" title="Change download folder">
+                  Change
+                </button>
+                <button class="dl-folder-open-btn" id="dl-open-folder-btn" title="Open folder in explorer">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path>
+                    <polyline points="15 3 21 3 21 9"></polyline>
+                    <line x1="10" y1="14" x2="21" y2="3"></line>
+                  </svg>
+                  Open
+                </button>
+              </div>
+            </div>
+
+            <!-- URL Input Section -->
+            <div class="dl-url-section">
+              <div class="dl-url-input-wrapper">
+                <svg class="dl-url-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"></path>
+                  <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"></path>
+                </svg>
+                <input type="text" id="dl-url-input" class="dl-url-input" placeholder="Paste URL here (YouTube, Instagram, Twitter, TikTok, Facebook, LinkedIn...)" autocomplete="off" spellcheck="false">
+                <button class="dl-btn dl-btn-fetch" id="dl-fetch-btn">
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <circle cx="11" cy="11" r="8"></circle>
+                    <path d="m21 21-4.35-4.35"></path>
+                  </svg>
+                  Fetch Info
+                </button>
+              </div>
+              <p class="dl-supported-sites">Supports: YouTube, Instagram, Twitter/X, TikTok, Facebook, LinkedIn, Vimeo, Twitch, and 1000+ more sites</p>
+            </div>
+
+            <!-- Preview Card (hidden by default) -->
+            <div id="dl-preview-card" class="dl-preview-card hidden">
+              <div class="dl-preview-loading hidden" id="dl-preview-loading">
+                <div class="dl-spinner"></div>
+                <span>Fetching media info...</span>
+              </div>
+              <div class="dl-preview-content" id="dl-preview-content">
+                <div class="dl-preview-thumbnail">
+                  <img id="dl-preview-thumb" src="" alt="Thumbnail">
+                  <span class="dl-preview-duration" id="dl-preview-duration">0:00</span>
+                </div>
+                <div class="dl-preview-info">
+                  <div class="dl-preview-platform" id="dl-preview-platform">
+                    <span class="dl-platform-icon"></span>
+                    <span class="dl-platform-name"></span>
+                  </div>
+                  <h3 class="dl-preview-title" id="dl-preview-title">Video Title</h3>
+                  <p class="dl-preview-uploader" id="dl-preview-uploader">Uploader</p>
+                  <div class="dl-preview-options">
+                    <div class="dl-option-group">
+                      <label for="dl-format-select">Format:</label>
+                      <select id="dl-format-select" class="dl-select">
+                        <option value="mp4">MP4 (Video)</option>
+                        <option value="mp3">MP3 (Audio only)</option>
+                      </select>
+                    </div>
+                    <div class="dl-option-group">
+                      <label for="dl-quality-select">Quality:</label>
+                      <select id="dl-quality-select" class="dl-select">
+                        <option value="best">Best Available</option>
+                        <option value="2160">4K (2160p)</option>
+                        <option value="1080" selected>1080p</option>
+                        <option value="720">720p</option>
+                        <option value="480">480p</option>
+                      </select>
+                    </div>
+                    <button class="dl-btn dl-btn-add" id="dl-add-queue-btn">
+                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M12 5v14M5 12h14"></path>
+                      </svg>
+                      Add to Queue
+                    </button>
+                  </div>
+                </div>
+                <button class="dl-preview-close" id="dl-preview-close" title="Close preview">
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M18 6L6 18M6 6l12 12"></path>
+                  </svg>
+                </button>
+              </div>
+            </div>
+
+            <!-- Download Queue -->
+            <div class="dl-queue-section">
+              <div class="dl-queue-header">
+                <div class="dl-queue-header-left">
+                  <h3>Download Queue</h3>
+                  <span class="dl-queue-count" id="dl-queue-count">0 items</span>
+                </div>
+                <div class="dl-queue-header-actions">
+                  <button class="dl-btn dl-btn-secondary" id="dl-clear-btn" title="Clear completed downloads">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                      <polyline points="3 6 5 6 21 6"></polyline>
+                      <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+                    </svg>
+                    Clear
+                  </button>
+                  <button class="dl-btn dl-btn-stop" id="dl-stop-all-btn" title="Stop all downloads" disabled>
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
+                      <rect x="6" y="6" width="12" height="12"></rect>
+                    </svg>
+                    Stop
+                  </button>
+                  <button class="dl-btn dl-btn-start-main" id="dl-start-all-btn" title="Start downloading all queued items" disabled>
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                      <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+                      <polyline points="7 10 12 15 17 10"/>
+                      <line x1="12" y1="15" x2="12" y2="3"/>
+                    </svg>
+                    Start Download
+                  </button>
+                </div>
+              </div>
+              <div class="dl-queue-list" id="dl-queue-list">
+                <!-- Empty state -->
+                <div class="dl-empty-state" id="dl-empty-state">
+                  <svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+                    <polyline points="7 10 12 15 17 10"/>
+                    <line x1="12" y1="15" x2="12" y2="3"/>
+                  </svg>
+                  <p class="dl-empty-title">No downloads yet</p>
+                  <p class="dl-empty-hint">Paste a URL above and click "Fetch Info" to start</p>
+                </div>
+                <!-- Queue items will be inserted here -->
+              </div>
+            </div>
+
+            <!-- Legal Disclaimer -->
+            <div class="dl-disclaimer">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <circle cx="12" cy="12" r="10"></circle>
+                <line x1="12" y1="8" x2="12" y2="12"></line>
+                <line x1="12" y1="16" x2="12.01" y2="16"></line>
+              </svg>
+              <span>Only download content you own or have permission to download. Respect copyright laws.</span>
+            </div>
+          </div>
+
+        </div>
+      </div>
+
+      <!-- Quick Tools View -->
+      <div id="quick-tools-view" class="view-content hidden">
+        <div class="qt-layout">
+
+          <!-- Tool Selector Cards -->
+          <div class="qt-tool-selector">
+            <div class="qt-tool-card active" data-tool="trimmer">
+              <span class="qt-tool-icon">✂️</span>
+              <span class="qt-tool-name">Trimmer</span>
+              <span class="qt-tool-desc">Cut video or audio</span>
+            </div>
+            <div class="qt-tool-card" data-tool="extractor">
+              <span class="qt-tool-icon">🎵</span>
+              <span class="qt-tool-name">Audio Extractor</span>
+              <span class="qt-tool-desc">Extract audio</span>
+            </div>
+            <div class="qt-tool-card" data-tool="frame-grabber">
+              <span class="qt-tool-icon">🖼️</span>
+              <span class="qt-tool-name">Frame Grabber</span>
+              <span class="qt-tool-desc">Grab frames</span>
+            </div>
+            <div class="qt-tool-card" data-tool="merger">
+              <span class="qt-tool-icon">🎬</span>
+              <span class="qt-tool-name">Video Merger</span>
+              <span class="qt-tool-desc">Combine clips</span>
+            </div>
+            <div class="qt-tool-card" data-tool="cropper">
+              <span class="qt-tool-icon">📐</span>
+              <span class="qt-tool-name">Media Cropper</span>
+              <span class="qt-tool-desc">Crop video & images</span>
+            </div>
+          </div>
+
+          <!-- Tool Container -->
+          <div class="qt-tool-container">
+
+            <!-- Trimmer Tool -->
+            <div id="qt-trimmer-content" class="qt-tool-content active" data-tool="trimmer">
+              <div class="qt-output-section">
+                <div class="qt-output-label">
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"></path>
+                  </svg>
+                  <span>Save to:</span>
+                </div>
+                <span class="qt-output-path" id="qt-trimmer-output-path">Same as source</span>
+                <button class="qt-output-btn" id="qt-trimmer-output-btn">Change</button>
+              </div>
+              <div class="qt-dropzone" id="qt-trimmer-dropzone">
+                <svg class="qt-dropzone-icon" width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                  <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                  <polyline points="17 8 12 3 7 8"></polyline>
+                  <line x1="12" y1="3" x2="12" y2="15"></line>
+                </svg>
+                <p class="qt-dropzone-text">Drop video or audio file here</p>
+                <p class="qt-dropzone-hint">or</p>
+                <button class="qt-dropzone-btn" id="qt-trimmer-browse-btn">Browse Files</button>
+                <p class="qt-dropzone-hint">Supports: MP4, MOV, MKV, WEBM, MP3, WAV, FLAC</p>
+              </div>
+              <div id="qt-trimmer-workspace" class="hidden">
+                <!-- Trimmer component will be rendered here -->
+              </div>
+            </div>
+
+            <!-- Audio Extractor Tool -->
+            <div id="qt-extractor-content" class="qt-tool-content" data-tool="extractor">
+              <div class="qt-output-section">
+                <div class="qt-output-label">
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"></path>
+                  </svg>
+                  <span>Save to:</span>
+                </div>
+                <span class="qt-output-path" id="qt-extractor-output-path">Same as source</span>
+                <button class="qt-output-btn" id="qt-extractor-output-btn">Change</button>
+              </div>
+              <div class="qt-dropzone" id="qt-extractor-dropzone">
+                <svg class="qt-dropzone-icon" width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                  <path d="m22 8-6 4 6 4V8Z"></path>
+                  <rect width="14" height="12" x="2" y="6" rx="2"></rect>
+                </svg>
+                <p class="qt-dropzone-text">Drop video file here</p>
+                <p class="qt-dropzone-hint">or</p>
+                <button class="qt-dropzone-btn" id="qt-extractor-browse-btn">Browse Files</button>
+                <p class="qt-dropzone-hint">Extract audio track from any video file</p>
+              </div>
+              <div id="qt-extractor-workspace" class="hidden">
+                <!-- Extractor UI will be rendered here -->
+              </div>
+            </div>
+
+            <!-- Frame Grabber Tool -->
+            <div id="qt-frame-grabber-content" class="qt-tool-content" data-tool="frame-grabber">
+              <div class="qt-output-section">
+                <div class="qt-output-label">
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"></path>
+                  </svg>
+                  <span>Save to:</span>
+                </div>
+                <span class="qt-output-path" id="qt-frame-grabber-output-path">Same as source</span>
+                <button class="qt-output-btn" id="qt-frame-grabber-output-btn">Change</button>
+              </div>
+              <div class="qt-dropzone" id="qt-frame-grabber-dropzone">
+                <svg class="qt-dropzone-icon" width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                  <rect width="18" height="18" x="3" y="3" rx="2"></rect>
+                  <circle cx="9" cy="9" r="2"></circle>
+                  <path d="m21 15-3.086-3.086a2 2 0 0 0-2.828 0L6 21"></path>
+                </svg>
+                <p class="qt-dropzone-text">Drop video file here</p>
+                <p class="qt-dropzone-hint">or</p>
+                <button class="qt-dropzone-btn" id="qt-frame-grabber-browse-btn">Browse Files</button>
+                <p class="qt-dropzone-hint">Scrub through video and capture frames</p>
+              </div>
+              <div id="qt-frame-grabber-workspace" class="hidden">
+                <!-- Frame grabber UI will be rendered here -->
+              </div>
+            </div>
+
+            <!-- Video Merger Tool -->
+            <div id="qt-merger-content" class="qt-tool-content" data-tool="merger">
+              <div class="qt-output-section">
+                <div class="qt-output-label">
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"></path>
+                  </svg>
+                  <span>Save to:</span>
+                </div>
+                <span class="qt-output-path" id="qt-merger-output-path">Same as first file</span>
+                <button class="qt-output-btn" id="qt-merger-output-btn">Change</button>
+              </div>
+              <div class="qt-dropzone" id="qt-merger-dropzone">
+                <svg class="qt-dropzone-icon" width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                  <rect x="2" y="2" width="8" height="8" rx="1"></rect>
+                  <rect x="14" y="2" width="8" height="8" rx="1"></rect>
+                  <rect x="8" y="14" width="8" height="8" rx="1"></rect>
+                  <path d="M6 10v4M18 10v4M10 6h4M10 18h4"></path>
+                </svg>
+                <p class="qt-dropzone-text">Drop multiple video files here</p>
+                <p class="qt-dropzone-hint">or</p>
+                <button class="qt-dropzone-btn" id="qt-merger-browse-btn">Browse Files</button>
+                <p class="qt-dropzone-hint">Combine multiple clips into one video</p>
+              </div>
+              <div id="qt-merger-workspace" class="hidden">
+                <!-- Merger UI will be rendered here -->
+              </div>
+            </div>
+
+            <!-- Video Cropper Tool -->
+            <div id="qt-cropper-content" class="qt-tool-content" data-tool="cropper">
+              <div class="qt-output-section">
+                <div class="qt-output-label">
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"></path>
+                  </svg>
+                  <span>Save to:</span>
+                </div>
+                <span class="qt-output-path" id="qt-cropper-output-path">Same as source</span>
+                <button class="qt-output-btn" id="qt-cropper-output-btn">Change</button>
+              </div>
+              <div class="qt-dropzone" id="qt-cropper-dropzone">
+                <svg class="qt-dropzone-icon" width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                  <path d="M6.13 1L6 16a2 2 0 0 0 2 2h15"></path>
+                  <path d="M1 6.13L16 6a2 2 0 0 1 2 2v15"></path>
+                </svg>
+                <p class="qt-dropzone-text">Drop video or image file here</p>
+                <p class="qt-dropzone-hint">or</p>
+                <button class="qt-dropzone-btn" id="qt-cropper-browse-btn">Browse Files</button>
+                <p class="qt-dropzone-hint">Crop & resize for TikTok, Reels, YouTube, etc.</p>
+              </div>
+              <div id="qt-cropper-workspace" class="hidden">
+                <!-- Cropper UI will be rendered here -->
+              </div>
+            </div>
+
+          </div>
+        </div>
+      </div>
     </div>
   </div>
 
@@ -1135,6 +1494,14 @@
   <script src="js/trimmer/audio-trimmer.js?v=1"></script>
   <script src="js/trimmer/trimmer-modal.js?v=1"></script>
   <script src="js/format-factory-manager.js?v=1"></script> <!-- Format Factory manager -->
+  <script src="js/downloader-manager.js?v=1"></script> <!-- Downloader manager -->
+  <!-- Quick Tools Components -->
+  <script src="js/quick-tools/trimmer-tool.js?v=1"></script>
+  <script src="js/quick-tools/extractor-tool.js?v=1"></script>
+  <script src="js/quick-tools/frame-grabber-tool.js?v=1"></script>
+  <script src="js/quick-tools/video-merger-tool.js?v=1"></script>
+  <script src="js/quick-tools/video-cropper-tool.js?v=1"></script>
+  <script src="js/quick-tools-manager.js?v=1"></script> <!-- Quick Tools manager -->
   <script src="js/main.js?v=7"></script>
 </body>
 </html>

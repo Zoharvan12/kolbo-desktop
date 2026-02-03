@@ -20,9 +20,13 @@ class TabManager {
     this.activeTabId = null;
     this.nextTabId = 1;
     this.MAX_TABS = 10;
+    this.MAX_LOADED_TABS = 5; // Maximum number of tabs to keep loaded in memory
     this.DEBUG_MODE = window.KOLBO_CONFIG ? window.KOLBO_CONFIG.debug : false;
     this.initialized = false; // Track initialization state
     this.isRestoring = false; // Flag to indicate we're restoring tabs from saved state
+
+    // Track tab access order for LRU unloading
+    this.tabAccessOrder = []; // Most recently accessed at the end
 
     // Cache webapp URL to avoid multiple calls
     this._cachedWebappUrl = null;
@@ -289,12 +293,288 @@ class TabManager {
 
     // MEMORY MANAGEMENT: Periodic cleanup of inactive tabs
     // Run every 5 minutes to prevent memory accumulation
-    // DISABLED:     setInterval(() => {
-    // DISABLED:       this.performMemoryCleanup();
-    // DISABLED:     }, 5 * 60 * 1000); // 5 minutes
+    this.periodicCleanupInterval = setInterval(() => {
+      this.smartMemoryCleanup();
+    }, 5 * 60 * 1000); // 5 minutes (was 10)
 
     if (this.DEBUG_MODE) {
-      console.log('[TabManager] Auto-save enabled (memory cleanup DISABLED)');
+      console.log('[TabManager] Auto-save enabled (smart memory cleanup every 5 min)');
+    }
+  }
+
+  /**
+   * Request the embedded webapp to perform memory cleanup
+   * Sends postMessage to all active tab iframes
+   */
+  requestWebappMemoryCleanup() {
+    if (this.DEBUG_MODE) {
+      console.log('[TabManager] Requesting webapp memory cleanup...');
+    }
+
+    let requestedCount = 0;
+
+    this.tabs.forEach(tab => {
+      if (tab.iframe && tab.iframe.contentWindow && tab.loaded && !tab.needsReload) {
+        try {
+          tab.iframe.contentWindow.postMessage({
+            type: 'REQUEST_MEMORY_CLEANUP',
+            timestamp: Date.now(),
+            source: 'kolbo-desktop'
+          }, '*');
+          requestedCount++;
+        } catch (error) {
+          if (this.DEBUG_MODE) {
+            console.warn('[TabManager] Could not send cleanup request to tab:', tab.id, error);
+          }
+        }
+      }
+    });
+
+    if (this.DEBUG_MODE && requestedCount > 0) {
+      console.log(`[TabManager] Sent cleanup request to ${requestedCount} tab(s)`);
+    }
+  }
+
+  /**
+   * Aggressive memory cleanup - unloads ALL background tabs
+   * Called when memory is critically high
+   */
+  aggressiveMemoryCleanup() {
+    console.log('[TabManager] ⚠️ Aggressive memory cleanup - unloading ALL background tabs');
+
+    let cleanedCount = 0;
+
+    this.tabs.forEach(tab => {
+      // Unload every tab except the active one
+      if (tab.id !== this.activeTabId && tab.iframe && !tab.isMerged) {
+        try {
+          const currentSrc = tab.iframe.src;
+
+          if (currentSrc && currentSrc !== 'about:blank') {
+            // Store URL for restoration
+            if (!tab.originalUrl) {
+              tab.originalUrl = currentSrc;
+            }
+
+            // Stop any ongoing activity
+            if (tab.iframe.contentWindow) {
+              try {
+                tab.iframe.contentWindow.stop();
+              } catch (e) {
+                // Cross-origin, ignore
+              }
+            }
+
+            // Unload the iframe completely
+            tab.iframe.src = 'about:blank';
+            tab.needsReload = true;
+            tab.loaded = false;
+
+            cleanedCount++;
+          }
+        } catch (error) {
+          console.error('[TabManager] Error during aggressive cleanup:', error);
+        }
+      }
+    });
+
+    // Also request main process to clear caches
+    if (window.kolboDesktop && window.kolboDesktop.memoryCleanup) {
+      window.kolboDesktop.memoryCleanup({ aggressive: true });
+    }
+
+    console.log(`[TabManager] ✅ Aggressive cleanup: unloaded ${cleanedCount} tab(s)`);
+
+    // Show notification to user
+    this.showToast(`Memory low - unloaded ${cleanedCount} inactive tab(s)`, 'warning');
+
+    return cleanedCount;
+  }
+
+  /**
+   * Get current tab memory status
+   * @returns {Object} Memory stats for UI display
+   */
+  getTabMemoryInfo() {
+    const loadedTabs = this.tabs.filter(t => t.loaded && !t.needsReload).length;
+    const unloadedTabs = this.tabs.filter(t => t.needsReload || !t.loaded).length;
+    const totalTabs = this.tabs.length;
+
+    return {
+      total: totalTabs,
+      loaded: loadedTabs,
+      unloaded: unloadedTabs,
+      activeTabId: this.activeTabId
+    };
+  }
+
+  /**
+   * Smart memory cleanup - checks current memory pressure before deciding cleanup strategy
+   * Uses adaptive cleanup based on actual memory usage
+   */
+  async smartMemoryCleanup() {
+    if (this.DEBUG_MODE) {
+      console.log('[TabManager] Running smart memory cleanup...');
+    }
+
+    // Get current memory status if available
+    const memoryStatus = this.currentMemoryStatus;
+
+    if (memoryStatus && memoryStatus.usagePercent) {
+      const usagePercent = memoryStatus.usagePercent;
+
+      if (usagePercent >= 80) {
+        // High memory - aggressive cleanup
+        console.log(`[TabManager] Memory at ${usagePercent.toFixed(1)}% - aggressive cleanup`);
+        this.aggressiveMemoryCleanup();
+      } else if (usagePercent >= 60) {
+        // Medium memory - normal cleanup
+        console.log(`[TabManager] Memory at ${usagePercent.toFixed(1)}% - normal cleanup`);
+        this.performMemoryCleanup();
+        this.requestWebappMemoryCleanup();
+      } else {
+        // Low memory - light cleanup (only very old tabs)
+        if (this.DEBUG_MODE) {
+          console.log(`[TabManager] Memory at ${usagePercent.toFixed(1)}% - light cleanup`);
+        }
+        this.lightMemoryCleanup();
+      }
+    } else {
+      // No memory status available - do normal cleanup
+      this.performMemoryCleanup();
+      this.requestWebappMemoryCleanup();
+    }
+
+    // Also trigger main process cleanup
+    if (window.kolboDesktop && window.kolboDesktop.memoryCleanup) {
+      try {
+        await window.kolboDesktop.memoryCleanup({ aggressive: false });
+      } catch (e) {
+        // Ignore errors
+      }
+    }
+  }
+
+  /**
+   * Light memory cleanup - only unload tabs that haven't been viewed recently
+   * Used when memory pressure is low
+   */
+  lightMemoryCleanup() {
+    const tabInfo = this.getTabMemoryInfo();
+
+    // Only cleanup if we have more than 3 loaded tabs
+    if (tabInfo.loaded <= 3) {
+      if (this.DEBUG_MODE) {
+        console.log('[TabManager] Light cleanup skipped - only', tabInfo.loaded, 'loaded tabs');
+      }
+      return;
+    }
+
+    // Find tabs that are not active and not recently accessed
+    // Unload the oldest accessed tab (excluding active)
+    const inactiveTabs = this.tabs.filter(t =>
+      t.id !== this.activeTabId &&
+      t.iframe &&
+      !t.isMerged &&
+      t.loaded &&
+      !t.needsReload
+    );
+
+    if (inactiveTabs.length > 2) {
+      // Unload just one tab (the "oldest" by array position)
+      const tabToUnload = inactiveTabs[0];
+
+      try {
+        const currentSrc = tabToUnload.iframe.src;
+        if (currentSrc && currentSrc !== 'about:blank') {
+          if (!tabToUnload.originalUrl) {
+            tabToUnload.originalUrl = currentSrc;
+          }
+          tabToUnload.iframe.src = 'about:blank';
+          tabToUnload.needsReload = true;
+          tabToUnload.loaded = false;
+
+          if (this.DEBUG_MODE) {
+            console.log('[TabManager] Light cleanup: unloaded tab', tabToUnload.id, tabToUnload.title);
+          }
+        }
+      } catch (error) {
+        console.error('[TabManager] Light cleanup error:', error);
+      }
+    }
+  }
+
+  /**
+   * Update tab access order for LRU tracking
+   * Most recently accessed tab is at the end of the array
+   */
+  updateTabAccessOrder(tabId) {
+    // Remove tab from current position
+    const index = this.tabAccessOrder.indexOf(tabId);
+    if (index > -1) {
+      this.tabAccessOrder.splice(index, 1);
+    }
+    // Add to end (most recently accessed)
+    this.tabAccessOrder.push(tabId);
+
+    if (this.DEBUG_MODE) {
+      console.log('[TabManager] Tab access order:', this.tabAccessOrder);
+    }
+  }
+
+  /**
+   * Enforce maximum loaded tabs limit using LRU (Least Recently Used) eviction
+   * Unloads oldest accessed tabs to keep memory usage under control
+   */
+  enforceMaxLoadedTabs() {
+    // Count currently loaded tabs (excluding active and merged)
+    const loadedTabs = this.tabs.filter(t =>
+      t.loaded &&
+      !t.needsReload &&
+      t.id !== this.activeTabId &&
+      !t.isMerged &&
+      t.iframe &&
+      t.iframe.src !== 'about:blank'
+    );
+
+    if (loadedTabs.length <= this.MAX_LOADED_TABS - 1) {
+      // -1 because we're about to load a new tab
+      return;
+    }
+
+    // Need to unload some tabs
+    const tabsToUnload = loadedTabs.length - (this.MAX_LOADED_TABS - 1);
+
+    if (this.DEBUG_MODE) {
+      console.log(`[TabManager] Enforcing max loaded tabs: ${loadedTabs.length} loaded, need to unload ${tabsToUnload}`);
+    }
+
+    // Sort by access order (oldest first) and unload
+    const sortedByAccess = loadedTabs.sort((a, b) => {
+      const aIndex = this.tabAccessOrder.indexOf(a.id);
+      const bIndex = this.tabAccessOrder.indexOf(b.id);
+      // -1 means never accessed (treat as oldest)
+      return (aIndex === -1 ? -Infinity : aIndex) - (bIndex === -1 ? -Infinity : bIndex);
+    });
+
+    for (let i = 0; i < tabsToUnload && i < sortedByAccess.length; i++) {
+      const tabToUnload = sortedByAccess[i];
+
+      try {
+        const currentSrc = tabToUnload.iframe.src;
+        if (currentSrc && currentSrc !== 'about:blank') {
+          if (!tabToUnload.originalUrl) {
+            tabToUnload.originalUrl = currentSrc;
+          }
+          tabToUnload.iframe.src = 'about:blank';
+          tabToUnload.needsReload = true;
+          tabToUnload.loaded = false;
+
+          console.log(`[TabManager] LRU evicted tab: ${tabToUnload.id} (${tabToUnload.title})`);
+        }
+      } catch (error) {
+        console.error('[TabManager] Error unloading LRU tab:', error);
+      }
     }
   }
 
@@ -376,15 +656,15 @@ class TabManager {
       this.performMemoryCleanup();
     });
 
-    // Listen for forced cleanup requests (90%+ threshold)
+    // Listen for forced cleanup requests (85%+ threshold)
     window.kolboDesktop.onMemoryForceCleanup(() => {
       console.warn('[TabManager] ⚠️ Forced cleanup requested - memory usage high');
 
-      // Perform aggressive cleanup
-      this.performMemoryCleanup();
+      // Perform AGGRESSIVE cleanup (unload ALL background tabs)
+      this.aggressiveMemoryCleanup();
 
-      // Show toast notification to user
-      this.showToast('Memory usage high. Cleaning up inactive tabs...', 'warning');
+      // Also request webapp cleanup
+      this.requestWebappMemoryCleanup();
     });
 
     if (this.DEBUG_MODE) {
@@ -580,6 +860,52 @@ class TabManager {
             });
         } else {
           console.error('[TabManager] ❌ openExternal API not available');
+        }
+      }
+
+      // ========================================================================
+      // MEMORY MANAGEMENT: Handle memory-related messages from webapp
+      // ========================================================================
+
+      // Track when webapp performs cleanup
+      if (event.data && event.data.type === 'MEMORY_CLEANUP_PERFORMED') {
+        const { reason, cleanupCount, timestamp } = event.data;
+        if (this.DEBUG_MODE) {
+          console.log(`[TabManager] 🧹 Webapp performed cleanup #${cleanupCount} (reason: ${reason})`);
+        }
+      }
+
+      // Handle memory warning from webapp
+      if (event.data && event.data.type === 'MEMORY_WARNING') {
+        const { usage } = event.data;
+        console.warn(`[TabManager] ⚠️ Webapp memory warning: ${(usage * 100).toFixed(1)}% usage`);
+
+        // Trigger cleanup of inactive tabs to help
+        this.performMemoryCleanup();
+      }
+
+      // Handle URL change notification from webapp (for tab tracking)
+      if (event.data && event.data.type === 'URL_CHANGED') {
+        const newUrl = event.data.url;
+        if (this.DEBUG_MODE) {
+          console.log('[TabManager] 📍 Webapp URL changed:', newUrl);
+        }
+
+        // Find the tab that sent this message and update its URL
+        // This allows proper URL restoration on tab switch
+        const tab = this.tabs.find(t => {
+          try {
+            return t.iframe && t.iframe.contentWindow === event.source;
+          } catch (e) {
+            return false;
+          }
+        });
+
+        if (tab) {
+          tab.currentUrl = newUrl;
+          if (this.DEBUG_MODE) {
+            console.log('[TabManager] Updated tab URL:', tab.id, newUrl);
+          }
         }
       }
     });
@@ -1396,41 +1722,58 @@ class TabManager {
       this.switchTab(newActiveTab.id);
     }
 
-    // MEMORY CLEANUP: Properly cleanup iframe to prevent memory leaks
+    // MEMORY CLEANUP: Thoroughly cleanup iframe to prevent memory leaks
     if (tab.iframe) {
       try {
-        // Stop any ongoing loads
-        if (tab.iframe.contentWindow) {
-          tab.iframe.contentWindow.stop();
-        }
+        const iframe = tab.iframe;
 
-        // Clear src to unload content and free memory
-        tab.iframe.src = 'about:blank';
-
-        // MEMORY LEAK FIX: Wait for unload, then remove from DOM
-        // Using requestIdleCallback for better GC timing
-        if (window.requestIdleCallback) {
-          requestIdleCallback(() => {
-            if (tab.iframe && tab.iframe.parentNode) {
-              tab.iframe.remove();
+        // Stop any ongoing loads and clear content
+        if (iframe.contentWindow) {
+          try {
+            iframe.contentWindow.stop();
+            // Try to clear any timers/intervals in the iframe
+            // Note: This only works for same-origin iframes
+            const iframeWindow = iframe.contentWindow;
+            if (iframeWindow.clearInterval && iframeWindow.clearTimeout) {
+              // Clear common high-numbered IDs (timers often start at high numbers)
+              for (let i = 1; i < 10000; i++) {
+                iframeWindow.clearInterval(i);
+                iframeWindow.clearTimeout(i);
+              }
             }
-          });
-        } else {
-          // Fallback: immediate removal
-          tab.iframe.remove();
+          } catch (e) {
+            // Cross-origin, can't access contentWindow
+          }
         }
 
-        // Clear reference immediately to help garbage collection
+        // Clear all event listeners on the iframe element
+        const newIframe = iframe.cloneNode(false);
+        if (iframe.parentNode) {
+          iframe.parentNode.replaceChild(newIframe, iframe);
+        }
+
+        // Set src to about:blank to trigger unload
+        newIframe.src = 'about:blank';
+
+        // Remove from DOM after a short delay to allow unload
+        setTimeout(() => {
+          if (newIframe && newIframe.parentNode) {
+            newIframe.remove();
+          }
+        }, 100);
+
+        // Clear reference immediately
         tab.iframe = null;
 
         if (this.DEBUG_MODE) {
-          console.log('[TabManager] Iframe memory cleaned up for tab:', tabId);
+          console.log('[TabManager] Iframe thoroughly cleaned up for tab:', tabId);
         }
       } catch (error) {
         console.error('[TabManager] Error cleaning up iframe:', error);
         // Fallback: just remove it
         if (tab.iframe) {
           try {
+            tab.iframe.src = 'about:blank';
             tab.iframe.remove();
           } catch (e) {
             console.error('[TabManager] Could not remove iframe:', e);
@@ -1448,6 +1791,12 @@ class TabManager {
 
     // Remove from array
     this.tabs.splice(tabIndex, 1);
+
+    // Remove from access order tracking
+    const accessIndex = this.tabAccessOrder.indexOf(tabId);
+    if (accessIndex > -1) {
+      this.tabAccessOrder.splice(accessIndex, 1);
+    }
 
     // Renumber tabs after closing
     this.renumberTabs();
@@ -1470,6 +1819,9 @@ class TabManager {
       console.log('[TabManager] Switching to tab:', tabId, tab.title);
     }
 
+    // Update tab access order (LRU tracking)
+    this.updateTabAccessOrder(tabId);
+
     // MEMORY MANAGEMENT: Reload tab if it was unloaded to save memory
     if (tab.needsReload && tab.iframe) {
       const urlToReload = tab.originalUrl || tab.url;
@@ -1479,6 +1831,9 @@ class TabManager {
       tab.iframe.src = urlToReload;
       tab.needsReload = false;
       tab.loaded = true;
+
+      // After loading a tab, check if we need to unload LRU tabs
+      this.enforceMaxLoadedTabs();
     }
 
     // Update active tab ID
@@ -2253,6 +2608,12 @@ class TabManager {
       this.autoSaveInterval = null;
     }
 
+    // MEMORY FIX: Clear periodic cleanup interval
+    if (this.periodicCleanupInterval) {
+      clearInterval(this.periodicCleanupInterval);
+      this.periodicCleanupInterval = null;
+    }
+
     // Clear debounce timer
     if (this._saveDebounceTimer) {
       clearTimeout(this._saveDebounceTimer);
@@ -2274,7 +2635,9 @@ class TabManager {
 
     this.tabs = [];
     this.activeTabId = null;
+    this.tabAccessOrder = [];
     this._lastSavedState = null;
+    this.currentMemoryStatus = null;
 
     console.log('[TabManager] Destroyed and cleaned up all resources');
   }

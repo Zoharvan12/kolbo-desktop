@@ -245,7 +245,7 @@ contextBridge.exposeInMainWorld('kolboDesktop', {
   onContextMenuAction: (callback) =>
     ipcRenderer.on('context-menu-action', (event, data) => callback(data)),
 
-  // Memory Monitoring
+  // Memory Monitoring & Management
   onMemoryStatus: (callback) =>
     ipcRenderer.on('memory:status', (event, status) => callback(status)),
 
@@ -254,6 +254,18 @@ contextBridge.exposeInMainWorld('kolboDesktop', {
 
   onMemoryForceCleanup: (callback) =>
     ipcRenderer.on('memory:force-cleanup', () => callback()),
+
+  // Manual memory cleanup (call when user requests or programmatically)
+  memoryCleanup: (options) =>
+    ipcRenderer.invoke('memory:cleanup', options),
+
+  // Get current memory statistics
+  getMemoryStats: () =>
+    ipcRenderer.invoke('memory:get-stats'),
+
+  // Clear all caches aggressively (use when memory is critical)
+  clearAllCaches: () =>
+    ipcRenderer.invoke('memory:clear-all-caches'),
 
   // Screenshot
   captureScreenshot: (bounds) =>
@@ -332,6 +344,96 @@ contextBridge.exposeInMainWorld('kolboDesktop', {
     // Listen for GPU info
     onGPUInfo: (callback) => {
       ipcRenderer.on('ff:gpu-info', (event, data) => callback(data));
+    },
+
+    // Remove listeners (cleanup)
+    removeListener: (channel, callback) => {
+      ipcRenderer.removeListener(channel, callback);
+    }
+  },
+
+  // Quick Tools
+  quickTools: {
+    // Merge multiple videos
+    mergeVideos: (job) =>
+      ipcRenderer.invoke('qt:merge-videos', job),
+
+    // Crop video
+    cropVideo: (job) =>
+      ipcRenderer.invoke('qt:crop-video', job),
+
+    // Extract single frame
+    extractFrame: (job) =>
+      ipcRenderer.invoke('qt:extract-frame', job),
+
+    // Save frame (from blob/buffer)
+    saveFrame: async (job) => {
+      // Convert blob to buffer if needed
+      if (job.blob) {
+        const arrayBuffer = await job.blob.arrayBuffer();
+        job.buffer = Buffer.from(arrayBuffer);
+        delete job.blob;
+      }
+      return ipcRenderer.invoke('qt:save-frame', job);
+    }
+  },
+
+  // yt-dlp Downloader
+  downloader: {
+    // Get media info from URL
+    getMediaInfo: (url) =>
+      ipcRenderer.invoke('dl:get-info', url),
+
+    // Start a download
+    startDownload: (job) =>
+      ipcRenderer.invoke('dl:start', job),
+
+    // Cancel a specific download
+    cancelDownload: (jobId) =>
+      ipcRenderer.invoke('dl:cancel', jobId),
+
+    // Cancel all downloads
+    cancelAll: () =>
+      ipcRenderer.invoke('dl:cancel-all'),
+
+    // Select output folder
+    selectOutputFolder: () =>
+      ipcRenderer.invoke('dl:select-output-folder'),
+
+    // Get saved output folder
+    getOutputFolder: () =>
+      ipcRenderer.invoke('dl:get-output-folder'),
+
+    // Set output folder
+    setOutputFolder: (folderPath) =>
+      ipcRenderer.invoke('dl:set-output-folder', folderPath),
+
+    // Open folder in file explorer
+    openFolder: (folderPath) =>
+      ipcRenderer.invoke('dl:open-folder', folderPath),
+
+    // Show file in folder
+    showInFolder: (filePath) =>
+      ipcRenderer.invoke('dl:show-in-folder', filePath),
+
+    // Listen for progress updates
+    onProgress: (callback) => {
+      ipcRenderer.on('dl:progress', (event, data) => callback(data));
+    },
+
+    // Listen for download completion
+    onComplete: (callback) => {
+      ipcRenderer.on('dl:complete', (event, data) => callback(data));
+    },
+
+    // Listen for errors
+    onError: (callback) => {
+      ipcRenderer.on('dl:error', (event, data) => callback(data));
+    },
+
+    // Listen for cancellation
+    onCancelled: (callback) => {
+      ipcRenderer.on('dl:cancelled', (event, data) => callback(data));
     },
 
     // Remove listeners (cleanup)

@@ -2538,6 +2538,92 @@ body.is-mac .window-controls {
   transform: translate(-50%, -50%) scale(1.15);
 }
 
+/* Video Playbar - Seekable Progress Bar */
+.video-playbar {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 32px;
+  background: linear-gradient(transparent, rgba(0, 0, 0, 0.8));
+  display: flex;
+  align-items: center;
+  padding: 0 10px;
+  gap: 8px;
+  opacity: 0;
+  transition: opacity 0.2s ease;
+  z-index: 15;
+  pointer-events: none;
+}
+
+.media-item-video:hover .video-playbar,
+.media-item-video.playing .video-playbar {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.video-progress-container {
+  flex: 1;
+  height: 4px;
+  background: rgba(255, 255, 255, 0.3);
+  border-radius: 2px;
+  cursor: pointer;
+  position: relative;
+  transition: height 0.15s ease;
+}
+
+.video-progress-container:hover {
+  height: 6px;
+}
+
+.video-progress-fill {
+  height: 100%;
+  background: linear-gradient(90deg, #677eea, #8b5cf6);
+  border-radius: 2px;
+  width: 0%;
+  position: relative;
+  transition: width 0.05s linear;
+}
+
+.video-progress-container:hover .video-progress-fill::after {
+  content: '';
+  position: absolute;
+  right: -5px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 10px;
+  height: 10px;
+  background: #fff;
+  border-radius: 50%;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
+}
+
+.video-time-display {
+  font-size: 10px;
+  font-weight: 500;
+  color: rgba(255, 255, 255, 0.9);
+  font-family: 'Poppins', sans-serif;
+  white-space: nowrap;
+  min-width: 70px;
+  text-align: right;
+}
+
+/* Adjust play button position when playbar is visible */
+.media-item-video:hover .video-play-btn {
+  transform: translate(-50%, calc(-50% - 16px));
+}
+
+.media-item-video:hover .video-play-btn:hover {
+  transform: translate(-50%, calc(-50% - 16px)) scale(1.15);
+}
+
+/* Move overlay (file name) up when playbar is visible */
+.media-item-video:hover .overlay,
+.media-item-video.playing .overlay {
+  bottom: 32px;
+  transition: bottom 0.2s ease;
+}
+
 /* Audio Cards - Elegant Waveform Design */
 .media-item-audio {
   /* Same aspect ratio as other cards */
@@ -2717,7 +2803,7 @@ body.is-mac .window-controls {
   align-items: center;
   gap: 4px;
   font-size: 10px;
-  font-family: 'SF Mono', 'Monaco', 'Inconsolata', monospace;
+  font-family: 'Poppins', sans-serif;
   color: rgb(var(--foreground) / 0.6);
 }
 
@@ -3279,7 +3365,7 @@ body.dragging-active * {
 .batch-processing-filename {
   font-size: 13px;
   color: rgba(255, 255, 255, 0.6);
-  font-family: monospace;
+  font-family: 'Poppins', sans-serif;
   margin-top: 8px;
   min-height: 20px;
 }
@@ -3415,7 +3501,7 @@ body.dragging-active * {
   font-size: 18px;
   font-weight: 600;
   color: #667eea;
-  font-family: monospace;
+  font-family: 'Poppins', sans-serif;
 }
 
 /* Button Styles */

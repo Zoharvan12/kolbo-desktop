@@ -13,6 +13,7 @@ const FileManager = require('./file-manager');
 const DragHandler = require('./drag-handler');
 const ContextMenuHandler = require('./context-menu-handler');
 const FFmpegHandler = require('./ffmpeg-handler');
+const YtdlpHandler = require('./ytdlp-handler');
 
 // Persistent settings store
 const store = new Store();
@@ -53,12 +54,14 @@ const totalRAM = os.totalmem() / (1024 * 1024 * 1024); // Convert to GB
 const heapSizeGB = Math.floor(totalRAM * 0.5); // Use 50% of system RAM
 const heapSizeMB = heapSizeGB * 1024;
 
-// Apply the dynamic limit
-app.commandLine.appendSwitch('js-flags', `--max-old-space-size=${heapSizeMB}`);
+// Apply the dynamic limit and expose gc() for manual garbage collection
+app.commandLine.appendSwitch('js-flags', `--max-old-space-size=${heapSizeMB} --expose-gc`);
 // Enable speed optimization instead of size (better performance for embedded webapp)
 app.commandLine.appendSwitch('js-flags', '--optimize-for-speed');
 // Enable TurboFan fast API calls for better performance
 app.commandLine.appendSwitch('js-flags', '--turbo-fast-api-calls');
+// Optimize for low memory pressure (more frequent GC when memory is high)
+app.commandLine.appendSwitch('js-flags', '--gc-interval=100');
 
 console.log('[Main] System RAM:', totalRAM.toFixed(2), 'GB');
 console.log('[Main] V8 heap limit (50% of RAM):', heapSizeGB, 'GB (', heapSizeMB, 'MB)');
@@ -1122,6 +1125,207 @@ function setupFFmpegHandlers() {
   });
 
   console.log('[FFmpeg] IPC handlers registered');
+}
+
+// ============================================================================
+// QUICK TOOLS HANDLERS
+// ============================================================================
+
+function setupQuickToolsHandlers() {
+  const { ipcMain } = require('electron');
+
+  // Merge multiple videos
+  ipcMain.handle('qt:merge-videos', async (event, job) => {
+    try {
+      console.log('[Quick Tools] Merge videos requested:', job.id);
+      const outputPath = await ffmpegHandler.mergeVideos(job);
+      return { success: true, outputPath };
+    } catch (error) {
+      console.error('[Quick Tools] Merge failed:', error);
+      return { success: false, error: error.message };
+    }
+  });
+
+  // Crop video
+  ipcMain.handle('qt:crop-video', async (event, job) => {
+    try {
+      console.log('[Quick Tools] Crop video requested:', job.id);
+      const outputPath = await ffmpegHandler.cropVideo(job);
+      return { success: true, outputPath };
+    } catch (error) {
+      console.error('[Quick Tools] Crop failed:', error);
+      return { success: false, error: error.message };
+    }
+  });
+
+  // Extract single frame
+  ipcMain.handle('qt:extract-frame', async (event, job) => {
+    try {
+      console.log('[Quick Tools] Extract frame requested:', job.timestamp);
+      const outputPath = await ffmpegHandler.extractFrame(job);
+      return { success: true, outputPath };
+    } catch (error) {
+      console.error('[Quick Tools] Frame extraction failed:', error);
+      return { success: false, error: error.message };
+    }
+  });
+
+  // Save frame (from blob/buffer)
+  ipcMain.handle('qt:save-frame', async (event, job) => {
+    try {
+      console.log('[Quick Tools] Saving frame:', job.filename);
+      const outputPath = await ffmpegHandler.saveFrame(job);
+      return { success: true, outputPath };
+    } catch (error) {
+      console.error('[Quick Tools] Save frame failed:', error);
+      return { success: false, error: error.message };
+    }
+  });
+
+  console.log('[Quick Tools] IPC handlers registered');
+}
+
+// ============================================================================
+// YT-DLP DOWNLOADER HANDLERS
+// ============================================================================
+
+let ytdlpHandler = null;
+
+function setupDownloaderHandlers() {
+  const { ipcMain } = require('electron');
+
+  // Initialize yt-dlp handler
+  ytdlpHandler = new YtdlpHandler(mainWindow);
+  console.log('[Downloader] Handler initialized');
+
+  // Get media info from URL
+  ipcMain.handle('dl:get-info', async (event, url) => {
+    try {
+      console.log('[Downloader] Getting info for:', url);
+      const info = await ytdlpHandler.getMediaInfo(url);
+      return { success: true, info };
+    } catch (error) {
+      console.error('[Downloader] Failed to get info:', error);
+      return {
+        success: false,
+        error: error.message || 'Failed to fetch media info',
+        errorType: error.type || 'unknown'
+      };
+    }
+  });
+
+  // Start download
+  ipcMain.handle('dl:start', async (event, job) => {
+    try {
+      console.log('[Downloader] Starting download:', job.id);
+      const outputPath = await ytdlpHandler.downloadMedia(job);
+      return { success: true, outputPath };
+    } catch (error) {
+      console.error('[Downloader] Download failed:', error);
+      return {
+        success: false,
+        error: error.message || 'Download failed',
+        errorType: error.type || 'unknown'
+      };
+    }
+  });
+
+  // Cancel a download
+  ipcMain.handle('dl:cancel', async (event, jobId) => {
+    try {
+      const result = ytdlpHandler.cancelDownload(jobId);
+      return { success: result };
+    } catch (error) {
+      console.error('[Downloader] Failed to cancel:', error);
+      return { success: false, error: error.message };
+    }
+  });
+
+  // Cancel all downloads
+  ipcMain.handle('dl:cancel-all', async () => {
+    try {
+      const count = ytdlpHandler.cancelAll();
+      return { success: true, cancelled: count };
+    } catch (error) {
+      console.error('[Downloader] Failed to cancel all:', error);
+      return { success: false, error: error.message };
+    }
+  });
+
+  // Select output folder
+  ipcMain.handle('dl:select-output-folder', async () => {
+    try {
+      const result = await dialog.showOpenDialog(mainWindow, {
+        title: 'Select Download Folder',
+        properties: ['openDirectory', 'createDirectory']
+      });
+
+      if (result.canceled) {
+        return { success: false, canceled: true };
+      }
+
+      // Save the selection
+      store.set('dl_output_folder', result.filePaths[0]);
+      return { success: true, folderPath: result.filePaths[0] };
+    } catch (error) {
+      console.error('[Downloader] Failed to select folder:', error);
+      return { success: false, error: error.message };
+    }
+  });
+
+  // Get saved output folder
+  ipcMain.handle('dl:get-output-folder', async () => {
+    try {
+      const outputFolder = store.get('dl_output_folder') || app.getPath('downloads');
+      return { success: true, outputFolder };
+    } catch (error) {
+      console.error('[Downloader] Failed to get output folder:', error);
+      return { success: false, error: error.message, outputFolder: app.getPath('downloads') };
+    }
+  });
+
+  // Set output folder
+  ipcMain.handle('dl:set-output-folder', async (event, folderPath) => {
+    try {
+      if (folderPath) {
+        store.set('dl_output_folder', folderPath);
+        console.log('[Downloader] Output folder saved:', folderPath);
+      } else {
+        store.delete('dl_output_folder');
+        console.log('[Downloader] Output folder reset to downloads');
+      }
+      return { success: true, folderPath };
+    } catch (error) {
+      console.error('[Downloader] Failed to set output folder:', error);
+      return { success: false, error: error.message };
+    }
+  });
+
+  // Open folder in file explorer
+  ipcMain.handle('dl:open-folder', async (event, folderPath) => {
+    try {
+      const { shell } = require('electron');
+      await shell.openPath(folderPath);
+      return { success: true };
+    } catch (error) {
+      console.error('[Downloader] Failed to open folder:', error);
+      return { success: false, error: error.message };
+    }
+  });
+
+  // Show file in folder
+  ipcMain.handle('dl:show-in-folder', async (event, filePath) => {
+    try {
+      const { shell } = require('electron');
+      shell.showItemInFolder(filePath);
+      return { success: true };
+    } catch (error) {
+      console.error('[Downloader] Failed to show in folder:', error);
+      return { success: false, error: error.message };
+    }
+  });
+
+  console.log('[Downloader] IPC handlers registered');
 }
 
 // ============================================================================
@@ -2761,6 +2965,88 @@ function setupMediaCacheHandlers() {
   });
 
   console.log('[MediaCache] IPC handlers registered');
+
+  // ========================================================================
+  // Memory Management IPC Handlers
+  // ========================================================================
+
+  // Manual memory cleanup trigger
+  ipcMain.handle('memory:cleanup', async (event, options = {}) => {
+    const { aggressive = false } = options;
+    console.log(`[Memory] Manual cleanup requested (aggressive: ${aggressive})`);
+
+    try {
+      await cleanupSessionCache(aggressive);
+
+      // Request garbage collection if exposed
+      if (global.gc) {
+        global.gc();
+        console.log('[Memory] Manual GC triggered');
+      }
+
+      return { success: true };
+    } catch (error) {
+      console.error('[Memory] Manual cleanup error:', error);
+      return { success: false, error: error.message };
+    }
+  });
+
+  // Get current memory stats
+  ipcMain.handle('memory:get-stats', async () => {
+    try {
+      const mainMem = process.memoryUsage();
+      let rendererMem = { workingSetSize: 0, private: 0 };
+
+      if (mainWindow && !mainWindow.isDestroyed()) {
+        try {
+          rendererMem = await mainWindow.webContents.getProcessMemoryInfo();
+        } catch (e) {
+          // Ignore errors
+        }
+      }
+
+      return {
+        main: {
+          heapUsed: mainMem.heapUsed,
+          heapTotal: mainMem.heapTotal,
+          rss: mainMem.rss,
+          external: mainMem.external
+        },
+        renderer: {
+          workingSetSize: rendererMem.workingSetSize * 1024, // KB to bytes
+          private: rendererMem.private * 1024
+        },
+        heapLimitMB: heapSizeGB * 1024
+      };
+    } catch (error) {
+      console.error('[Memory] Error getting stats:', error);
+      return null;
+    }
+  });
+
+  // Clear all caches aggressively
+  ipcMain.handle('memory:clear-all-caches', async () => {
+    console.log('[Memory] Clearing all caches...');
+    try {
+      const { session } = require('electron');
+      const defaultSession = session.defaultSession;
+
+      await defaultSession.clearCache();
+      await defaultSession.clearCodeCaches({});
+      await defaultSession.clearStorageData({
+        storages: ['appcache', 'shadercache', 'serviceworkers', 'cachestorage'],
+        quotas: ['temporary', 'persistent']
+      });
+
+      console.log('[Memory] All caches cleared');
+      return { success: true };
+    } catch (error) {
+      console.error('[Memory] Error clearing caches:', error);
+      return { success: false, error: error.message };
+    }
+  });
+
+  console.log('[Memory] IPC handlers registered');
 }
 
 // First-time setup: Enable auto-launch by default
@@ -2795,90 +3081,132 @@ function setupFirstTimeDefaults() {
 
 /**
  * Proactive memory monitoring to prevent crashes before they happen
- * Monitors V8 heap usage and triggers cleanup at safe thresholds
+ * Monitors BOTH main process AND renderer process memory
+ * Also includes session cache cleanup
  */
 function setupMemoryMonitoring() {
-  const MEMORY_CHECK_INTERVAL = 60 * 1000; // Check every 60 seconds
-  const CLEANUP_THRESHOLD = 80; // Start cleanup at 80%
-  const WARNING_THRESHOLD = 90; // Warn user at 90%
-  const CRITICAL_THRESHOLD = 95; // Critical warning at 95%
+  const MEMORY_CHECK_INTERVAL = 30 * 1000; // Check every 30 seconds (was 60)
+  const CLEANUP_THRESHOLD = 70; // Start cleanup at 70% (was 80)
+  const WARNING_THRESHOLD = 85; // Warn user at 85% (was 90)
+  const CRITICAL_THRESHOLD = 92; // Critical warning at 92% (was 95)
+
+  // Absolute memory limits (in MB) - trigger cleanup regardless of percentage
+  const RENDERER_MEMORY_LIMIT_MB = 2048; // 2GB for renderer process
+  const TOTAL_MEMORY_LIMIT_MB = 4096; // 4GB total
 
   let lastWarningTime = 0;
-  const WARNING_COOLDOWN = 5 * 60 * 1000; // Only warn every 5 minutes
+  let lastCacheCleanupTime = 0;
+  const WARNING_COOLDOWN = 3 * 60 * 1000; // Warn every 3 minutes (was 5)
+  const CACHE_CLEANUP_INTERVAL = 10 * 60 * 1000; // Clean cache every 10 minutes
 
-  setInterval(() => {
+  setInterval(async () => {
     if (!mainWindow || mainWindow.isDestroyed()) {
       return;
     }
 
     try {
-      const memUsage = process.memoryUsage();
-      const heapUsedMB = memUsage.heapUsed / (1024 * 1024);
-      const heapUsedGB = heapUsedMB / 1024;
-      const heapLimitGB = heapSizeGB; // From our dynamic calculation
-      const usagePercent = (heapUsedGB / heapLimitGB) * 100;
+      // Get main process memory
+      const mainMemUsage = process.memoryUsage();
+      const mainHeapUsedMB = mainMemUsage.heapUsed / (1024 * 1024);
+      const mainRssMB = mainMemUsage.rss / (1024 * 1024);
+
+      // Get renderer process memory (where iframes live)
+      let rendererMemoryMB = 0;
+      let rendererPrivateMB = 0;
+      try {
+        const rendererMemInfo = await mainWindow.webContents.getProcessMemoryInfo();
+        rendererMemoryMB = rendererMemInfo.workingSetSize / 1024; // KB to MB
+        rendererPrivateMB = rendererMemInfo.private / 1024;
+      } catch (e) {
+        // Renderer process info may not be available
+      }
+
+      // Total memory = main RSS + renderer working set
+      const totalMemoryMB = mainRssMB + rendererMemoryMB;
+      const heapLimitGB = heapSizeGB;
+      const heapLimitMB = heapLimitGB * 1024;
+
+      // Calculate percentage based on renderer memory (more accurate for iframe-heavy app)
+      const rendererUsagePercent = (rendererMemoryMB / RENDERER_MEMORY_LIMIT_MB) * 100;
+      const totalUsagePercent = (totalMemoryMB / TOTAL_MEMORY_LIMIT_MB) * 100;
+
+      // Use the higher of the two percentages for triggering actions
+      const usagePercent = Math.max(rendererUsagePercent, totalUsagePercent);
 
       // Log detailed stats every check (only in debug)
       if (process.env.NODE_ENV === 'development') {
         console.log('[Memory Monitor]', {
-          heapUsed: `${heapUsedGB.toFixed(2)} GB`,
-          heapLimit: `${heapLimitGB} GB`,
-          percentage: `${usagePercent.toFixed(1)}%`,
-          rss: `${(memUsage.rss / 1024 / 1024 / 1024).toFixed(2)} GB`,
-          external: `${(memUsage.external / 1024 / 1024).toFixed(0)} MB`
+          mainHeap: `${(mainHeapUsedMB / 1024).toFixed(2)} GB`,
+          mainRSS: `${(mainRssMB / 1024).toFixed(2)} GB`,
+          rendererWorkingSet: `${(rendererMemoryMB / 1024).toFixed(2)} GB`,
+          rendererPrivate: `${(rendererPrivateMB / 1024).toFixed(2)} GB`,
+          totalMemory: `${(totalMemoryMB / 1024).toFixed(2)} GB`,
+          usagePercent: `${usagePercent.toFixed(1)}%`
         });
       }
 
       // Send memory status to renderer for display
       mainWindow.webContents.send('memory:status', {
-        heapUsedGB: parseFloat(heapUsedGB.toFixed(2)),
+        heapUsedGB: parseFloat((mainHeapUsedMB / 1024).toFixed(2)),
         heapLimitGB: heapLimitGB,
+        rendererMemoryMB: parseFloat(rendererMemoryMB.toFixed(0)),
+        totalMemoryMB: parseFloat(totalMemoryMB.toFixed(0)),
         usagePercent: parseFloat(usagePercent.toFixed(1)),
-        rss: parseFloat((memUsage.rss / 1024 / 1024 / 1024).toFixed(2))
+        rss: parseFloat((mainRssMB / 1024).toFixed(2))
       });
 
-      // CRITICAL: 95%+ - Show dialog and offer to reload
-      if (usagePercent >= CRITICAL_THRESHOLD) {
-        const now = Date.now();
+      // Periodic session cache cleanup (every 10 minutes)
+      const now = Date.now();
+      if (now - lastCacheCleanupTime > CACHE_CLEANUP_INTERVAL) {
+        lastCacheCleanupTime = now;
+        await cleanupSessionCache();
+      }
+
+      // CRITICAL: 92%+ - Show dialog and offer to reload
+      if (usagePercent >= CRITICAL_THRESHOLD || totalMemoryMB > TOTAL_MEMORY_LIMIT_MB) {
         if (now - lastWarningTime > WARNING_COOLDOWN) {
           lastWarningTime = now;
 
-          console.error(`[Memory Monitor] 🚨 CRITICAL: Memory at ${usagePercent.toFixed(1)}%`);
+          console.error(`[Memory Monitor] 🚨 CRITICAL: Memory at ${usagePercent.toFixed(1)}% (${(totalMemoryMB / 1024).toFixed(1)}GB)`);
 
           // Force cleanup first
           mainWindow.webContents.send('memory:force-cleanup');
+
+          // Also clean session cache
+          await cleanupSessionCache(true); // aggressive=true
 
           // Show dialog
           dialog.showMessageBox(mainWindow, {
             type: 'warning',
             title: 'Memory Critically High',
-            message: `Memory usage is at ${usagePercent.toFixed(0)}% (${heapUsedGB.toFixed(1)}GB / ${heapLimitGB}GB)`,
-            detail: 'The app has cleaned up inactive tabs, but memory is still very high. Reloading will free all memory.\n\nDo you want to reload now?',
+            message: `Memory usage is at ${usagePercent.toFixed(0)}% (${(totalMemoryMB / 1024).toFixed(1)}GB)`,
+            detail: 'The app has cleaned up inactive tabs and cache, but memory is still very high. Reloading will free all memory.\n\nDo you want to reload now?',
             buttons: ['Reload Now', 'Continue'],
             defaultId: 0,
             cancelId: 1
           }).then(({ response }) => {
             if (response === 0) {
-              // User chose to reload
               console.log('[Memory Monitor] User chose to reload app');
               mainWindow.reload();
             }
           });
         }
       }
-      // WARNING: 90%+ - Notify user and force cleanup
-      else if (usagePercent >= WARNING_THRESHOLD) {
-        const now = Date.now();
+      // WARNING: 85%+ - Notify user and force cleanup
+      else if (usagePercent >= WARNING_THRESHOLD || rendererMemoryMB > RENDERER_MEMORY_LIMIT_MB) {
         if (now - lastWarningTime > WARNING_COOLDOWN) {
           lastWarningTime = now;
 
-          console.warn(`[Memory Monitor] ⚠️ WARNING: Memory at ${usagePercent.toFixed(1)}%`);
+          console.warn(`[Memory Monitor] ⚠️ WARNING: Memory at ${usagePercent.toFixed(1)}% (renderer: ${(rendererMemoryMB / 1024).toFixed(2)}GB)`);
 
           // Trigger forced cleanup
           mainWindow.webContents.send('memory:force-cleanup');
+
+          // Clean session cache
+          await cleanupSessionCache();
         }
       }
-      // CLEANUP: 80%+ - Silent auto-cleanup
+      // CLEANUP: 70%+ - Silent auto-cleanup
       else if (usagePercent >= CLEANUP_THRESHOLD) {
         console.log(`[Memory Monitor] 🧹 Auto-cleanup triggered at ${usagePercent.toFixed(1)}%`);
 
@@ -2890,7 +3218,35 @@ function setupMemoryMonitoring() {
     }
   }, MEMORY_CHECK_INTERVAL);
 
-  console.log('[Memory Monitor] Monitoring enabled (check every 60s, cleanup at 80%, warn at 90%, critical at 95%)');
+  console.log('[Memory Monitor] Enhanced monitoring enabled (check every 30s, cleanup at 70%, warn at 85%, critical at 92%)');
+}
+
+/**
+ * Clean up session cache to free memory
+ * @param {boolean} aggressive - If true, clear all cache. If false, only clear storage.
+ */
+async function cleanupSessionCache(aggressive = false) {
+  try {
+    const { session } = require('electron');
+    const defaultSession = session.defaultSession;
+
+    if (aggressive) {
+      // Clear all cache (HTTP cache, code cache, etc.)
+      console.log('[Memory Monitor] 🧹 Aggressive cache cleanup...');
+      await defaultSession.clearCache();
+      await defaultSession.clearCodeCaches({});
+      console.log('[Memory Monitor] ✅ Cache cleared');
+    } else {
+      // Just clear storage data that's not essential
+      console.log('[Memory Monitor] 🧹 Light cache cleanup (storage data)...');
+      await defaultSession.clearStorageData({
+        storages: ['shadercache', 'serviceworkers', 'cachestorage'],
+        quotas: ['temporary']
+      });
+    }
+  } catch (error) {
+    console.error('[Memory Monitor] Error cleaning cache:', error);
+  }
 }
 
 // Setup session to modify CSP headers for iframe compatibility
@@ -3012,6 +3368,12 @@ app.whenReady().then(() => {
 
   // Setup FFmpeg handlers
   setupFFmpegHandlers();
+
+  // Setup yt-dlp downloader handlers
+  setupDownloaderHandlers();
+
+  // Setup Quick Tools handlers
+  setupQuickToolsHandlers();
 
   // Setup proactive memory monitoring
   setupMemoryMonitoring();

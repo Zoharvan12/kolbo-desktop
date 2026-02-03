@@ -1,0 +1,1188 @@
+/* Kolbo Studio - Quick Tools Styling */
+
+/* ===== QUICK TOOLS LAYOUT ===== */
+.qt-layout {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  background: #0f0f0f;
+  padding: 20px;
+  gap: 20px;
+}
+
+/* ===== TOOL SELECTOR ===== */
+.qt-tool-selector {
+  display: flex;
+  gap: 12px;
+  padding: 16px;
+  background: #1a1a1a;
+  border-radius: 12px;
+  border: 1px solid #2a2a2a;
+  overflow-x: auto;
+}
+
+.qt-tool-card {
+  flex: 1;
+  min-width: 140px;
+  max-width: 180px;
+  padding: 16px;
+  background: #262626;
+  border: 2px solid #3a3a3a;
+  border-radius: 10px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  text-align: center;
+}
+
+.qt-tool-card:hover {
+  background: #2d2d2d;
+  border-color: #4a4a4a;
+  transform: translateY(-2px);
+}
+
+.qt-tool-card.active {
+  background: linear-gradient(135deg, rgba(59, 130, 246, 0.15), rgba(96, 165, 250, 0.1));
+  border-color: #3b82f6;
+  box-shadow: 0 0 20px rgba(59, 130, 246, 0.3);
+}
+
+.qt-tool-icon {
+  font-size: 28px;
+  line-height: 1;
+}
+
+.qt-tool-name {
+  font-size: 13px;
+  font-weight: 600;
+  color: #ffffff;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.qt-tool-desc {
+  font-size: 11px;
+  color: rgba(255, 255, 255, 0.5);
+  line-height: 1.3;
+}
+
+/* ===== TOOL CONTAINER ===== */
+.qt-tool-container {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  background: #1a1a1a;
+  border-radius: 12px;
+  border: 1px solid #2a2a2a;
+  overflow: hidden;
+}
+
+.qt-tool-content {
+  flex: 1;
+  padding: 20px;
+  overflow-y: auto;
+  display: none;
+}
+
+.qt-tool-content.active {
+  display: block;
+}
+
+/* ===== DRAG DROP ZONE ===== */
+.qt-dropzone {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 60px 40px;
+  border: 2px dashed #3a3a3a;
+  border-radius: 12px;
+  background: rgba(26, 26, 26, 0.5);
+  transition: all 0.3s ease;
+  cursor: pointer;
+  text-align: center;
+}
+
+.qt-dropzone:hover,
+.qt-dropzone.dragover {
+  border-color: #3b82f6;
+  background: rgba(59, 130, 246, 0.05);
+}
+
+.qt-dropzone-icon {
+  color: rgba(255, 255, 255, 0.3);
+  margin-bottom: 16px;
+}
+
+.qt-dropzone-text {
+  font-size: 16px;
+  font-weight: 500;
+  color: rgba(255, 255, 255, 0.8);
+  margin-bottom: 8px;
+}
+
+.qt-dropzone-hint {
+  font-size: 13px;
+  color: rgba(255, 255, 255, 0.4);
+}
+
+.qt-dropzone-btn {
+  margin-top: 16px;
+  padding: 10px 24px;
+  background: linear-gradient(135deg, #3b82f6, #60a5fa);
+  border: none;
+  border-radius: 6px;
+  color: #ffffff;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.qt-dropzone-btn:hover {
+  box-shadow: 0 4px 16px rgba(59, 130, 246, 0.4);
+  transform: translateY(-1px);
+}
+
+/* ===== OUTPUT FOLDER ===== */
+.qt-output-section {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 16px;
+  background: #262626;
+  border-radius: 8px;
+  border: 1px solid #3a3a3a;
+  margin-bottom: 20px;
+}
+
+.qt-output-label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  color: rgba(255, 255, 255, 0.7);
+  flex-shrink: 0;
+}
+
+.qt-output-path {
+  flex: 1;
+  font-size: 13px;
+  color: #3b82f6;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.qt-output-btn {
+  padding: 6px 12px;
+  background: #1a1a1a;
+  border: 1px solid #3a3a3a;
+  border-radius: 4px;
+  color: rgba(255, 255, 255, 0.8);
+  font-size: 12px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.qt-output-btn:hover {
+  background: rgba(59, 130, 246, 0.15);
+  border-color: #3b82f6;
+}
+
+/* ===== BUTTONS ===== */
+.qt-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 10px 20px;
+  border-radius: 6px;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  border: none;
+}
+
+.qt-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.qt-btn-primary {
+  background: linear-gradient(135deg, #3b82f6, #60a5fa);
+  color: #ffffff;
+}
+
+.qt-btn-primary:hover:not(:disabled) {
+  box-shadow: 0 4px 16px rgba(59, 130, 246, 0.4);
+  transform: translateY(-1px);
+}
+
+.qt-btn-secondary {
+  background: #262626;
+  border: 1px solid #3a3a3a;
+  color: rgba(255, 255, 255, 0.8);
+}
+
+.qt-btn-secondary:hover:not(:disabled) {
+  background: #333;
+  border-color: #3b82f6;
+}
+
+.qt-btn-danger {
+  background: rgba(239, 68, 68, 0.15);
+  border: 1px solid #ef4444;
+  color: #ef4444;
+}
+
+.qt-btn-danger:hover:not(:disabled) {
+  background: rgba(239, 68, 68, 0.25);
+  box-shadow: 0 4px 16px rgba(239, 68, 68, 0.3);
+}
+
+/* ===== PROGRESS BAR ===== */
+.qt-progress-container {
+  margin-top: 20px;
+  padding: 16px;
+  background: #262626;
+  border-radius: 8px;
+  border: 1px solid #3a3a3a;
+}
+
+.qt-progress-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 12px;
+}
+
+.qt-progress-label {
+  font-size: 14px;
+  font-weight: 500;
+  color: rgba(255, 255, 255, 0.9);
+}
+
+.qt-progress-percent {
+  font-size: 14px;
+  font-weight: 600;
+  color: #3b82f6;
+}
+
+.qt-progress-bar {
+  height: 8px;
+  background: #1a1a1a;
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+.qt-progress-fill {
+  height: 100%;
+  background: linear-gradient(90deg, #3b82f6, #60a5fa);
+  border-radius: 4px;
+  transition: width 0.3s ease;
+}
+
+/* ===== SECTION HEADERS ===== */
+.qt-section-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 16px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid #2a2a2a;
+}
+
+.qt-section-title {
+  font-size: 16px;
+  font-weight: 600;
+  color: #ffffff;
+}
+
+/* ===== FORM ELEMENTS ===== */
+.qt-form-group {
+  margin-bottom: 16px;
+}
+
+.qt-label {
+  display: block;
+  font-size: 13px;
+  font-weight: 500;
+  color: rgba(255, 255, 255, 0.8);
+  margin-bottom: 8px;
+}
+
+.qt-select {
+  width: 100%;
+  padding: 10px 12px;
+  background: #1a1a1a;
+  border: 1px solid #3a3a3a;
+  border-radius: 6px;
+  color: #ffffff;
+  font-size: 14px;
+  cursor: pointer;
+}
+
+.qt-select:hover {
+  border-color: #3b82f6;
+}
+
+.qt-select:focus {
+  outline: none;
+  border-color: #3b82f6;
+  box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.2);
+}
+
+.qt-checkbox-group {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+}
+
+.qt-checkbox {
+  width: 18px;
+  height: 18px;
+  cursor: pointer;
+}
+
+.qt-checkbox-label {
+  font-size: 14px;
+  color: rgba(255, 255, 255, 0.8);
+}
+
+/* ===== AUDIO EXTRACTOR ===== */
+.qt-extractor-preview {
+  display: flex;
+  gap: 20px;
+  padding: 20px;
+  background: #262626;
+  border-radius: 8px;
+  margin-bottom: 20px;
+}
+
+.qt-extractor-thumbnail {
+  width: 200px;
+  height: 112px;
+  background: #1a1a1a;
+  border-radius: 8px;
+  overflow: hidden;
+  flex-shrink: 0;
+}
+
+.qt-extractor-thumbnail img,
+.qt-extractor-thumbnail video {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.qt-extractor-info {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.qt-extractor-filename {
+  font-size: 15px;
+  font-weight: 600;
+  color: #ffffff;
+}
+
+.qt-extractor-meta {
+  font-size: 13px;
+  color: rgba(255, 255, 255, 0.6);
+}
+
+.qt-extractor-options {
+  display: flex;
+  gap: 16px;
+  margin-top: auto;
+}
+
+.qt-extractor-options .qt-form-group {
+  margin-bottom: 0;
+  min-width: 150px;
+}
+
+/* ===== FRAME GRABBER ===== */
+.qt-frame-grabber {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.qt-video-preview {
+  width: 100%;
+  max-width: 800px;
+  background: #000;
+  border-radius: 8px;
+  overflow: hidden;
+  aspect-ratio: 16/9;
+  margin: 0 auto;
+}
+
+.qt-video-preview video {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+
+/* Frame Grabber Timeline - Thumbnail based */
+.qt-fg-timeline-container {
+  width: 100%;
+  max-width: 900px;
+  margin: 0 auto;
+  padding: 0 16px;
+}
+
+.qt-fg-timeline {
+  position: relative;
+  width: 100%;
+  height: 80px;
+  background: #1a1a1a;
+  border-radius: 8px;
+  overflow: hidden;
+  border: 1px solid #474747;
+  cursor: pointer;
+}
+
+.qt-fg-thumbnails {
+  display: flex;
+  width: 100%;
+  height: 100%;
+}
+
+.qt-fg-thumbnails-loading {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 100%;
+  color: #888;
+  font-size: 13px;
+}
+
+.qt-fg-thumbnail {
+  background-size: cover;
+  background-position: center;
+  background-repeat: no-repeat;
+  border-right: 1px solid rgba(0, 0, 0, 0.3);
+}
+
+.qt-fg-thumbnail:last-child {
+  border-right: none;
+}
+
+.qt-fg-playhead {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 3px;
+  height: 100%;
+  background: #3b82f6;
+  pointer-events: none;
+  z-index: 10;
+  box-shadow: 0 0 8px rgba(59, 130, 246, 0.6);
+}
+
+.qt-fg-playhead::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 12px;
+  height: 12px;
+  background: #3b82f6;
+  border-radius: 50%;
+  border: 2px solid #fff;
+}
+
+.qt-fg-playhead::after {
+  content: '';
+  position: absolute;
+  bottom: 0;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 12px;
+  height: 12px;
+  background: #3b82f6;
+  border-radius: 50%;
+  border: 2px solid #fff;
+}
+
+.qt-fg-step-controls {
+  display: flex;
+  justify-content: center;
+  gap: 16px;
+  padding: 12px 0;
+  max-width: 900px;
+  margin: 0 auto;
+}
+
+/* Keep old scrubber for backwards compatibility */
+.qt-scrubber-container {
+  position: relative;
+  height: 60px;
+  max-width: 800px;
+  background: #1a1a1a;
+  border-radius: 8px;
+  padding: 0 12px;
+  display: flex;
+  align-items: center;
+  margin: 0 auto;
+}
+
+.qt-scrubber-track {
+  flex: 1;
+  height: 8px;
+  background: #3a3a3a;
+  border-radius: 4px;
+  cursor: pointer;
+  position: relative;
+}
+
+.qt-scrubber-progress {
+  height: 100%;
+  background: #3b82f6;
+  border-radius: 4px;
+}
+
+.qt-scrubber-handle {
+  position: absolute;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  width: 16px;
+  height: 16px;
+  background: #ffffff;
+  border-radius: 50%;
+  cursor: grab;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+}
+
+.qt-scrubber-handle:active {
+  cursor: grabbing;
+}
+
+.qt-frame-controls {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 16px;
+  background: #262626;
+  border-radius: 8px;
+  max-width: 800px;
+  margin: 0 auto;
+}
+
+.qt-frame-time {
+  font-family: 'Poppins', sans-serif;
+  font-size: 14px;
+  color: #ffffff;
+  min-width: 80px;
+}
+
+.qt-captured-frames {
+  display: flex;
+  gap: 12px;
+  padding: 16px;
+  background: #1a1a1a;
+  border-radius: 8px;
+  overflow-x: auto;
+  min-height: 120px;
+}
+
+.qt-captured-frame {
+  position: relative;
+  width: 160px;
+  height: 90px;
+  flex-shrink: 0;
+  border-radius: 6px;
+  overflow: hidden;
+  border: 2px solid #3a3a3a;
+  transition: border-color 0.2s ease;
+}
+
+.qt-captured-frame:hover {
+  border-color: #3b82f6;
+}
+
+.qt-captured-frame img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.qt-captured-frame-time {
+  position: absolute;
+  bottom: 4px;
+  left: 4px;
+  padding: 2px 6px;
+  background: rgba(0, 0, 0, 0.75);
+  border-radius: 3px;
+  font-size: 11px;
+  color: #ffffff;
+  font-family: 'Poppins', sans-serif;
+}
+
+.qt-captured-frame-remove {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  width: 20px;
+  height: 20px;
+  background: rgba(239, 68, 68, 0.9);
+  border: none;
+  border-radius: 50%;
+  color: #ffffff;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 0;
+  transition: opacity 0.2s ease;
+}
+
+.qt-captured-frame:hover .qt-captured-frame-remove {
+  opacity: 1;
+}
+
+.qt-frames-empty {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  color: rgba(255, 255, 255, 0.4);
+  font-size: 13px;
+  gap: 8px;
+}
+
+/* ===== VIDEO MERGER ===== */
+.qt-merger-clips {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-height: 200px;
+  padding: 16px;
+  background: #1a1a1a;
+  border-radius: 8px;
+  border: 1px solid #2a2a2a;
+}
+
+.qt-merger-clip {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px;
+  background: #262626;
+  border-radius: 8px;
+  border: 1px solid #3a3a3a;
+  cursor: grab;
+  transition: all 0.2s ease;
+}
+
+.qt-merger-clip:hover {
+  border-color: #3b82f6;
+}
+
+.qt-merger-clip.dragging {
+  opacity: 0.5;
+  border-color: #3b82f6;
+  box-shadow: 0 4px 16px rgba(59, 130, 246, 0.3);
+}
+
+.qt-merger-drag-handle {
+  color: rgba(255, 255, 255, 0.3);
+  cursor: grab;
+}
+
+.qt-merger-clip-thumbnail {
+  width: 80px;
+  height: 45px;
+  background: #1a1a1a;
+  border-radius: 4px;
+  overflow: hidden;
+  flex-shrink: 0;
+}
+
+.qt-merger-clip-thumbnail img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.qt-merger-clip-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.qt-merger-clip-name {
+  font-size: 14px;
+  font-weight: 500;
+  color: #ffffff;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.qt-merger-clip-meta {
+  font-size: 12px;
+  color: rgba(255, 255, 255, 0.5);
+  margin-top: 4px;
+}
+
+.qt-merger-clip-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.qt-merger-clip-btn {
+  padding: 6px;
+  background: transparent;
+  border: 1px solid #3a3a3a;
+  border-radius: 4px;
+  color: rgba(255, 255, 255, 0.6);
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.qt-merger-clip-btn:hover {
+  background: rgba(59, 130, 246, 0.15);
+  border-color: #3b82f6;
+  color: #3b82f6;
+}
+
+.qt-merger-clip-btn.remove:hover {
+  background: rgba(239, 68, 68, 0.15);
+  border-color: #ef4444;
+  color: #ef4444;
+}
+
+.qt-merger-settings {
+  display: flex;
+  gap: 16px;
+  padding: 16px;
+  background: #262626;
+  border-radius: 8px;
+  margin-top: 16px;
+}
+
+.qt-merger-settings .qt-form-group {
+  margin-bottom: 0;
+  flex: 1;
+}
+
+/* ===== VIDEO CROPPER ===== */
+.qt-cropper-container {
+  display: flex;
+  gap: 20px;
+}
+
+.qt-cropper-preview-area {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 16px;
+}
+
+.qt-cropper-video-container {
+  position: relative;
+  width: 100%;
+  background: #000;
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+/* Fixed 16:9 aspect ratio wrapper for video cropper */
+.qt-cropper-video-wrapper {
+  position: relative;
+  width: 100%;
+  max-width: 800px;
+  aspect-ratio: 16 / 9;
+  background: #000;
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+/* Cropper controls should match the video width */
+.qt-cropper-preview-area .qt-frame-controls {
+  width: 100%;
+  max-width: 800px;
+}
+
+.qt-cropper-video-wrapper video,
+.qt-cropper-video-wrapper img {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+
+.qt-cropper-video-container video {
+  width: 100%;
+  display: block;
+}
+
+/* Overlay sits on top of video wrapper and handles coordinate calculations */
+.qt-cropper-overlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  pointer-events: none;
+}
+
+.qt-crop-region {
+  position: absolute;
+  border: 2px dashed #3b82f6;
+  box-shadow: 0 0 0 9999px rgba(0, 0, 0, 0.6);
+  pointer-events: auto;
+  cursor: move;
+}
+
+/* Corner handles */
+.qt-crop-handle {
+  position: absolute;
+  width: 18px;
+  height: 18px;
+  background: #3b82f6;
+  border: 2px solid #ffffff;
+  border-radius: 50%;
+  cursor: nwse-resize;
+  z-index: 10;
+}
+
+.qt-crop-handle-nw { top: -9px; left: -9px; cursor: nwse-resize; }
+.qt-crop-handle-ne { top: -9px; right: -9px; cursor: nesw-resize; }
+.qt-crop-handle-sw { bottom: -9px; left: -9px; cursor: nesw-resize; }
+.qt-crop-handle-se { bottom: -9px; right: -9px; cursor: nwse-resize; }
+
+/* Edge handles */
+.qt-crop-edge {
+  position: absolute;
+  background: #3b82f6;
+  z-index: 5;
+}
+
+.qt-crop-edge-n,
+.qt-crop-edge-s {
+  left: 50%;
+  transform: translateX(-50%);
+  width: 40px;
+  height: 6px;
+  border-radius: 3px;
+  cursor: ns-resize;
+}
+
+.qt-crop-edge-n { top: -3px; }
+.qt-crop-edge-s { bottom: -3px; }
+
+.qt-crop-edge-w,
+.qt-crop-edge-e {
+  top: 50%;
+  transform: translateY(-50%);
+  width: 6px;
+  height: 40px;
+  border-radius: 3px;
+  cursor: ew-resize;
+}
+
+.qt-crop-edge-w { left: -3px; }
+.qt-crop-edge-e { right: -3px; }
+
+/* Cropper sidebar */
+.qt-cropper-sidebar {
+  width: 280px;
+  flex-shrink: 0;
+}
+
+.qt-aspect-presets {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 8px;
+  margin-bottom: 20px;
+}
+
+.qt-aspect-btn {
+  padding: 12px 8px;
+  background: #262626;
+  border: 1px solid #3a3a3a;
+  border-radius: 6px;
+  color: rgba(255, 255, 255, 0.8);
+  font-size: 12px;
+  text-align: center;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.qt-aspect-btn:hover {
+  background: #333;
+  border-color: #4a4a4a;
+}
+
+.qt-aspect-btn.active {
+  background: rgba(59, 130, 246, 0.15);
+  border-color: #3b82f6;
+  color: #3b82f6;
+}
+
+.qt-aspect-btn-ratio {
+  font-weight: 600;
+  font-size: 14px;
+  display: block;
+  margin-bottom: 4px;
+}
+
+.qt-aspect-btn-label {
+  font-size: 11px;
+  color: rgba(255, 255, 255, 0.5);
+}
+
+.qt-aspect-btn.active .qt-aspect-btn-label {
+  color: rgba(59, 130, 246, 0.7);
+}
+
+.qt-crop-dimensions {
+  padding: 12px;
+  background: #262626;
+  border-radius: 8px;
+  margin-bottom: 16px;
+}
+
+.qt-crop-dimensions-label {
+  font-size: 12px;
+  color: rgba(255, 255, 255, 0.5);
+  margin-bottom: 8px;
+}
+
+.qt-crop-dimensions-value {
+  font-size: 18px;
+  font-weight: 600;
+  color: #ffffff;
+}
+
+.qt-fill-mode {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 20px;
+}
+
+.qt-fill-btn {
+  flex: 1;
+  padding: 10px;
+  background: #262626;
+  border: 1px solid #3a3a3a;
+  border-radius: 6px;
+  color: rgba(255, 255, 255, 0.8);
+  font-size: 13px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.qt-fill-btn:hover {
+  background: #333;
+}
+
+.qt-fill-btn.active {
+  background: rgba(59, 130, 246, 0.15);
+  border-color: #3b82f6;
+  color: #3b82f6;
+}
+
+/* ===== TRIMMER STANDALONE ===== */
+.qt-trimmer-standalone {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+}
+
+/* Limit trimmer video preview size in Quick Tools */
+.qt-trimmer-standalone .ff-video-trimmer,
+.qt-trimmer-standalone .ff-audio-trimmer {
+  max-width: 800px;
+  margin: 0 auto;
+  width: 100%;
+}
+
+.qt-trimmer-standalone .ff-trimmer-video-container {
+  max-width: 800px;
+}
+
+.qt-trimmer-media-info {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 16px;
+  background: #262626;
+  border-radius: 8px;
+  margin-bottom: 16px;
+}
+
+.qt-trimmer-filename {
+  font-size: 15px;
+  font-weight: 600;
+  color: #ffffff;
+}
+
+.qt-trimmer-type-badge {
+  padding: 4px 10px;
+  background: rgba(59, 130, 246, 0.15);
+  border: 1px solid #3b82f6;
+  border-radius: 4px;
+  font-size: 12px;
+  color: #3b82f6;
+  text-transform: uppercase;
+}
+
+.qt-trimmer-type-badge.audio {
+  background: rgba(168, 85, 247, 0.15);
+  border-color: #a855f7;
+  color: #a855f7;
+}
+
+/* ===== ACTION BAR ===== */
+.qt-action-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16px;
+  background: #262626;
+  border-top: 1px solid #2a2a2a;
+  margin-top: auto;
+}
+
+.qt-action-bar-left {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.qt-action-bar-right {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+/* ===== STATUS MESSAGES ===== */
+.qt-status {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 16px;
+  border-radius: 6px;
+  font-size: 13px;
+}
+
+.qt-status-success {
+  background: rgba(34, 197, 94, 0.15);
+  border: 1px solid #22c55e;
+  color: #22c55e;
+}
+
+.qt-status-error {
+  background: rgba(239, 68, 68, 0.15);
+  border: 1px solid #ef4444;
+  color: #ef4444;
+}
+
+.qt-status-info {
+  background: rgba(59, 130, 246, 0.15);
+  border: 1px solid #3b82f6;
+  color: #3b82f6;
+}
+
+/* ===== SPINNER ===== */
+.qt-spinner {
+  width: 20px;
+  height: 20px;
+  border: 2px solid rgba(59, 130, 246, 0.2);
+  border-top-color: #3b82f6;
+  border-radius: 50%;
+  animation: qt-spin 0.8s linear infinite;
+}
+
+@keyframes qt-spin {
+  to { transform: rotate(360deg); }
+}
+
+/* ===== RESPONSIVE ===== */
+@media (max-width: 900px) {
+  .qt-cropper-container {
+    flex-direction: column;
+  }
+
+  .qt-cropper-sidebar {
+    width: 100%;
+  }
+
+  .qt-extractor-preview {
+    flex-direction: column;
+  }
+
+  .qt-extractor-thumbnail {
+    width: 100%;
+    height: 180px;
+  }
+}
+
+@media (max-width: 768px) {
+  .qt-tool-selector {
+    flex-wrap: nowrap;
+    padding: 12px;
+  }
+
+  .qt-tool-card {
+    min-width: 100px;
+    padding: 12px;
+  }
+
+  .qt-tool-name {
+    font-size: 11px;
+  }
+
+  .qt-tool-desc {
+    display: none;
+  }
+}
+
+/* ===== SCROLLBAR ===== */
+.qt-tool-content::-webkit-scrollbar {
+  width: 8px;
+}
+
+.qt-tool-content::-webkit-scrollbar-track {
+  background: rgba(0, 0, 0, 0.2);
+}
+
+.qt-tool-content::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.15);
+  border-radius: 4px;
+}
+
+.qt-tool-content::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.25);
+}
+
+.qt-captured-frames::-webkit-scrollbar {
+  height: 8px;
+}
+
+.qt-captured-frames::-webkit-scrollbar-track {
+  background: rgba(0, 0, 0, 0.2);
+}
+
+.qt-captured-frames::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.15);
+  border-radius: 4px;
+}

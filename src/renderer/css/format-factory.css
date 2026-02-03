@@ -376,7 +376,7 @@
 .ff-source-path {
   font-size: 11px;
   color: rgba(255, 255, 255, 0.5);
-  font-family: monospace;
+  font-family: 'Poppins', sans-serif;
 }
 
 /* Output Cell */

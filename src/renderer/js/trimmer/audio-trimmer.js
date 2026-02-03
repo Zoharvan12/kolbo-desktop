@@ -345,19 +345,11 @@ class AudioTrimmer {
    */
   setupHandleDragging() {
     let draggedHandle = null;
-    let startX = 0;
-    let startPercent = 0;
 
     const onMouseDown = (e, handle) => {
       e.preventDefault();
+      e.stopPropagation();
       draggedHandle = handle;
-      startX = e.clientX;
-
-      const rect = this.waveformContainer.getBoundingClientRect();
-      const handleX = handle === 'start'
-        ? this.startHandleElement.offsetLeft
-        : this.endHandleElement.offsetLeft;
-      startPercent = handleX / rect.width;
 
       document.addEventListener('mousemove', onMouseMove);
       document.addEventListener('mouseup', onMouseUp);
@@ -367,9 +359,8 @@ class AudioTrimmer {
       if (!draggedHandle) return;
 
       const rect = this.waveformContainer.getBoundingClientRect();
-      const deltaX = e.clientX - startX;
-      const deltaPercent = deltaX / rect.width;
-      let newPercent = startPercent + deltaPercent;
+      const x = e.clientX - rect.left;
+      let newPercent = x / rect.width;
 
       // Clamp to 0-1
       newPercent = Math.max(0, Math.min(1, newPercent));
@@ -379,11 +370,11 @@ class AudioTrimmer {
       if (draggedHandle === 'start') {
         // Don't allow start to go past end
         const maxStart = this.trimPoints[1] - this.minDuration;
-        this.trimPoints[0] = Math.min(newTime, maxStart);
+        this.trimPoints[0] = Math.max(0, Math.min(newTime, maxStart));
       } else {
         // Don't allow end to go before start
         const minEnd = this.trimPoints[0] + this.minDuration;
-        this.trimPoints[1] = Math.max(newTime, minEnd);
+        this.trimPoints[1] = Math.min(this.duration, Math.max(newTime, minEnd));
       }
 
       // Enforce max duration

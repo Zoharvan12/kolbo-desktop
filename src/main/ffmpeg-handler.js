@@ -319,8 +319,11 @@ class FFmpegHandler {
   applyAudioSettings(command, outputFormat, settings) {
     const { audioBitrate, sampleRate, channels } = settings;
 
-    // Remove video stream
+    // Remove video stream and explicitly map audio
     command.noVideo();
+
+    // Explicitly map first audio stream (handles videos with multiple streams)
+    command.outputOptions(['-map', '0:a:0']);
 
     // Set audio codec based on output format using centralized mapping
     const audioCodec = AUDIO_CODECS[outputFormat];
@@ -339,12 +342,20 @@ class FFmpegHandler {
       // Don't set bitrate - FFmpeg will use source bitrate
     }
 
+    // For better compatibility, always normalize sample rate and channels
+    // This helps with videos that have unusual audio formats
     if (sampleRate) {
       command.audioFrequency(sampleRate);
+    } else {
+      // Default to standard sample rate if not specified
+      command.audioFrequency(44100);
     }
 
     if (channels) {
       command.audioChannels(channels);
+    } else {
+      // Default to stereo
+      command.audioChannels(2);
     }
   }
 
@@ -471,6 +482,281 @@ class FFmpegHandler {
           reject(error);
         } else {
           resolve(metadata);
+        }
+      });
+    });
+  }
+
+  // ============================================================================
+  // QUICK TOOLS METHODS
+  // ============================================================================
+
+  /**
+   * Extract a single frame from video at a specific timestamp
+   * @param {Object} job - Job configuration
+   * @returns {Promise<string>} Output file path
+   */
+  async extractFrame(job) {
+    const { id, filePath, timestamp, outputFolder, outputFormat = 'png' } = job;
+
+    console.log('[FFmpeg Handler] Extracting frame at', timestamp, 'from', filePath);
+
+    const parsedPath = path.parse(filePath);
+    const timestampStr = timestamp.toFixed(3).replace('.', '_');
+    const outputName = `${parsedPath.name}_frame_${timestampStr}.${outputFormat}`;
+    const outputPath = path.join(outputFolder || parsedPath.dir, outputName);
+
+    return new Promise((resolve, reject) => {
+      const command = ffmpeg(filePath)
+        .seekInput(timestamp)
+        .frames(1)
+        .output(outputPath);
+
+      // Set codec based on format
+      if (outputFormat === 'jpg' || outputFormat === 'jpeg') {
+        command.videoCodec('mjpeg');
+        command.outputOptions(['-q:v', '2']); // High quality
+      } else if (outputFormat === 'png') {
+        command.videoCodec('png');
+      } else if (outputFormat === 'webp') {
+        command.videoCodec('libwebp');
+        command.outputOptions(['-quality', '95']);
+      }
+
+      command.on('start', (cmd) => {
+        console.log('[FFmpeg Handler] Frame extract command:', cmd);
+        this.activeJobs.set(id, command);
+      });
+
+      command.on('end', () => {
+        console.log('[FFmpeg Handler] Frame extracted:', outputPath);
+        this.activeJobs.delete(id);
+
+        if (this.mainWindow && !this.mainWindow.isDestroyed()) {
+          this.mainWindow.webContents.send('ff:complete', { jobId: id, outputPath });
+        }
+
+        resolve(outputPath);
+      });
+
+      command.on('error', (error) => {
+        console.error('[FFmpeg Handler] Frame extraction error:', error);
+        this.activeJobs.delete(id);
+
+        if (this.mainWindow && !this.mainWindow.isDestroyed()) {
+          this.mainWindow.webContents.send('ff:error', { jobId: id, error: error.message });
+        }
+
+        reject(error);
+      });
+
+      command.run();
+    });
+  }
+
+  /**
+   * Merge multiple video files into one
+   * Uses filter_complex concat for proper re-encoding and sync
+   * @param {Object} job - Job configuration
+   * @returns {Promise<string>} Output file path
+   */
+  async mergeVideos(job) {
+    const { id, filePaths, outputFolder, resolution } = job;
+
+    // Remove duplicates and validate
+    const uniquePaths = [...new Set(filePaths)];
+    console.log('[FFmpeg Handler] Merging', uniquePaths.length, 'videos with filter_complex');
+    console.log('[FFmpeg Handler] Input files:', uniquePaths);
+
+    // Determine target resolution
+    const targetRes = resolution || { width: 1920, height: 1080 };
+
+    // Output path
+    const outputPath = this.getOutputPath(uniquePaths[0], 'mp4', outputFolder);
+
+    return new Promise((resolve, reject) => {
+      const command = ffmpeg();
+
+      // Add all input files
+      uniquePaths.forEach(filePath => {
+        command.input(filePath);
+      });
+
+      // Build filter_complex as a single string for reliability
+      // Each video: scale to target res, normalize audio
+      const filterParts = [];
+      const videoStreams = [];
+      const audioStreams = [];
+
+      uniquePaths.forEach((_, i) => {
+        // Scale video to target resolution with padding
+        filterParts.push(`[${i}:v]scale=${targetRes.width}:${targetRes.height}:force_original_aspect_ratio=decrease,pad=${targetRes.width}:${targetRes.height}:(ow-iw)/2:(oh-ih)/2:color=black,setsar=1,fps=30[v${i}]`);
+        // Normalize audio to common format
+        filterParts.push(`[${i}:a]aformat=sample_fmts=fltp:sample_rates=48000:channel_layouts=stereo,aresample=async=1[a${i}]`);
+        videoStreams.push(`[v${i}]`);
+        audioStreams.push(`[a${i}]`);
+      });
+
+      // Build concat filter - video streams first, then audio streams
+      const concatInputs = [];
+      for (let i = 0; i < uniquePaths.length; i++) {
+        concatInputs.push(`[v${i}][a${i}]`);
+      }
+      filterParts.push(`${concatInputs.join('')}concat=n=${uniquePaths.length}:v=1:a=1[outv][outa]`);
+
+      // Join all filter parts with semicolons
+      const filterComplex = filterParts.join(';');
+      console.log('[FFmpeg Handler] Filter complex:', filterComplex);
+
+      command
+        .outputOptions([
+          '-filter_complex', filterComplex,
+          '-map', '[outv]',
+          '-map', '[outa]',
+          '-c:v', 'libx264',
+          '-c:a', 'aac',
+          '-preset', 'medium',
+          '-crf', '23',
+          '-ar', '48000',
+          '-ac', '2',
+          '-movflags', '+faststart'
+        ])
+        .output(outputPath);
+
+      command.on('start', (cmd) => {
+        console.log('[FFmpeg Handler] Merge command:', cmd);
+        this.activeJobs.set(id, command);
+      });
+
+      command.on('progress', (progress) => {
+        if (this.mainWindow && !this.mainWindow.isDestroyed()) {
+          this.mainWindow.webContents.send('ff:progress', {
+            jobId: id,
+            progress: progress.percent || 0
+          });
+        }
+      });
+
+      command.on('end', () => {
+        console.log('[FFmpeg Handler] Merge complete:', outputPath);
+        this.activeJobs.delete(id);
+
+        if (this.mainWindow && !this.mainWindow.isDestroyed()) {
+          this.mainWindow.webContents.send('ff:complete', { jobId: id, outputPath });
+        }
+
+        resolve(outputPath);
+      });
+
+      command.on('error', (error, stdout, stderr) => {
+        console.error('[FFmpeg Handler] Merge error:', error.message);
+        console.error('[FFmpeg Handler] stderr:', stderr);
+        this.activeJobs.delete(id);
+
+        if (this.mainWindow && !this.mainWindow.isDestroyed()) {
+          this.mainWindow.webContents.send('ff:error', { jobId: id, error: error.message });
+        }
+
+        reject(error);
+      });
+
+      command.run();
+    });
+  }
+
+  /**
+   * Crop video to specific region
+   * @param {Object} job - Job configuration
+   * @returns {Promise<string>} Output file path
+   */
+  async cropVideo(job) {
+    const { id, filePath, outputFolder, crop, fillMode = 'crop', aspectRatio } = job;
+
+    console.log('[FFmpeg Handler] Cropping video:', crop);
+
+    const outputPath = this.getOutputPath(filePath, 'mp4', outputFolder);
+
+    return new Promise((resolve, reject) => {
+      const command = ffmpeg(filePath);
+
+      // Build video filter based on mode
+      let vf;
+
+      if (fillMode === 'crop') {
+        // Direct crop
+        vf = `crop=${crop.width}:${crop.height}:${crop.x}:${crop.y}`;
+      } else if (fillMode === 'fit') {
+        // Crop then pad with letterbox
+        const targetWidth = crop.width;
+        const targetHeight = crop.height;
+        vf = `crop=${crop.width}:${crop.height}:${crop.x}:${crop.y},scale=${targetWidth}:${targetHeight}:force_original_aspect_ratio=decrease,pad=${targetWidth}:${targetHeight}:-1:-1:color=black`;
+      }
+
+      command
+        .outputOptions(['-vf', vf])
+        .videoCodec('libx264')
+        .audioCodec('aac')
+        .outputOptions(['-preset', 'medium', '-crf', '23'])
+        .output(outputPath);
+
+      command.on('start', (cmd) => {
+        console.log('[FFmpeg Handler] Crop command:', cmd);
+        this.activeJobs.set(id, command);
+      });
+
+      command.on('progress', (progress) => {
+        if (this.mainWindow && !this.mainWindow.isDestroyed()) {
+          this.mainWindow.webContents.send('ff:progress', {
+            jobId: id,
+            progress: progress.percent || 0
+          });
+        }
+      });
+
+      command.on('end', () => {
+        console.log('[FFmpeg Handler] Crop complete:', outputPath);
+        this.activeJobs.delete(id);
+
+        if (this.mainWindow && !this.mainWindow.isDestroyed()) {
+          this.mainWindow.webContents.send('ff:complete', { jobId: id, outputPath });
+        }
+
+        resolve(outputPath);
+      });
+
+      command.on('error', (error) => {
+        console.error('[FFmpeg Handler] Crop error:', error);
+        this.activeJobs.delete(id);
+
+        if (this.mainWindow && !this.mainWindow.isDestroyed()) {
+          this.mainWindow.webContents.send('ff:error', { jobId: id, error: error.message });
+        }
+
+        reject(error);
+      });
+
+      command.run();
+    });
+  }
+
+  /**
+   * Save a frame blob to file
+   * @param {Object} job - Job configuration
+   * @returns {Promise<string>} Output file path
+   */
+  async saveFrame(job) {
+    const { filename, outputFolder, buffer } = job;
+
+    const outputPath = path.join(outputFolder, filename);
+
+    return new Promise((resolve, reject) => {
+      fs.writeFile(outputPath, buffer, (error) => {
+        if (error) {
+          console.error('[FFmpeg Handler] Save frame error:', error);
+          reject(error);
+        } else {
+          console.log('[FFmpeg Handler] Frame saved:', outputPath);
+          resolve(outputPath);
         }
       });
     });

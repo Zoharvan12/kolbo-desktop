@@ -402,6 +402,8 @@ class KolboApp {
     const mediaTab = document.getElementById('media-tab');
     const webappTab = document.getElementById('webapp-tab');
     const formatFactoryTab = document.getElementById('format-factory-tab');
+    const downloaderTab = document.getElementById('downloader-tab');
+    const quickToolsTab = document.getElementById('quick-tools-tab');
     if (mediaTab) {
       mediaTab.addEventListener('click', () => this.switchView('media'));
     }
@@ -410,6 +412,12 @@ class KolboApp {
     }
     if (formatFactoryTab) {
       formatFactoryTab.addEventListener('click', () => this.switchView('format-factory'));
+    }
+    if (downloaderTab) {
+      downloaderTab.addEventListener('click', () => this.switchView('downloader'));
+    }
+    if (quickToolsTab) {
+      quickToolsTab.addEventListener('click', () => this.switchView('quick-tools'));
     }
 
     // Settings Button (icon button in header-actions)
@@ -642,6 +650,8 @@ class KolboApp {
     const webappView = document.getElementById('webapp-view');
     const settingsView = document.getElementById('settings-view');
     const formatFactoryView = document.getElementById('format-factory-view');
+    const downloaderView = document.getElementById('downloader-view');
+    const quickToolsView = document.getElementById('quick-tools-view');
     const mediaCount = document.getElementById('media-count');
 
     // Hide all views first
@@ -653,6 +663,10 @@ class KolboApp {
     settingsView?.classList.remove('active');
     formatFactoryView?.classList.add('hidden');
     formatFactoryView?.classList.remove('active');
+    downloaderView?.classList.add('hidden');
+    downloaderView?.classList.remove('active');
+    quickToolsView?.classList.add('hidden');
+    quickToolsView?.classList.remove('active');
 
     if (view === 'media') {
       mediaView?.classList.remove('hidden');
@@ -723,6 +737,22 @@ class KolboApp {
 
       if (this.DEBUG_MODE) {
         console.log('[View] Format Factory view shown');
+      }
+    } else if (view === 'downloader') {
+      downloaderView?.classList.remove('hidden');
+      downloaderView?.classList.add('active');
+      if (mediaCount) mediaCount.style.display = 'none';
+
+      if (this.DEBUG_MODE) {
+        console.log('[View] Downloader view shown');
+      }
+    } else if (view === 'quick-tools') {
+      quickToolsView?.classList.remove('hidden');
+      quickToolsView?.classList.add('active');
+      if (mediaCount) mediaCount.style.display = 'none';
+
+      if (this.DEBUG_MODE) {
+        console.log('[View] Quick Tools view shown');
       }
     }
   }
@@ -1988,7 +2018,7 @@ class KolboApp {
     const thumbnailUrl = item.thumbnail_url || item.url;
 
     return `
-      <div class="media-item media-item-video ${isSelected ? 'selected' : ''}" data-id="${item.id}" draggable="true" data-filename="${fileName}" data-url="${item.url}" data-type="${item.type}">
+      <div class="media-item media-item-video ${isSelected ? 'selected' : ''} ${isPlaying ? 'playing' : ''}" data-id="${item.id}" draggable="true" data-filename="${fileName}" data-url="${item.url}" data-type="${item.type}">
         <div class="selection-checkbox ${isSelected ? 'checked' : ''}" data-id="${item.id}"></div>
         <div class="cache-status" data-id="${item.id}" style="display: none;">
           <svg width="14" height="14" viewBox="0 0 24 24" fill="#4CAF50">
@@ -2013,8 +2043,13 @@ class KolboApp {
                 '<path d="M8 5v14l11-7z"/>'}
             </svg>
           </button>
+          <div class="video-playbar" data-id="${item.id}">
+            <div class="video-progress-container" data-id="${item.id}">
+              <div class="video-progress-fill" data-id="${item.id}"></div>
+            </div>
+            <div class="video-time-display" data-id="${item.id}">0:00 / ${duration || '--:--'}</div>
+          </div>
           <span class="type-badge type-badge-video">Video</span>
-          ${duration ? `<span class="duration">${duration}</span>` : ''}
         </div>
         <div class="overlay">
           <div class="media-title" title="${title}">${title}</div>
@@ -2143,6 +2178,20 @@ class KolboApp {
 
     // Create new click handler
     const clickHandler = (e) => {
+      // Check if click is on video playbar area (priority - for seeking)
+      const playbar = e.target.closest('.video-playbar');
+      if (playbar) {
+        e.stopPropagation();
+        e.preventDefault();
+        const videoId = playbar.dataset.id;
+        // Only seek if clicking on the progress container
+        const progressContainer = e.target.closest('.video-progress-container');
+        if (progressContainer) {
+          this.handleVideoSeek(e, videoId);
+        }
+        return;
+      }
+
       // Check if click is on a play button first (priority)
       const playBtn = e.target.closest('.video-play-btn, .audio-play-btn');
       if (playBtn) {
@@ -2204,6 +2253,9 @@ class KolboApp {
 
     // Add drag-and-drop handlers
     this.setupDragAndDrop(gridEl);
+
+    // Add video playbar listeners for progress and seeking
+    this.setupVideoPlaybackListeners();
 
     // Add audio playback listeners to ensure only one media plays at a time
     this.setupAudioPlaybackListeners();
@@ -2469,6 +2521,7 @@ class KolboApp {
   handleVideoPlayPause(videoId) {
     const video = document.getElementById(`video-${videoId}`);
     const button = document.querySelector(`.video-play-btn[data-id="${videoId}"]`);
+    const mediaItem = document.querySelector(`.media-item-video[data-id="${videoId}"]`);
     if (!video || !button) return;
 
     // Pause any playing audio first and reset its UI
@@ -2485,6 +2538,7 @@ class KolboApp {
     if (this.playingVideoId && this.playingVideoId !== videoId) {
       const currentVideo = document.getElementById(`video-${this.playingVideoId}`);
       const currentButton = document.querySelector(`.video-play-btn[data-id="${this.playingVideoId}"]`);
+      const currentMediaItem = document.querySelector(`.media-item-video[data-id="${this.playingVideoId}"]`);
       if (currentVideo) {
         currentVideo.pause();
         currentVideo.muted = true;
@@ -2497,6 +2551,9 @@ class KolboApp {
           </svg>
         `;
       }
+      if (currentMediaItem) {
+        currentMediaItem.classList.remove('playing');
+      }
     }
 
     // Toggle play/pause
@@ -2505,6 +2562,7 @@ class KolboApp {
       video.muted = true;
       this.playingVideoId = null;
       button.classList.remove('playing');
+      if (mediaItem) mediaItem.classList.remove('playing');
       button.innerHTML = `
         <svg width="32" height="32" viewBox="0 0 24 24" fill="white">
           <path d="M8 5v14l11-7z"/>
@@ -2515,6 +2573,7 @@ class KolboApp {
       video.play();
       this.playingVideoId = videoId;
       button.classList.add('playing');
+      if (mediaItem) mediaItem.classList.add('playing');
       button.innerHTML = `
         <svg width="32" height="32" viewBox="0 0 24 24" fill="white">
           <path d="M6 4h4v16H6V4zm8 0h4v16h-4V4z"/>
@@ -2523,11 +2582,129 @@ class KolboApp {
     }
   }
 
+  handleVideoSeek(e, videoId) {
+    const video = document.getElementById(`video-${videoId}`);
+    const progressContainer = document.querySelector(`.video-progress-container[data-id="${videoId}"]`);
+    if (!video || !progressContainer) return;
+
+    const rect = progressContainer.getBoundingClientRect();
+    const clickX = e.clientX - rect.left;
+    const progress = Math.max(0, Math.min(1, clickX / rect.width));
+
+    if (video.duration) {
+      video.currentTime = progress * video.duration;
+    }
+
+    // If not playing, start playback
+    if (video.paused) {
+      this.handleVideoPlayPause(videoId);
+    }
+  }
+
+  setupVideoPlaybackListeners() {
+    const videoCards = document.querySelectorAll('.media-item-video');
+
+    videoCards.forEach(card => {
+      const videoId = card.dataset.id;
+      const video = card.querySelector('.video-preview');
+      const progressFill = card.querySelector('.video-progress-fill');
+      const timeDisplay = card.querySelector('.video-time-display');
+      const progressContainer = card.querySelector('.video-progress-container');
+
+      if (!video || !progressFill || !timeDisplay) return;
+
+      // Remove old listeners if they exist
+      if (video._timeUpdateHandler) {
+        video.removeEventListener('timeupdate', video._timeUpdateHandler);
+      }
+      if (video._loadedHandler) {
+        video.removeEventListener('loadedmetadata', video._loadedHandler);
+      }
+      if (video._endedHandler) {
+        video.removeEventListener('ended', video._endedHandler);
+      }
+
+      // Time update handler - update progress bar and time display
+      const timeUpdateHandler = () => {
+        if (video.duration) {
+          const progress = (video.currentTime / video.duration) * 100;
+          progressFill.style.width = `${progress}%`;
+          timeDisplay.textContent = `${this.formatVideoTime(video.currentTime)} / ${this.formatVideoTime(video.duration)}`;
+        }
+      };
+      video._timeUpdateHandler = timeUpdateHandler;
+      video.addEventListener('timeupdate', timeUpdateHandler);
+
+      // Loaded metadata handler - show duration
+      const loadedHandler = () => {
+        if (video.duration) {
+          timeDisplay.textContent = `0:00 / ${this.formatVideoTime(video.duration)}`;
+        }
+      };
+      video._loadedHandler = loadedHandler;
+      video.addEventListener('loadedmetadata', loadedHandler);
+
+      // Ended handler - reset progress
+      const endedHandler = () => {
+        progressFill.style.width = '0%';
+        timeDisplay.textContent = `0:00 / ${this.formatVideoTime(video.duration || 0)}`;
+      };
+      video._endedHandler = endedHandler;
+      video.addEventListener('ended', endedHandler);
+
+      // Drag to seek functionality
+      if (progressContainer) {
+        let isDragging = false;
+
+        const startDrag = (e) => {
+          e.stopPropagation();
+          e.preventDefault();
+          isDragging = true;
+          this.handleVideoSeek(e, videoId);
+          document.addEventListener('mousemove', onDrag);
+          document.addEventListener('mouseup', stopDrag);
+        };
+
+        const onDrag = (e) => {
+          if (isDragging) {
+            const rect = progressContainer.getBoundingClientRect();
+            const x = e.clientX - rect.left;
+            const progress = Math.max(0, Math.min(1, x / rect.width));
+            if (video.duration) {
+              video.currentTime = progress * video.duration;
+            }
+          }
+        };
+
+        const stopDrag = () => {
+          isDragging = false;
+          document.removeEventListener('mousemove', onDrag);
+          document.removeEventListener('mouseup', stopDrag);
+        };
+
+        // Remove old listener if exists
+        if (progressContainer._mousedownHandler) {
+          progressContainer.removeEventListener('mousedown', progressContainer._mousedownHandler);
+        }
+        progressContainer._mousedownHandler = startDrag;
+        progressContainer.addEventListener('mousedown', startDrag);
+      }
+    });
+  }
+
+  formatVideoTime(seconds) {
+    if (!seconds || isNaN(seconds)) return '0:00';
+    const mins = Math.floor(seconds / 60);
+    const secs = Math.floor(seconds % 60);
+    return `${mins}:${secs.toString().padStart(2, '0')}`;
+  }
+
   handleAudioPlay(audioElement, audioId) {
     // Pause any currently playing video
     if (this.playingVideoId) {
       const currentVideo = document.getElementById(`video-${this.playingVideoId}`);
       const currentButton = document.querySelector(`.video-play-btn[data-id="${this.playingVideoId}"]`);
+      const currentMediaItem = document.querySelector(`.media-item-video[data-id="${this.playingVideoId}"]`);
       if (currentVideo) {
         currentVideo.pause();
         currentVideo.muted = true;
@@ -2539,6 +2716,9 @@ class KolboApp {
             <path d="M8 5v14l11-7z"/>
           </svg>
         `;
+      }
+      if (currentMediaItem) {
+        currentMediaItem.classList.remove('playing');
       }
       this.playingVideoId = null;
     }
