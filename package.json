@@ -1,6 +1,6 @@
 {
   "name": "kolbo-desktop",
-  "version": "1.1.4",
+  "version": "1.1.5",
   "description": "Kolbo Studio - AI Creative Platform for Video Editors",
   "main": "src/main/main.js",
   "author": {
@@ -15,6 +15,8 @@
   },
   "scripts": {
     "start": "cross-env KOLBO_ENV=development NODE_ENV=development node build-env.js && electron .",
+    "start:prod": "cross-env KOLBO_ENV=production node build-env.js && electron .",
+    "start:staging": "cross-env KOLBO_ENV=staging node build-env.js && electron .",
     "dev": "cross-env KOLBO_ENV=development NODE_ENV=development node build-env.js && electron .",
     "build": "electron-builder",
     "build:win": "electron-builder --win",
@@ -125,7 +127,6 @@
       "category": "public.app-category.video",
       "hardenedRuntime": true,
       "gatekeeperAssess": true,
-      "identity": "${env.APPLE_IDENTITY}",
       "entitlements": "entitlements.mac.plist",
       "entitlementsInherit": "entitlements.mac.inherit.plist",
       "extendInfo": {
@@ -133,8 +134,7 @@
         "NSMicrophoneUsageDescription": "Kolbo Studio needs microphone access for audio recording and file uploads."
       },
       "notarize": {
-        "appBundleId": "com.kolbo.studio",
-        "ascProvider": "${env.APPLE_TEAM_ID}"
+        "teamId": "DPVW9Z2L9Y"
       }
     },
     "dmg": {

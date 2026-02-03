@@ -1582,8 +1582,8 @@ function setupPermissionHandlers() {
   };
 
   // Handle permission requests from web content (iframes)
-  session.defaultSession.setPermissionRequestHandler(async (webContents, permission, callback) => {
-    console.log('[Permissions] Permission requested:', permission);
+  session.defaultSession.setPermissionRequestHandler(async (webContents, permission, callback, details) => {
+    console.log('[Permissions] Permission requested:', permission, 'details:', details);
 
     // Auto-grant permissions needed for file uploads and media access
     const allowedPermissions = [
@@ -1611,7 +1611,21 @@ function setupPermissionHandlers() {
     // For macOS, check system-level permissions for media devices
     // This prevents the infinite popup loop by only requesting once
     if (process.platform === 'darwin' && (permission === 'media' || permission === 'camera' || permission === 'microphone')) {
-      const mediaType = permission === 'microphone' ? 'microphone' : 'camera';
+      // Determine what media type is being requested
+      // details.mediaTypes is an array like ['audio'] or ['video'] or ['audio', 'video']
+      let mediaType = 'camera'; // default
+      if (permission === 'microphone') {
+        mediaType = 'microphone';
+      } else if (permission === 'media' && details && details.mediaTypes) {
+        // Check what the web content is actually requesting
+        const hasAudio = details.mediaTypes.includes('audio');
+        const hasVideo = details.mediaTypes.includes('video');
+        if (hasAudio && !hasVideo) {
+          mediaType = 'microphone';
+        }
+        // If both or just video, we'll check camera (mediaType stays 'camera')
+        console.log(`[Permissions] Media request types: ${details.mediaTypes.join(', ')} -> checking ${mediaType}`);
+      }
 
       // If we've already determined the permission, return cached result immediately
       if (permissionState[mediaType] === 'granted') {

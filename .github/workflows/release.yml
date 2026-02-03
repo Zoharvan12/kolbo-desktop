@@ -87,9 +87,10 @@ jobs:
       - name: Build macOS DMG
         env:
           KOLBO_ENV: production
-          # Code signing configuration (optional - set GitHub secrets if you want signed builds)
-          # See MACOS-CODE-SIGNING.md for setup instructions
-          APPLE_IDENTITY: ${{ secrets.APPLE_IDENTITY }}
+          # Code signing configuration
+          # CSC_NAME: Certificate name for signing (used by electron-builder)
+          # APPLE_TEAM_ID, APPLE_ID, APPLE_APP_SPECIFIC_PASSWORD: For notarization
+          CSC_NAME: ${{ secrets.APPLE_IDENTITY }}
           APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
           APPLE_ID: ${{ secrets.APPLE_ID }}
           APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
@@ -108,7 +109,7 @@ jobs:
           echo "✅ Mac build completed successfully"
           
           # If code signing secrets are set, verify the signature
-          if [ -n "$APPLE_IDENTITY" ]; then
+          if [ -n "$CSC_NAME" ]; then
             echo "=== Verifying code signature ==="
             APP_PATH=$(find dist/mac -name "*.app" -type d | head -1)
             if [ -n "$APP_PATH" ]; then
@@ -117,8 +118,7 @@ jobs:
             fi
           else
             echo "ℹ️  Code signing secrets not set - building unsigned (users will see warnings)"
-            echo "   To enable code signing, set GitHub secrets: APPLE_IDENTITY, APPLE_TEAM_ID, APPLE_ID, APPLE_APP_SPECIFIC_PASSWORD"
-            echo "   See MACOS-CODE-SIGNING.md for instructions"
+            echo "   To enable code signing, set GitHub secrets: APPLE_IDENTITY (for CSC_NAME), APPLE_TEAM_ID, APPLE_ID, APPLE_APP_SPECIFIC_PASSWORD"
           fi
 
       - name: Fix filename format in latest-mac.yml
