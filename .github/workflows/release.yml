@@ -85,11 +85,15 @@ jobs:
         run: node scripts/generate-icons.js
 
       - name: Import Code Signing Certificate
-        if: ${{ secrets.CSC_LINK != '' }}
         env:
           CSC_LINK: ${{ secrets.CSC_LINK }}
           CSC_KEY_PASSWORD: ${{ secrets.CSC_KEY_PASSWORD }}
         run: |
+          if [ -z "$CSC_LINK" ]; then
+            echo "⚠️ CSC_LINK not set, skipping certificate import"
+            exit 0
+          fi
+
           # Create a temporary keychain
           KEYCHAIN_NAME="build.keychain"
           KEYCHAIN_PASSWORD="actions"
