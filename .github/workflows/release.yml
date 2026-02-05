@@ -127,7 +127,7 @@ jobs:
         env:
           KOLBO_ENV: production
           # Code signing - explicitly specify the certificate identity
-          CSC_NAME: "Developer ID Application: Zohar Vanunu Productions, LLC (DPVW9Z2L9Y)"
+          CSC_NAME: "Zohar Vanunu Productions, LLC (DPVW9Z2L9Y)"
           CSC_LINK: ${{ secrets.CSC_LINK }}
           CSC_KEY_PASSWORD: ${{ secrets.CSC_KEY_PASSWORD }}
           # Notarization credentials (both variable names for compatibility)
