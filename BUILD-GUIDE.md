@@ -149,8 +149,9 @@ If you need manual control:
 
 ### macOS
 - **Installer type**: DMG (drag-to-Applications)
-- **Architectures**: Both Intel (x64) and Apple Silicon (arm64)
-- **Code signing**: Not configured yet (see "Next Steps" below)
+- **Architectures**: Universal binary (Intel x64 + Apple Silicon arm64)
+- **Code signing**: ✅ Configured with Developer ID certificate
+- **Notarization**: ✅ Enabled - apps pass Gatekeeper without warnings
 - **Minimum OS**: macOS 10.13+
 
 ## Troubleshooting
@@ -246,26 +247,24 @@ When update available:
 4. "Install and Restart" button appears
 5. App restarts with new version
 
-## Next Steps (Optional Enhancements)
+## Code Signing Status
 
-### 1. Code Signing (Recommended for Production)
-**Why**: Prevents "Unknown Publisher" warnings
+### macOS - FULLY CONFIGURED
+- ✅ Developer ID Application certificate
+- ✅ Notarization enabled and working
+- ✅ Apps pass Gatekeeper without warnings
+- ✅ Automatic in GitHub Actions CI/CD
 
-**Windows:**
-- Requires a code signing certificate (~$100-300/year)
-- Add to `package.json`:
-  ```json
-  "win": {
-    "certificateFile": "path/to/cert.pfx",
-    "certificatePassword": "your-password"
-  }
-  ```
+See `MACOS-CODE-SIGNING.md` for details.
 
-**macOS:**
-- Requires Apple Developer account ($99/year)
-- Add signing identity to build config
+### Windows
+- Code signing certificate not yet configured
+- Users may see "Unknown Publisher" warning
+- Optional: Add certificate (~$100-300/year)
 
-### 2. App Store Distribution (Optional)
+## Optional Enhancements
+
+### App Store Distribution
 - **Mac App Store**: Submit via Apple Developer
 - **Microsoft Store**: Submit via Windows Partner Center
 
@@ -290,5 +289,6 @@ If you encounter build issues:
 
 ---
 
-**Last Updated**: 2025-11-27
+**Last Updated**: 2026-02-05
 **Build System**: electron-builder v24.9.1
+**macOS Signing**: ✅ Configured and working

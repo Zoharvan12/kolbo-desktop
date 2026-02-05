@@ -60,10 +60,16 @@ git push origin v1.0.3
 
 The GitHub Actions workflow (`release.yml`) automatically:
 - Builds Windows installer (exe)
-- Builds Mac installer (dmg + zip)
+- Builds Mac installer (dmg + zip) with **code signing and notarization**
 - Creates `latest.yml` and `latest-mac.yml`
 - **Validates filenames** (ensures "Kolbo Studio" with space exists)
 - Uploads everything to GitHub release
+
+**macOS Notarization**: The workflow automatically signs and notarizes macOS builds.
+Users will NOT see Gatekeeper warnings. Build logs will show:
+- `signing file=... identity=...`
+- `notarization successful`
+- `source=Notarized Developer ID`
 
 ### 5. Verify Release
 

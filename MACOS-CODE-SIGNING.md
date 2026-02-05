@@ -284,25 +284,57 @@ xcrun stapler staple "dist/mac/Kolbo Studio.app"
 npm run build:prod:mac
 ```
 
-## CI/CD Setup (GitHub Actions)
+## CI/CD Setup (GitHub Actions) - CONFIGURED AND WORKING
 
-For automated builds, add secrets to GitHub:
+The GitHub Actions workflow is fully configured for code signing and notarization.
 
-1. Go to: https://github.com/Zoharvan12/kolbo-desktop/settings/secrets/actions
-2. Add secrets:
-   - `APPLE_IDENTITY`: `Developer ID Application: Kolbo.AI (TEAM_ID)`
-   - `APPLE_TEAM_ID`: Your Team ID
-   - `APPLE_ID`: Your Apple ID email
-   - `APPLE_APP_SPECIFIC_PASSWORD`: Your app-specific password
+### Required GitHub Secrets
 
-3. Update `.github/workflows/release.yml` to use these secrets:
-   ```yaml
-   env:
-     APPLE_IDENTITY: ${{ secrets.APPLE_IDENTITY }}
-     APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
-     APPLE_ID: ${{ secrets.APPLE_ID }}
-     APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
-   ```
+Go to: https://github.com/Zoharvan12/kolbo-desktop/settings/secrets/actions
+
+These secrets are already configured:
+- `CSC_LINK`: Base64-encoded .p12 certificate file
+- `CSC_KEY_PASSWORD`: Certificate password
+- `APPLE_TEAM_ID`: `DPVW9Z2L9Y`
+- `APPLE_ID`: `malcazohar@gmail.com`
+- `APPLE_APP_SPECIFIC_PASSWORD`: App-specific password from appleid.apple.com
+
+### Workflow Configuration
+
+The workflow (`.github/workflows/release.yml`) is configured with:
+```yaml
+env:
+  CSC_NAME: "Zohar Vanunu Productions, LLC (DPVW9Z2L9Y)"
+  CSC_LINK: ${{ secrets.CSC_LINK }}
+  CSC_KEY_PASSWORD: ${{ secrets.CSC_KEY_PASSWORD }}
+  APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+  APPLE_ID: ${{ secrets.APPLE_ID }}
+  APPLE_ID_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
+  APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
+```
+
+### package.json Configuration
+
+Notarization is enabled in `package.json`:
+```json
+"mac": {
+  "hardenedRuntime": true,
+  "gatekeeperAssess": true,
+  "entitlements": "entitlements.mac.plist",
+  "entitlementsInherit": "entitlements.mac.inherit.plist",
+  "notarize": {
+    "teamId": "DPVW9Z2L9Y"
+  }
+}
+```
+
+### Important Notes
+
+1. **CSC_NAME format**: Use just the company name, NOT with "Developer ID Application:" prefix
+   - Correct: `"Zohar Vanunu Productions, LLC (DPVW9Z2L9Y)"`
+   - Wrong: `"Developer ID Application: Zohar Vanunu Productions, LLC (DPVW9Z2L9Y)"`
+
+2. **Both password variables**: Set both `APPLE_ID_PASSWORD` and `APPLE_APP_SPECIFIC_PASSWORD` for compatibility
 
 ## Quick Reference
 
@@ -350,6 +382,6 @@ stapler validate "dist/mac/Kolbo Studio.app"
 
 ---
 
-**Last Updated:** 2025-01-XX  
-**Status:** Ready for configuration  
-**Required:** Apple Developer account (✅ You have this!)
+**Last Updated:** 2026-02-05
+**Status:** FULLY WORKING - Signing and notarization configured
+**Developer Identity:** Zohar Vanunu Productions, LLC (DPVW9Z2L9Y)
