@@ -22,6 +22,8 @@
   <link rel="stylesheet" href="css/trimmer.css?v=1">
   <!-- Quick Tools Styles -->
   <link rel="stylesheet" href="css/quick-tools.css?v=1">
+  <!-- File Explorer Styles -->
+  <link rel="stylesheet" href="css/file-explorer.css?v=21">
 </head>
 <body>
   <div id="app">
@@ -138,6 +140,14 @@
                 <path d="M4 4h16v2H4V4zm0 6h16v2H4v-2zm0 6h16v2H4v-2z"/>
               </svg>
               My Media
+            </button>
+            <button id="file-explorer-tab" class="tab-btn" data-view="file-explorer">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M4 4h7l2 2h7a1 1 0 0 1 1 1v2"/>
+                <path d="M4 8v10a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-6"/>
+                <path d="M16 12l4-4m0 0l-4-4m4 4H9"/>
+              </svg>
+              File Bridge
             </button>
             <button id="format-factory-tab" class="tab-btn" data-view="format-factory">
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -1346,6 +1356,17 @@
           </div>
         </div>
       </div>
+
+      <!-- File Explorer View -->
+      <div id="file-explorer-view" class="view-content hidden" style="background: #1e1e1e;">
+        <div id="file-explorer-loading" style="display: flex; align-items: center; justify-content: center; height: 100%; color: #888;">
+          <div style="text-align: center;">
+            <p style="font-size: 16px; margin-bottom: 10px;">Loading File Bridge...</p>
+            <p style="font-size: 12px;">If this message persists, check the console for errors.</p>
+          </div>
+        </div>
+      </div>
+
     </div>
   </div>
 
@@ -1502,6 +1523,7 @@
   <script src="js/quick-tools/video-merger-tool.js?v=1"></script>
   <script src="js/quick-tools/video-cropper-tool.js?v=1"></script>
   <script src="js/quick-tools-manager.js?v=1"></script> <!-- Quick Tools manager -->
-  <script src="js/main.js?v=7"></script>
+  <script src="js/file-explorer-manager.js?v=28"></script> <!-- File Bridge manager -->
+  <script src="js/main.js?v=8"></script>
 </body>
 </html>

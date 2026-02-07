@@ -114,6 +114,7 @@ class KolboApp {
       this.currentView = savedView;
     }
     this.tabManager = null; // Will be initialized when webapp view is shown
+    this.fileExplorerManager = null; // Will be initialized when file-explorer view is shown
 
     // Debug & Performance
     this.DEBUG_MODE = window.KOLBO_CONFIG ? window.KOLBO_CONFIG.debug : (localStorage.getItem('KOLBO_DEBUG') === 'true');
@@ -419,6 +420,10 @@ class KolboApp {
     if (quickToolsTab) {
       quickToolsTab.addEventListener('click', () => this.switchView('quick-tools'));
     }
+    const fileExplorerTab = document.getElementById('file-explorer-tab');
+    if (fileExplorerTab) {
+      fileExplorerTab.addEventListener('click', () => this.switchView('file-explorer'));
+    }
 
     // Settings Button (icon button in header-actions)
     const settingsBtn = document.getElementById('settings-btn');
@@ -652,6 +657,7 @@ class KolboApp {
     const formatFactoryView = document.getElementById('format-factory-view');
     const downloaderView = document.getElementById('downloader-view');
     const quickToolsView = document.getElementById('quick-tools-view');
+    const fileExplorerView = document.getElementById('file-explorer-view');
     const mediaCount = document.getElementById('media-count');
 
     // Hide all views first
@@ -667,6 +673,8 @@ class KolboApp {
     downloaderView?.classList.remove('active');
     quickToolsView?.classList.add('hidden');
     quickToolsView?.classList.remove('active');
+    fileExplorerView?.classList.add('hidden');
+    fileExplorerView?.classList.remove('active');
 
     if (view === 'media') {
       mediaView?.classList.remove('hidden');
@@ -753,6 +761,24 @@ class KolboApp {
 
       if (this.DEBUG_MODE) {
         console.log('[View] Quick Tools view shown');
+      }
+    } else if (view === 'file-explorer') {
+      fileExplorerView?.classList.remove('hidden');
+      fileExplorerView?.classList.add('active');
+      if (mediaCount) mediaCount.style.display = 'none';
+
+      // Initialize file explorer if not already done
+      if (!this.fileExplorerManager && window.FileExplorerManager) {
+        console.log('[View] Initializing FileExplorerManager...');
+        this.fileExplorerManager = new window.FileExplorerManager();
+        // Init is async but we don't need to wait - it renders immediately
+        this.fileExplorerManager.init(fileExplorerView).catch(err => {
+          console.error('[View] FileExplorerManager init failed:', err);
+        });
+      }
+
+      if (this.DEBUG_MODE) {
+        console.log('[View] File Explorer view shown');
       }
     }
   }
@@ -1353,6 +1379,12 @@ class KolboApp {
     if (this.tabManager) {
       this.tabManager.destroy();
       this.tabManager = null;
+    }
+
+    // Destroy FileExplorerManager
+    if (this.fileExplorerManager) {
+      this.fileExplorerManager.destroy();
+      this.fileExplorerManager = null;
     }
 
     kolboAPI.logout();

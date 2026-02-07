@@ -14,6 +14,7 @@ const DragHandler = require('./drag-handler');
 const ContextMenuHandler = require('./context-menu-handler');
 const FFmpegHandler = require('./ffmpeg-handler');
 const YtdlpHandler = require('./ytdlp-handler');
+const FileExplorerHandler = require('./file-explorer-handler');
 
 // Persistent settings store
 const store = new Store();
@@ -1070,6 +1071,17 @@ function setupFFmpegHandlers() {
     }
   });
 
+  // Extract waveform data from audio file
+  ipcMain.handle('ff:extract-waveform', async (event, { filePath, samples }) => {
+    try {
+      const waveformData = await ffmpegHandler.extractWaveformData(filePath, samples || 100);
+      return { success: true, waveformData };
+    } catch (error) {
+      console.error('[FFmpeg] Failed to extract waveform:', error);
+      return { success: false, error: error.message };
+    }
+  });
+
   // Get saved output folder preference
   ipcMain.handle('ff:get-output-folder', async () => {
     try {
@@ -1120,6 +1132,18 @@ function setupFFmpegHandlers() {
       return { success: true, mode };
     } catch (error) {
       console.error('[FFmpeg] Failed to set output mode:', error);
+      return { success: false, error: error.message };
+    }
+  });
+
+  // Export trimmed segment (for drag-and-drop with in/out points)
+  ipcMain.handle('ff:export-trimmed', async (event, job) => {
+    try {
+      console.log('[FFmpeg] Export trimmed requested:', job.inputPath);
+      const outputPath = await ffmpegHandler.exportTrimmed(job);
+      return { success: true, outputPath };
+    } catch (error) {
+      console.error('[FFmpeg] Export trimmed failed:', error);
       return { success: false, error: error.message };
     }
   });
@@ -1248,6 +1272,18 @@ function setupDownloaderHandlers() {
       return { success: true, cancelled: count };
     } catch (error) {
       console.error('[Downloader] Failed to cancel all:', error);
+      return { success: false, error: error.message };
+    }
+  });
+
+  // Force update yt-dlp (useful when YouTube changes break downloads)
+  ipcMain.handle('dl:update-ytdlp', async () => {
+    try {
+      console.log('[Downloader] Forcing yt-dlp update...');
+      const result = await ytdlpHandler.forceUpdate();
+      return { success: result };
+    } catch (error) {
+      console.error('[Downloader] Failed to update yt-dlp:', error);
       return { success: false, error: error.message };
     }
   });
@@ -3374,6 +3410,13 @@ app.whenReady().then(() => {
 
   // Setup Quick Tools handlers
   setupQuickToolsHandlers();
+
+  // Setup File Explorer handlers
+  const fileExplorerHandler = FileExplorerHandler.setupHandlers(mainWindow);
+  // Connect FFmpeg handler for metadata extraction
+  if (ffmpegHandler) {
+    fileExplorerHandler.setFFmpegHandler(ffmpegHandler);
+  }
 
   // Setup proactive memory monitoring
   setupMemoryMonitoring();

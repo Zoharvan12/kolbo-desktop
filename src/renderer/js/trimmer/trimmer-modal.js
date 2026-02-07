@@ -192,33 +192,46 @@ class TrimmerModal {
       </div>
     `;
 
-    // Create audio trimmer instance
-    this.currentTrimmer = new AudioTrimmer(file, {
-      ...options,
-      onReady: (data) => {
-        console.log('[TrimmerModal] Audio trimmer ready:', data);
-      },
-      onError: (error) => {
-        console.error('[TrimmerModal] Audio trimmer error:', error);
-        this.showError('Failed to load audio. Please try again.');
-      },
-      onTrimChange: (trimPoints) => {
-        console.log('[TrimmerModal] Trim points changed:', trimPoints);
-      }
-    });
-
-    // Render the UI first
-    const trimmerElement = this.currentTrimmer.render();
-
-    // Start loading audio (this will trigger onReady when done)
     try {
+      // Validate file before proceeding
+      if (!file || !(file instanceof File)) {
+        throw new Error('Invalid audio file');
+      }
+
+      // Check file size (warn for very large files)
+      const MAX_RECOMMENDED_SIZE = 100 * 1024 * 1024; // 100MB
+      if (file.size > MAX_RECOMMENDED_SIZE) {
+        console.warn('[TrimmerModal] Large audio file:', (file.size / 1024 / 1024).toFixed(1) + 'MB');
+      }
+
+      // Create audio trimmer instance with error handling
+      this.currentTrimmer = new AudioTrimmer(file, {
+        ...options,
+        onReady: (data) => {
+          console.log('[TrimmerModal] Audio trimmer ready:', data);
+        },
+        onError: (error) => {
+          console.error('[TrimmerModal] Audio trimmer error:', error);
+          this.showError('Failed to load audio. The file may be corrupted or in an unsupported format.');
+        },
+        onTrimChange: (trimPoints) => {
+          console.log('[TrimmerModal] Trim points changed:', trimPoints);
+        }
+      });
+
+      // Render the UI first
+      const trimmerElement = this.currentTrimmer.render();
+
+      // Start loading audio (this will trigger onReady when done)
       await this.currentTrimmer.loadAudio();
+
       // Clear loading state and show trimmer
       this.trimmerContainer.innerHTML = '';
       this.trimmerContainer.appendChild(trimmerElement);
+
     } catch (error) {
-      console.error('[TrimmerModal] Failed to load audio:', error);
-      this.showError('Failed to load audio. Please try again.');
+      console.error('[TrimmerModal] Failed to create audio trimmer:', error);
+      this.showError('Failed to load audio. The file may be corrupted or in an unsupported format.');
     }
   }
 

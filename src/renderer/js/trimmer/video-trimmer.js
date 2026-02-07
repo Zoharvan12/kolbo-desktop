@@ -6,7 +6,7 @@ console.log('[VideoTrimmer] Loading...');
 class VideoTrimmer {
   constructor(videoFile, options = {}) {
     this.videoFile = videoFile;
-    this.videoUrl = URL.createObjectURL(videoFile);
+    this.videoUrl = null; // Deferred to loadVideo() for safety
 
     // Options
     this.maxDuration = options.maxDuration || 300; // 5 minutes default
@@ -21,6 +21,7 @@ class VideoTrimmer {
     this.isPlaying = false;
     this.thumbnails = [];
     this.isLoadingThumbnails = true;
+    this.isLoading = false; // Guard against double-loading
 
     // DOM refs (will be set when rendered)
     this.videoElement = null;
@@ -118,35 +119,68 @@ class VideoTrimmer {
    * Load video and extract metadata
    */
   async loadVideo() {
+    // Guard against double-loading
+    if (this.isLoading) {
+      console.warn('[VideoTrimmer] loadVideo() already in progress, skipping');
+      return;
+    }
+    this.isLoading = true;
+
     try {
-      this.videoElement.src = this.videoUrl;
+      // Validate file before loading
+      if (!this.videoFile || this.videoFile.size === 0) {
+        throw new Error('Empty or invalid video file');
+      }
 
-      // Wait for metadata
-      await new Promise((resolve, reject) => {
-        this.videoElement.onloadedmetadata = () => {
-          this.duration = this.videoElement.duration;
+      // Check file size (max 2GB)
+      const MAX_SIZE = 2 * 1024 * 1024 * 1024;
+      if (this.videoFile.size > MAX_SIZE) {
+        throw new Error('Video file is too large (max 2GB)');
+      }
 
-          // Set initial trim points
-          const maxEnd = Math.min(this.maxDuration, this.duration);
-          this.trimPoints = [0, maxEnd];
-          this.originalTrimPoints = [0, maxEnd];
+      // Try to get duration using FFprobe first (safer, avoids Chromium crashes)
+      const filePath = this.videoFile.path;
 
-          // Update UI
-          this.updateTimelineSelection();
-          this.updateTimeDisplays();
+      if (filePath && window.kolboDesktop?.ffmpeg?.probeFile) {
+        console.log('[VideoTrimmer] Using FFprobe to get duration...');
+        try {
+          const metadata = await window.kolboDesktop.ffmpeg.probeFile(filePath);
 
-          resolve();
-        };
+          if (metadata?.format?.duration) {
+            this.duration = parseFloat(metadata.format.duration);
+            console.log('[VideoTrimmer] FFprobe duration:', this.duration);
 
-        this.videoElement.onerror = (error) => {
-          console.error('[VideoTrimmer] Video load error:', error);
-          this.onError(new Error('Failed to load video'));
-          reject(error);
-        };
+            // Set initial trim points
+            const maxEnd = Math.min(this.maxDuration, this.duration);
+            this.trimPoints = [0, maxEnd];
+            this.originalTrimPoints = [0, maxEnd];
 
-        // Timeout fallback
-        setTimeout(() => reject(new Error('Video load timeout')), 10000);
-      });
+            // Update UI
+            this.updateTimelineSelection();
+            this.updateTimeDisplays();
+
+            // Create blob URL for video (but defer loading)
+            try {
+              this.videoUrl = URL.createObjectURL(this.videoFile);
+              console.log('[VideoTrimmer] Created blob URL');
+            } catch (e) {
+              console.warn('[VideoTrimmer] Could not create blob URL');
+            }
+
+            // Now load video for thumbnails (with the video element)
+            await this.loadVideoForThumbnails();
+          } else {
+            throw new Error('FFprobe returned no duration');
+          }
+        } catch (probeError) {
+          console.warn('[VideoTrimmer] FFprobe failed, falling back to browser:', probeError);
+          await this.loadVideoViaBrowser();
+        }
+      } else {
+        // No file path available, use browser loading
+        console.log('[VideoTrimmer] No file path, using browser to load...');
+        await this.loadVideoViaBrowser();
+      }
 
       // Generate thumbnails
       await this.generateThumbnails();
@@ -160,8 +194,120 @@ class VideoTrimmer {
 
     } catch (error) {
       console.error('[VideoTrimmer] Failed to load video:', error);
+      this.isLoading = false;
       this.onError(error);
     }
+  }
+
+  /**
+   * Load video via browser (fallback when FFprobe not available)
+   */
+  async loadVideoViaBrowser() {
+    console.log('[VideoTrimmer] Loading video via browser...');
+
+    // Create blob URL
+    try {
+      this.videoUrl = URL.createObjectURL(this.videoFile);
+    } catch (urlError) {
+      throw new Error('Failed to create video URL');
+    }
+
+    // Small delay
+    await new Promise(resolve => setTimeout(resolve, 50));
+
+    this.videoElement.src = this.videoUrl;
+
+    // Wait for metadata
+    await new Promise((resolve, reject) => {
+      let resolved = false;
+
+      const cleanup = () => {
+        this.videoElement.onloadedmetadata = null;
+        this.videoElement.onerror = null;
+      };
+
+      this.videoElement.onloadedmetadata = () => {
+        if (resolved) return;
+        resolved = true;
+        cleanup();
+
+        this.duration = this.videoElement.duration;
+
+        if (!this.duration || !isFinite(this.duration) || this.duration <= 0) {
+          reject(new Error('Invalid video duration'));
+          return;
+        }
+
+        const maxEnd = Math.min(this.maxDuration, this.duration);
+        this.trimPoints = [0, maxEnd];
+        this.originalTrimPoints = [0, maxEnd];
+
+        this.updateTimelineSelection();
+        this.updateTimeDisplays();
+
+        resolve();
+      };
+
+      this.videoElement.onerror = () => {
+        if (resolved) return;
+        resolved = true;
+        cleanup();
+        reject(new Error('Failed to load video file'));
+      };
+
+      setTimeout(() => {
+        if (resolved) return;
+        resolved = true;
+        cleanup();
+        reject(new Error('Video load timeout'));
+      }, 15000);
+    });
+  }
+
+  /**
+   * Load video for thumbnail generation (after FFprobe got duration)
+   */
+  async loadVideoForThumbnails() {
+    if (!this.videoUrl) return;
+
+    console.log('[VideoTrimmer] Loading video for thumbnails...');
+
+    // Small delay
+    await new Promise(resolve => setTimeout(resolve, 50));
+
+    this.videoElement.src = this.videoUrl;
+
+    // Wait for video to be ready enough for seeking
+    await new Promise((resolve, reject) => {
+      let resolved = false;
+
+      const cleanup = () => {
+        this.videoElement.onloadeddata = null;
+        this.videoElement.onerror = null;
+      };
+
+      this.videoElement.onloadeddata = () => {
+        if (resolved) return;
+        resolved = true;
+        cleanup();
+        resolve();
+      };
+
+      this.videoElement.onerror = () => {
+        if (resolved) return;
+        resolved = true;
+        cleanup();
+        console.warn('[VideoTrimmer] Video loading failed, thumbnails may not work');
+        resolve(); // Don't reject - thumbnails are optional
+      };
+
+      setTimeout(() => {
+        if (resolved) return;
+        resolved = true;
+        cleanup();
+        resolve(); // Timeout is OK - thumbnails are optional
+      }, 10000);
+    });
   }
 
   /**
@@ -518,16 +664,41 @@ class VideoTrimmer {
     // Remove keyboard listener
     if (this.keyboardHandler) {
       document.removeEventListener('keydown', this.keyboardHandler);
+      this.keyboardHandler = null;
     }
 
+    // Clear thumbnails to release memory
+    if (this.thumbnailsElement) {
+      this.thumbnailsElement.innerHTML = '';
+    }
+    this.thumbnails = [];
+
+    // Cleanup video element
     if (this.videoElement) {
       this.videoElement.pause();
-      this.videoElement.src = '';
+      this.videoElement.removeAttribute('src');
+      this.videoElement.load(); // Reset the element
     }
 
+    // Revoke object URL
     if (this.videoUrl) {
       URL.revokeObjectURL(this.videoUrl);
+      this.videoUrl = null;
     }
+
+    // Null all DOM references to allow garbage collection
+    this.videoElement = null;
+    this.timelineElement = null;
+    this.thumbnailsElement = null;
+    this.selectionElement = null;
+    this.startHandleElement = null;
+    this.endHandleElement = null;
+    this.playheadElement = null;
+    this.playButton = null;
+    this.inButton = null;
+    this.outButton = null;
+    this.resetButton = null;
+    this.timeDisplays = null;
   }
 }
 

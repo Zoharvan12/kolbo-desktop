@@ -747,7 +747,8 @@ class FFmpegHandler {
   async saveFrame(job) {
     const { filename, outputFolder, buffer } = job;
 
-    const outputPath = path.join(outputFolder, filename);
+    // Get unique output path (avoid overwriting existing files)
+    const outputPath = this.getUniqueFilePath(outputFolder, filename);
 
     return new Promise((resolve, reject) => {
       fs.writeFile(outputPath, buffer, (error) => {
@@ -759,6 +760,216 @@ class FFmpegHandler {
           resolve(outputPath);
         }
       });
+    });
+  }
+
+  /**
+   * Get a unique file path, adding numeric suffix if file exists
+   * @param {string} folder - Output folder
+   * @param {string} filename - Desired filename
+   * @returns {string} Unique file path
+   */
+  getUniqueFilePath(folder, filename) {
+    const outputPath = path.join(folder, filename);
+
+    // If file doesn't exist, use as-is
+    if (!fs.existsSync(outputPath)) {
+      return outputPath;
+    }
+
+    // File exists - add numeric suffix
+    const parsed = path.parse(filename);
+    let counter = 1;
+    let newPath;
+
+    do {
+      const numberedName = `${parsed.name}_${counter}${parsed.ext}`;
+      newPath = path.join(folder, numberedName);
+      counter++;
+    } while (fs.existsSync(newPath));
+
+    console.log('[FFmpeg Handler] File exists, using unique path:', newPath);
+    return newPath;
+  }
+
+  /**
+   * Extract waveform data from an audio file
+   * Uses FFmpeg to safely extract audio samples without crashing the renderer
+   * @param {string} filePath - Path to the audio file
+   * @param {number} samples - Number of samples to return (default 100)
+   * @returns {Promise<number[]>} Array of normalized amplitude values (0-1)
+   */
+  async extractWaveformData(filePath, samples = 100) {
+    return new Promise((resolve, reject) => {
+      const os = require('os');
+      const crypto = require('crypto');
+
+      // Create temp file for raw audio output
+      const tempId = crypto.randomBytes(8).toString('hex');
+      const tempPath = path.join(os.tmpdir(), `waveform_${tempId}.raw`);
+
+      console.log('[FFmpeg Handler] Extracting waveform from:', filePath);
+
+      // Use FFmpeg to extract mono audio as raw PCM samples
+      // Downsample to 8000Hz and output as signed 16-bit little-endian
+      const command = ffmpeg(filePath)
+        .outputOptions([
+          '-ac', '1',           // Mono
+          '-ar', '8000',        // 8kHz sample rate (enough for visualization)
+          '-f', 's16le',        // Raw PCM signed 16-bit little-endian
+          '-vn'                 // No video
+        ])
+        .output(tempPath);
+
+      command.on('end', () => {
+        try {
+          // Read the raw audio file
+          const buffer = fs.readFileSync(tempPath);
+
+          // Clean up temp file
+          try {
+            fs.unlinkSync(tempPath);
+          } catch (e) {
+            // Ignore cleanup errors
+          }
+
+          if (buffer.length === 0) {
+            console.warn('[FFmpeg Handler] Empty audio buffer, using placeholder');
+            resolve(new Array(samples).fill(0.5));
+            return;
+          }
+
+          // Convert buffer to Int16Array
+          const int16Array = new Int16Array(buffer.buffer, buffer.byteOffset, buffer.length / 2);
+
+          // Calculate RMS values for each segment
+          const samplesPerSegment = Math.max(1, Math.floor(int16Array.length / samples));
+          const waveformData = [];
+
+          for (let i = 0; i < samples; i++) {
+            const start = i * samplesPerSegment;
+            const end = Math.min(start + samplesPerSegment, int16Array.length);
+
+            if (start >= int16Array.length) {
+              waveformData.push(0);
+              continue;
+            }
+
+            // Calculate RMS (Root Mean Square) for this segment
+            let sumSquares = 0;
+            let count = 0;
+            for (let j = start; j < end; j++) {
+              sumSquares += int16Array[j] * int16Array[j];
+              count++;
+            }
+
+            // RMS normalized to 0-1 (max int16 value is 32768)
+            const rms = Math.sqrt(sumSquares / count) / 32768;
+            waveformData.push(rms);
+          }
+
+          // Normalize to 0-1 range based on max value in the data
+          let maxVal = 0;
+          for (const val of waveformData) {
+            if (val > maxVal) maxVal = val;
+          }
+
+          if (maxVal > 0) {
+            for (let i = 0; i < waveformData.length; i++) {
+              waveformData[i] = waveformData[i] / maxVal;
+            }
+          }
+
+          console.log('[FFmpeg Handler] Waveform extracted:', waveformData.length, 'samples');
+          resolve(waveformData);
+
+        } catch (error) {
+          console.error('[FFmpeg Handler] Failed to process waveform:', error);
+          // Return placeholder on error
+          resolve(new Array(samples).fill(0.5));
+        }
+      });
+
+      command.on('error', (error) => {
+        console.error('[FFmpeg Handler] Waveform extraction error:', error.message);
+
+        // Clean up temp file on error
+        try {
+          if (fs.existsSync(tempPath)) {
+            fs.unlinkSync(tempPath);
+          }
+        } catch (e) {
+          // Ignore cleanup errors
+        }
+
+        // Return placeholder on error instead of rejecting
+        resolve(new Array(samples).fill(0.5));
+      });
+
+      command.run();
+    });
+  }
+
+  /**
+   * Export a trimmed segment of a media file
+   * Used for drag-and-drop with in/out points
+   * @param {Object} job - Job configuration
+   * @returns {Promise<string>} Output file path
+   */
+  async exportTrimmed(job) {
+    const { inputPath, inPoint, outPoint } = job;
+    const os = require('os');
+    const crypto = require('crypto');
+
+    // Validate inputs
+    if (!inputPath || !fs.existsSync(inputPath)) {
+      throw new Error('Input file not found');
+    }
+
+    if (inPoint === undefined || outPoint === undefined || inPoint >= outPoint) {
+      throw new Error('Invalid in/out points');
+    }
+
+    // Get input file extension
+    const inputExt = path.extname(inputPath).toLowerCase();
+    const inputName = path.basename(inputPath, inputExt);
+
+    // Create temp output file with same extension for fast copy
+    const tempId = crypto.randomBytes(6).toString('hex');
+    const outputPath = path.join(os.tmpdir(), `${inputName}_trim_${tempId}${inputExt}`);
+
+    const duration = outPoint - inPoint;
+    console.log(`[FFmpeg Handler] Exporting trimmed: ${inPoint.toFixed(2)}s - ${outPoint.toFixed(2)}s (${duration.toFixed(2)}s)`);
+
+    return new Promise((resolve, reject) => {
+      const command = ffmpeg(inputPath)
+        .setStartTime(inPoint)
+        .setDuration(duration)
+        // Use stream copy for speed (no re-encoding)
+        .outputOptions(['-c', 'copy', '-avoid_negative_ts', 'make_zero'])
+        .output(outputPath);
+
+      command.on('start', (cmd) => {
+        console.log('[FFmpeg Handler] Trim command:', cmd);
+      });
+
+      command.on('end', () => {
+        console.log('[FFmpeg Handler] Trim complete:', outputPath);
+        resolve(outputPath);
+      });
+
+      command.on('error', (error) => {
+        console.error('[FFmpeg Handler] Trim error:', error.message);
+        // Clean up on error
+        try {
+          if (fs.existsSync(outputPath)) {
+            fs.unlinkSync(outputPath);
+          }
+        } catch (e) {}
+        reject(error);
+      });
+
+      command.run();
     });
   }
 }

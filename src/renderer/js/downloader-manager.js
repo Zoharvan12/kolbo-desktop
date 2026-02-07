@@ -283,18 +283,18 @@ class DownloaderManager {
     qualitySelect.innerHTML = '';
 
     if (format === 'mp3') {
-      // Audio quality options
+      // Audio quality options - default to highest quality
       qualitySelect.innerHTML = `
-        <option value="high">High (320kbps)</option>
-        <option value="standard" selected>Standard (192kbps)</option>
+        <option value="high" selected>High (320kbps)</option>
+        <option value="standard">Standard (192kbps)</option>
         <option value="low">Low (128kbps)</option>
       `;
     } else {
-      // Video quality options
+      // Video quality options - default to best available (auto)
       qualitySelect.innerHTML = `
-        <option value="best">Best Available</option>
+        <option value="best" selected>Best Available (Auto)</option>
         <option value="2160">4K (2160p)</option>
-        <option value="1080" selected>1080p</option>
+        <option value="1080">1080p</option>
         <option value="720">720p</option>
         <option value="480">480p</option>
       `;
@@ -311,7 +311,7 @@ class DownloaderManager {
     const qualitySelect = document.getElementById('dl-quality-select');
 
     const outputFormat = formatSelect?.value || 'mp4';
-    const quality = qualitySelect?.value || '1080';
+    const quality = qualitySelect?.value || 'best';
 
     // Create job
     const job = {

@@ -361,6 +361,51 @@ class VideoMergerTool {
     document.getElementById('qt-merger-merge-btn')?.addEventListener('click', () => {
       this.mergeVideos();
     });
+
+    // Enable drag-and-drop on the workspace to add more clips
+    this.setupWorkspaceDrop();
+  }
+
+  /**
+   * Setup drag-and-drop on workspace to allow adding more clips
+   */
+  setupWorkspaceDrop() {
+    const clipsContainer = document.getElementById('qt-merger-clips');
+    if (!clipsContainer) return;
+
+    clipsContainer.addEventListener('dragover', (e) => {
+      // Only handle external file drops, not internal reordering
+      if (e.dataTransfer.types.includes('Files')) {
+        e.preventDefault();
+        e.stopPropagation();
+        clipsContainer.classList.add('drop-highlight');
+      }
+    });
+
+    clipsContainer.addEventListener('dragleave', (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      clipsContainer.classList.remove('drop-highlight');
+    });
+
+    clipsContainer.addEventListener('drop', (e) => {
+      // Only handle external file drops
+      if (e.dataTransfer.types.includes('Files') && e.dataTransfer.files.length > 0) {
+        e.preventDefault();
+        e.stopPropagation();
+        clipsContainer.classList.remove('drop-highlight');
+
+        const files = Array.from(e.dataTransfer.files);
+        // Filter for video files only
+        const videoFiles = files.filter(file => this.manager.isVideoFile(file));
+
+        if (videoFiles.length > 0) {
+          this.addFiles(videoFiles);
+        } else if (files.length > 0) {
+          this.manager.showToast('Only video files can be added', 'error');
+        }
+      }
+    });
   }
 
   /**
@@ -419,7 +464,8 @@ class VideoMergerTool {
       // Setup progress listener
       const progressHandler = (data) => {
         if (data.jobId === jobId) {
-          const percent = Math.round(data.progress);
+          // Clamp progress to 0-100 to prevent display issues
+          const percent = Math.min(100, Math.max(0, Math.round(data.progress)));
           if (progressFill) progressFill.style.width = `${percent}%`;
           if (progressPercent) progressPercent.textContent = `${percent}%`;
         }

@@ -310,6 +310,10 @@ contextBridge.exposeInMainWorld('kolboDesktop', {
     probeFile: (filePath) =>
       ipcRenderer.invoke('ff:probe-file', filePath),
 
+    // Extract waveform data from audio file
+    extractWaveform: (filePath, samples) =>
+      ipcRenderer.invoke('ff:extract-waveform', { filePath, samples }),
+
     // Get saved output folder preference
     getOutputFolder: () =>
       ipcRenderer.invoke('ff:get-output-folder'),
@@ -325,6 +329,10 @@ contextBridge.exposeInMainWorld('kolboDesktop', {
     // Set output mode preference
     setOutputMode: (mode) =>
       ipcRenderer.invoke('ff:set-output-mode', mode),
+
+    // Export trimmed segment (for drag-and-drop with in/out)
+    exportTrimmed: (job) =>
+      ipcRenderer.invoke('ff:export-trimmed', job),
 
     // Listen for progress updates
     onProgress: (callback) => {
@@ -396,6 +404,10 @@ contextBridge.exposeInMainWorld('kolboDesktop', {
     cancelAll: () =>
       ipcRenderer.invoke('dl:cancel-all'),
 
+    // Force update yt-dlp (fixes YouTube issues)
+    updateYtdlp: () =>
+      ipcRenderer.invoke('dl:update-ytdlp'),
+
     // Select output folder
     selectOutputFolder: () =>
       ipcRenderer.invoke('dl:select-output-folder'),
@@ -440,6 +452,42 @@ contextBridge.exposeInMainWorld('kolboDesktop', {
     removeListener: (channel, callback) => {
       ipcRenderer.removeListener(channel, callback);
     }
+  },
+
+  // File Explorer
+  fileExplorer: {
+    // List directory contents
+    listDirectory: (dirPath) =>
+      ipcRenderer.invoke('fe:list-directory', dirPath),
+
+    // List directory contents recursively (all media files from subfolders)
+    listDirectoryRecursive: (dirPath, maxDepth = 10) =>
+      ipcRenderer.invoke('fe:list-directory-recursive', dirPath, maxDepth),
+
+    // Get file metadata (duration, dimensions, etc.)
+    getMetadata: (filePath) =>
+      ipcRenderer.invoke('fe:get-metadata', filePath),
+
+    // Get available drives/volumes
+    getDrives: () =>
+      ipcRenderer.invoke('fe:get-drives'),
+
+    // Get default locations (Documents, Downloads, etc.)
+    getDefaultLocations: () =>
+      ipcRenderer.invoke('fe:get-default-locations'),
+
+    // Start native drag for local files (use send for synchronous behavior)
+    startDrag: (filePaths, thumbnailPath) => {
+      ipcRenderer.send('fe:start-drag', { filePaths, thumbnailPath });
+    },
+
+    // Open folder picker dialog
+    pickFolder: () =>
+      ipcRenderer.invoke('fe:pick-folder'),
+
+    // Get home directory
+    getHome: () =>
+      ipcRenderer.invoke('fe:get-home')
   }
 });
 

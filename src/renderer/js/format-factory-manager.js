@@ -15,6 +15,17 @@ class FormatFactoryManager {
     this.thumbnailGenerating = new Set(); // Track thumbnails being generated
     this.updateTableDebounceTimer = null; // Debounce UI updates
 
+    // Progress update throttling (max 4 updates/sec to prevent UI lag)
+    this.lastProgressUpdate = 0;
+    this.progressThrottleMs = 250;
+
+    // Event delegation flag (prevents re-adding listeners on each table update)
+    this.tableEventDelegated = false;
+
+    // Thumbnail queue (limit concurrent generation to prevent memory spikes)
+    this.MAX_CONCURRENT_THUMBNAILS = 3;
+    this.thumbnailQueue = [];
+
     // Quality/Resolution Presets
     this.presets = {
       video: [
@@ -1785,15 +1796,16 @@ class FormatFactoryManager {
       const actionsCell = document.createElement('td');
 
       // Show different actions based on job status
+      // Note: data-job-id is added to buttons for event delegation
       if (job.status === 'completed') {
         actionsCell.innerHTML = `
           <div style="display: flex; gap: 8px; justify-content: flex-end;">
-            <button class="ff-btn ff-btn-success" data-action="open-folder" title="Open Output Folder">
+            <button class="ff-btn ff-btn-success" data-action="open-folder" data-job-id="${job.id}" data-output-path="${job.outputPath || ''}" title="Open Output Folder">
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                 <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"></path>
               </svg>
             </button>
-            <button class="ff-btn" data-action="remove" title="Remove">
+            <button class="ff-btn" data-action="remove" data-job-id="${job.id}" title="Remove">
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                 <path d="M3 6h18m-2 0v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6m3 0V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"></path>
               </svg>
@@ -1808,7 +1820,7 @@ class FormatFactoryManager {
         actionsCell.innerHTML = `
           <div style="display: flex; gap: 8px; justify-content: flex-end;">
             ${canTrim ? `
-            <button class="ff-btn" data-action="trim" title="${job.hasTrim ? 'Edit Trim' : 'Trim Media'}"${trimIndicator} ${job.status === 'processing' ? 'disabled' : ''}>
+            <button class="ff-btn" data-action="trim" data-job-id="${job.id}" title="${job.hasTrim ? 'Edit Trim' : 'Trim Media'}"${trimIndicator} ${job.status === 'processing' ? 'disabled' : ''}>
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                 <circle cx="6" cy="6" r="3"/>
                 <circle cx="6" cy="18" r="3"/>
@@ -1818,13 +1830,13 @@ class FormatFactoryManager {
               </svg>
             </button>
             ` : ''}
-            <button class="ff-btn" data-action="settings" title="Change Format" ${job.status === 'processing' ? 'disabled' : ''}>
+            <button class="ff-btn" data-action="settings" data-job-id="${job.id}" title="Change Format" ${job.status === 'processing' ? 'disabled' : ''}>
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                 <path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/>
                 <circle cx="12" cy="12" r="3"/>
               </svg>
             </button>
-            <button class="ff-btn" data-action="remove" title="Remove" ${job.status === 'processing' ? 'disabled' : ''}>
+            <button class="ff-btn" data-action="remove" data-job-id="${job.id}" title="Remove" ${job.status === 'processing' ? 'disabled' : ''}>
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                 <path d="M3 6h18m-2 0v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6m3 0V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"></path>
               </svg>
@@ -1834,29 +1846,11 @@ class FormatFactoryManager {
       }
       row.appendChild(actionsCell);
 
-      // Event listeners for action buttons
-      const openFolderBtn = actionsCell.querySelector('[data-action="open-folder"]');
-      if (openFolderBtn) {
-        openFolderBtn.addEventListener('click', () => this.openOutputFolder(job.outputPath));
-      }
-
-      const trimBtn = actionsCell.querySelector('[data-action="trim"]');
-      if (trimBtn) {
-        trimBtn.addEventListener('click', () => this.openTrimmer(job.id));
-      }
-
-      const settingsBtn = actionsCell.querySelector('[data-action="settings"]');
-      if (settingsBtn) {
-        settingsBtn.addEventListener('click', () => this.changeJobFormat(job.id));
-      }
-
-      const removeBtn = actionsCell.querySelector('[data-action="remove"]');
-      if (removeBtn) {
-        removeBtn.addEventListener('click', () => this.removeFromQueue(job.id));
-      }
-
       tableBody.appendChild(row);
     });
+
+    // Setup event delegation (only once)
+    this.setupTableEventDelegation(tableBody);
 
     // Update toolbar button states
     this.updateToolbarButtons();
@@ -1880,6 +1874,49 @@ class FormatFactoryManager {
     if (resetBtn) resetBtn.disabled = !hasCompletedOrFailed;
   }
 
+  /**
+   * Setup event delegation for table action buttons
+   * Uses a single listener on tableBody instead of per-row listeners
+   */
+  setupTableEventDelegation(tableBody) {
+    // Only setup once to prevent memory leaks
+    if (this.tableEventDelegated || !tableBody) return;
+    this.tableEventDelegated = true;
+
+    tableBody.addEventListener('click', (e) => {
+      // Find the button with data-action (may have clicked on SVG inside)
+      const button = e.target.closest('[data-action]');
+      if (!button || button.disabled) return;
+
+      const action = button.dataset.action;
+      const jobId = button.dataset.jobId;
+
+      switch (action) {
+        case 'open-folder':
+          const outputPath = button.dataset.outputPath;
+          if (outputPath) {
+            this.openOutputFolder(outputPath);
+          }
+          break;
+        case 'trim':
+          if (jobId) {
+            this.openTrimmer(jobId);
+          }
+          break;
+        case 'settings':
+          if (jobId) {
+            this.changeJobFormat(jobId);
+          }
+          break;
+        case 'remove':
+          if (jobId) {
+            this.removeFromQueue(jobId);
+          }
+          break;
+      }
+    });
+  }
+
   getThumbnailUrl(job) {
     // For image files, directly use the file
     if (!job.file) return null;
@@ -1896,14 +1933,46 @@ class FormatFactoryManager {
         return job.thumbnailUrl;
       }
 
-      // Check if already generating to prevent duplicates
-      if (!this.thumbnailGenerating.has(job.id)) {
-        this.generateVideoThumbnail(job);
+      // Check if already generating or queued to prevent duplicates
+      if (!this.thumbnailGenerating.has(job.id) && !this.thumbnailQueue.includes(job.id)) {
+        // Queue thumbnail generation with concurrency limit
+        this.queueThumbnailGeneration(job);
       }
       return null; // Show icon until thumbnail is ready
     }
 
     return null;
+  }
+
+  /**
+   * Queue thumbnail generation with concurrency limit
+   */
+  queueThumbnailGeneration(job) {
+    if (this.thumbnailGenerating.size < this.MAX_CONCURRENT_THUMBNAILS) {
+      // Under limit, generate immediately
+      this.generateVideoThumbnail(job);
+    } else {
+      // At capacity, queue for later
+      this.thumbnailQueue.push(job.id);
+    }
+  }
+
+  /**
+   * Process next queued thumbnail
+   */
+  processNextQueuedThumbnail() {
+    if (this.thumbnailQueue.length === 0) return;
+    if (this.thumbnailGenerating.size >= this.MAX_CONCURRENT_THUMBNAILS) return;
+
+    const nextJobId = this.thumbnailQueue.shift();
+    const job = this.queue.find(j => j.id === nextJobId);
+
+    if (job && !job.thumbnailUrl) {
+      this.generateVideoThumbnail(job);
+    } else {
+      // Job was removed or already has thumbnail, try next
+      this.processNextQueuedThumbnail();
+    }
   }
 
   async generateVideoThumbnail(job) {
@@ -1979,6 +2048,9 @@ class FormatFactoryManager {
       if (videoUrl) {
         URL.revokeObjectURL(videoUrl);
       }
+
+      // Process next queued thumbnail
+      this.processNextQueuedThumbnail();
     }
   }
 
@@ -1991,6 +2063,32 @@ class FormatFactoryManager {
       this.updateTableUI();
       this.updateTableDebounceTimer = null;
     }, 100);
+  }
+
+  /**
+   * Incremental row update - updates only progress bar and status text
+   * Returns true if row was found and updated, false otherwise
+   */
+  updateRowProgress(jobId, progress, status) {
+    const tableBody = document.getElementById('ff-table-body');
+    if (!tableBody) return false;
+
+    const row = tableBody.querySelector(`tr[data-job-id="${jobId}"]`);
+    if (!row) return false;
+
+    // Update progress bar
+    const progressFill = row.querySelector('.ff-progress-fill');
+    if (progressFill) {
+      progressFill.style.width = `${progress}%`;
+    }
+
+    // Update status text
+    const progressText = row.querySelector('.ff-progress-text');
+    if (progressText) {
+      progressText.textContent = this.getStatusText({ progress, status });
+    }
+
+    return true;
   }
 
   getFileIcon(fileType) {
@@ -2723,14 +2821,24 @@ class FormatFactoryManager {
   setupFFmpegListeners() {
     console.log('[Format Factory] Setting up FFmpeg event listeners');
 
-    // Progress updates
+    // Progress updates (throttled to prevent UI lag)
     window.kolboDesktop.ffmpeg.onProgress((data) => {
       const { jobId, progress } = data;
       const job = this.queue.find(j => j.id === jobId);
 
       if (job) {
+        // Always update job data immediately
         job.progress = Math.min(Math.max(progress, 0), 100);
-        this.updateTableUI();
+
+        // Throttle UI updates to max 4/sec
+        const now = Date.now();
+        if (now - this.lastProgressUpdate >= this.progressThrottleMs) {
+          this.lastProgressUpdate = now;
+          // Try incremental update first, fall back to full update if row doesn't exist
+          if (!this.updateRowProgress(jobId, job.progress, job.status)) {
+            this.scheduleTableUpdate();
+          }
+        }
       }
     });
 

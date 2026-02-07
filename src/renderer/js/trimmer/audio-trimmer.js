@@ -6,7 +6,7 @@ console.log('[AudioTrimmer] Loading...');
 class AudioTrimmer {
   constructor(audioFile, options = {}) {
     this.audioFile = audioFile;
-    this.audioUrl = URL.createObjectURL(audioFile);
+    this.audioUrl = null; // Defer URL creation to loadAudio()
 
     // Options
     this.maxDuration = options.maxDuration || 300; // 5 minutes default
@@ -23,6 +23,7 @@ class AudioTrimmer {
     this.audioBuffer = null;
     this.waveformData = [];
     this.isLoadingWaveform = true;
+    this.isLoading = false; // Guard against double-loading
 
     // DOM refs (will be set when rendered)
     this.audioElement = null;
@@ -46,7 +47,9 @@ class AudioTrimmer {
     container.className = 'ff-audio-trimmer';
     container.innerHTML = `
       <div class="ff-trimmer-waveform-container">
-        <canvas class="ff-trimmer-waveform"></canvas>
+        <div class="ff-trimmer-waveform-bars">
+          <!-- Waveform bars will be generated here -->
+        </div>
         <div class="ff-trimmer-selection">
           <div class="ff-trimmer-handle ff-trimmer-handle-start"></div>
           <div class="ff-trimmer-selection-bar"></div>
@@ -85,13 +88,13 @@ class AudioTrimmer {
         </button>
       </div>
 
-      <audio style="display: none;"></audio>
+      <audio style="display: none;" preload="metadata"></audio>
     `;
 
     // Store references
     this.audioElement = container.querySelector('audio');
     this.waveformContainer = container.querySelector('.ff-trimmer-waveform-container');
-    this.canvasElement = container.querySelector('.ff-trimmer-waveform');
+    this.waveformBarsContainer = container.querySelector('.ff-trimmer-waveform-bars');
     this.selectionElement = container.querySelector('.ff-trimmer-selection');
     this.startHandleElement = container.querySelector('.ff-trimmer-handle-start');
     this.endHandleElement = container.querySelector('.ff-trimmer-handle-end');
@@ -106,71 +109,285 @@ class AudioTrimmer {
       duration: container.querySelector('.ff-trimmer-time-duration')
     };
 
-    // Setup canvas size
-    const rect = this.waveformContainer.getBoundingClientRect();
-    this.canvasElement.width = rect.width || 600;
-    this.canvasElement.height = this.waveformHeight;
-
     // Setup event listeners
     this.setupEventListeners();
 
-    // Load audio
-    this.loadAudio();
+    // Note: loadAudio() should be called explicitly by the parent component
+    // after render() to allow proper async handling and DOM attachment
 
     return container;
+  }
+
+  /**
+   * Validate audio file before loading
+   * Checks file size, type, and basic header
+   */
+  async validateAudioFile() {
+    const file = this.audioFile;
+
+    // Check if file exists and has content
+    if (!file || file.size === 0) {
+      throw new Error('Empty or invalid audio file');
+    }
+
+    // Check file size (max 500MB to prevent memory issues)
+    const MAX_SIZE = 500 * 1024 * 1024;
+    if (file.size > MAX_SIZE) {
+      throw new Error('Audio file is too large (max 500MB)');
+    }
+
+    // Check MIME type
+    const validTypes = [
+      'audio/wav', 'audio/wave', 'audio/x-wav',
+      'audio/mp3', 'audio/mpeg',
+      'audio/ogg', 'audio/vorbis',
+      'audio/aac', 'audio/mp4', 'audio/x-m4a',
+      'audio/flac', 'audio/x-flac',
+      'audio/webm'
+    ];
+
+    if (file.type && !validTypes.some(t => file.type.includes(t.split('/')[1]))) {
+      console.warn('[AudioTrimmer] Unusual audio type:', file.type);
+      // Don't reject, just warn - some files have incorrect MIME types
+    }
+
+    // Read first few bytes to check file header
+    try {
+      const header = await this.readFileHeader(file, 12);
+      if (!this.isValidAudioHeader(header)) {
+        console.warn('[AudioTrimmer] Unrecognized audio header, proceeding anyway');
+      }
+    } catch (headerError) {
+      console.warn('[AudioTrimmer] Could not read file header:', headerError);
+      // Don't reject - header check is optional
+    }
+
+    console.log('[AudioTrimmer] File validation passed:', file.name, file.size, file.type);
+  }
+
+  /**
+   * Read first N bytes of file
+   */
+  async readFileHeader(file, bytes) {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => {
+        resolve(new Uint8Array(reader.result));
+      };
+      reader.onerror = reject;
+      reader.readAsArrayBuffer(file.slice(0, bytes));
+    });
+  }
+
+  /**
+   * Check if file header matches known audio formats
+   */
+  isValidAudioHeader(header) {
+    if (!header || header.length < 4) return false;
+
+    // WAV: RIFF....WAVE
+    if (header[0] === 0x52 && header[1] === 0x49 && header[2] === 0x46 && header[3] === 0x46) {
+      return true; // RIFF header
+    }
+
+    // MP3: ID3 tag or frame sync
+    if ((header[0] === 0x49 && header[1] === 0x44 && header[2] === 0x33) || // ID3
+        (header[0] === 0xFF && (header[1] & 0xE0) === 0xE0)) { // Frame sync
+      return true;
+    }
+
+    // OGG: OggS
+    if (header[0] === 0x4F && header[1] === 0x67 && header[2] === 0x67 && header[3] === 0x53) {
+      return true;
+    }
+
+    // FLAC: fLaC
+    if (header[0] === 0x66 && header[1] === 0x4C && header[2] === 0x61 && header[3] === 0x43) {
+      return true;
+    }
+
+    // M4A/AAC: ftyp
+    if (header[4] === 0x66 && header[5] === 0x74 && header[6] === 0x79 && header[7] === 0x70) {
+      return true;
+    }
+
+    return false;
   }
 
   /**
    * Load audio and process waveform
    */
   async loadAudio() {
+    // Guard against double-loading
+    if (this.isLoading) {
+      console.warn('[AudioTrimmer] loadAudio() already in progress, skipping');
+      return;
+    }
+    this.isLoading = true;
+
     try {
-      // Set audio source
-      this.audioElement.src = this.audioUrl;
+      // Pre-validate the audio file before loading
+      await this.validateAudioFile();
 
-      // Wait for metadata
-      await new Promise((resolve, reject) => {
-        this.audioElement.onloadedmetadata = () => {
-          this.duration = this.audioElement.duration;
+      // Try to get duration using FFprobe (safer, avoids Chromium crashes)
+      // This requires the file to have a path (Electron file objects do)
+      const filePath = this.audioFile.path;
 
-          // Set initial trim points
-          const maxEnd = Math.min(this.maxDuration, this.duration);
-          this.trimPoints = [0, maxEnd];
-          this.originalTrimPoints = [0, maxEnd];
+      if (filePath && window.kolboDesktop?.ffmpeg?.probeFile) {
+        console.log('[AudioTrimmer] Using FFprobe to get duration...');
+        try {
+          const result = await window.kolboDesktop.ffmpeg.probeFile(filePath);
+          const metadata = result?.metadata;
 
-          // Update UI
-          this.updateTimelineSelection();
-          this.updateTimeDisplays();
+          if (metadata?.format?.duration) {
+            this.duration = parseFloat(metadata.format.duration);
+            console.log('[AudioTrimmer] FFprobe duration:', this.duration);
 
-          resolve();
-        };
+            // Set initial trim points
+            const maxEnd = Math.min(this.maxDuration, this.duration);
+            this.trimPoints = [0, maxEnd];
+            this.originalTrimPoints = [0, maxEnd];
 
-        this.audioElement.onerror = (error) => {
-          console.error('[AudioTrimmer] Audio load error:', error);
-          this.onError(new Error('Failed to load audio'));
-          reject(error);
-        };
+            // Update UI
+            this.updateTimelineSelection();
+            this.updateTimeDisplays();
 
-        // Timeout fallback
-        setTimeout(() => reject(new Error('Audio load timeout')), 10000);
-      });
+            // Create blob URL for playback (but don't auto-load)
+            try {
+              this.audioUrl = URL.createObjectURL(this.audioFile);
+              // Don't set src yet - let user click play first
+              console.log('[AudioTrimmer] Created blob URL for playback');
+            } catch (e) {
+              console.warn('[AudioTrimmer] Could not create blob URL for playback');
+            }
+          } else {
+            throw new Error('FFprobe returned no duration');
+          }
+        } catch (probeError) {
+          console.warn('[AudioTrimmer] FFprobe failed, falling back to browser:', probeError);
+          await this.loadAudioViaBrowser();
+        }
+      } else {
+        // No file path available, use browser loading
+        console.log('[AudioTrimmer] No file path, using browser to load...');
+        await this.loadAudioViaBrowser();
+      }
 
-      // Process audio buffer for waveform
-      await this.processAudioBuffer();
+      // Draw placeholder waveform bars first (so UI is responsive)
+      this.waveformData = this.generatePlaceholderWaveform(this.waveformSamples);
+      this.renderWaveformBars();
 
-      // Draw waveform
-      this.drawWaveform();
-
-      // Mark as ready
+      // Mark as ready immediately - waveform will update in background
       this.isLoadingWaveform = false;
       this.onReady({
         duration: this.duration,
         trimPoints: this.trimPoints
       });
 
+      // Extract accurate waveform using FFmpeg (safe, runs in main process)
+      if (filePath && window.kolboDesktop?.ffmpeg?.extractWaveform) {
+        console.log('[AudioTrimmer] Extracting accurate waveform via FFmpeg...');
+        try {
+          const result = await window.kolboDesktop.ffmpeg.extractWaveform(filePath, this.waveformSamples);
+          if (result?.success && result.waveformData) {
+            this.waveformData = result.waveformData;
+            this.renderWaveformBars();
+            console.log('[AudioTrimmer] Accurate waveform rendered');
+          } else {
+            console.warn('[AudioTrimmer] Waveform extraction returned no data, keeping placeholder');
+          }
+        } catch (waveformError) {
+          console.warn('[AudioTrimmer] Waveform extraction failed, keeping placeholder:', waveformError);
+        }
+      } else {
+        console.log('[AudioTrimmer] Using placeholder waveform (FFmpeg not available)');
+      }
+
     } catch (error) {
       console.error('[AudioTrimmer] Failed to load audio:', error);
+      this.isLoading = false;
       this.onError(error);
+    }
+  }
+
+  /**
+   * Fallback: Load audio via browser (may crash on some files)
+   */
+  async loadAudioViaBrowser() {
+    console.log('[AudioTrimmer] Loading audio via browser...');
+
+    // Create blob URL
+    try {
+      this.audioUrl = URL.createObjectURL(this.audioFile);
+    } catch (urlError) {
+      console.error('[AudioTrimmer] Failed to create blob URL:', urlError);
+      throw new Error('Failed to create audio URL');
+    }
+
+    // Small delay before loading
+    await new Promise(resolve => setTimeout(resolve, 50));
+
+    // Set audio source
+    this.audioElement.src = this.audioUrl;
+
+    // Wait for metadata
+    await new Promise((resolve, reject) => {
+      let resolved = false;
+
+      const cleanup = () => {
+        this.audioElement.onloadedmetadata = null;
+        this.audioElement.onerror = null;
+      };
+
+      this.audioElement.onloadedmetadata = () => {
+        if (resolved) return;
+        resolved = true;
+        cleanup();
+
+        this.duration = this.audioElement.duration;
+
+        if (!this.duration || !isFinite(this.duration) || this.duration <= 0) {
+          reject(new Error('Invalid audio duration'));
+          return;
+        }
+
+        const maxEnd = Math.min(this.maxDuration, this.duration);
+        this.trimPoints = [0, maxEnd];
+        this.originalTrimPoints = [0, maxEnd];
+
+        this.updateTimelineSelection();
+        this.updateTimeDisplays();
+
+        resolve();
+      };
+
+      this.audioElement.onerror = (event) => {
+        if (resolved) return;
+        resolved = true;
+        cleanup();
+        reject(new Error('Failed to load audio file'));
+      };
+
+      setTimeout(() => {
+        if (resolved) return;
+        resolved = true;
+        cleanup();
+        reject(new Error('Audio load timeout'));
+      }, 15000);
+    });
+  }
+
+  /**
+   * Process audio buffer safely in the background
+   * Uses a safer approach that won't crash the renderer
+   */
+  async processAudioBufferSafe() {
+    try {
+      await this.processAudioBuffer();
+      this.drawWaveform();
+    } catch (error) {
+      console.warn('[AudioTrimmer] Waveform generation failed, using placeholder:', error.message);
+      // Keep the placeholder waveform - trimmer still works fine
     }
   }
 
@@ -178,76 +395,156 @@ class AudioTrimmer {
    * Process audio file to extract waveform data
    */
   async processAudioBuffer() {
+    let audioContext = null;
+
     try {
+      // Skip waveform generation for very large files (>50MB) to prevent crashes
+      const MAX_FILE_SIZE = 50 * 1024 * 1024; // 50MB
+      if (this.audioFile.size > MAX_FILE_SIZE) {
+        console.log('[AudioTrimmer] File too large for waveform generation, using placeholder');
+        throw new Error('File too large for waveform');
+      }
+
       // Read audio file as ArrayBuffer
       const arrayBuffer = await this.audioFile.arrayBuffer();
 
-      // Create AudioContext
-      const audioContext = new (window.AudioContext || window.webkitAudioContext)();
+      // Guard against empty or invalid files
+      if (!arrayBuffer || arrayBuffer.byteLength === 0) {
+        throw new Error('Empty audio file');
+      }
 
-      // Decode audio data
-      this.audioBuffer = await audioContext.decodeAudioData(arrayBuffer);
+      // Create AudioContext
+      const AudioContextClass = window.AudioContext || window.webkitAudioContext;
+      if (!AudioContextClass) {
+        throw new Error('Web Audio API not supported');
+      }
+      audioContext = new AudioContextClass();
+
+      // Use a callback-based approach for decodeAudioData (more compatible)
+      this.audioBuffer = await new Promise((resolve, reject) => {
+        const timeoutId = setTimeout(() => {
+          reject(new Error('Audio decode timeout'));
+        }, 30000);
+
+        // Create a copy of the buffer to avoid issues
+        const bufferCopy = arrayBuffer.slice(0);
+
+        audioContext.decodeAudioData(
+          bufferCopy,
+          (buffer) => {
+            clearTimeout(timeoutId);
+            resolve(buffer);
+          },
+          (error) => {
+            clearTimeout(timeoutId);
+            reject(error || new Error('Failed to decode audio'));
+          }
+        );
+      });
+
+      // Guard against invalid buffer
+      if (!this.audioBuffer || this.audioBuffer.numberOfChannels === 0) {
+        throw new Error('Invalid audio buffer');
+      }
 
       // Extract waveform data
       const rawData = this.audioBuffer.getChannelData(0); // Get first channel
       const samples = this.waveformSamples;
-      const blockSize = Math.floor(rawData.length / samples);
+      const blockSize = Math.max(1, Math.floor(rawData.length / samples));
 
       this.waveformData = [];
 
       for (let i = 0; i < samples; i++) {
         const start = blockSize * i;
         let sum = 0;
+        const end = Math.min(start + blockSize, rawData.length);
 
-        for (let j = 0; j < blockSize; j++) {
-          sum += Math.abs(rawData[start + j]);
+        for (let j = start; j < end; j++) {
+          sum += Math.abs(rawData[j]);
         }
 
-        this.waveformData.push(sum / blockSize);
+        this.waveformData.push(sum / (end - start));
       }
 
-      // Normalize waveform data
-      const max = Math.max(...this.waveformData);
-      this.waveformData = this.waveformData.map(v => v / max);
+      // Normalize waveform data (avoid spread operator for large arrays)
+      let max = 0;
+      for (let i = 0; i < this.waveformData.length; i++) {
+        if (this.waveformData[i] > max) max = this.waveformData[i];
+      }
+      if (max > 0) {
+        for (let i = 0; i < this.waveformData.length; i++) {
+          this.waveformData[i] = this.waveformData[i] / max;
+        }
+      }
 
-      // Close audio context to free resources
-      audioContext.close();
+      // Release audio buffer memory
+      this.audioBuffer = null;
 
     } catch (error) {
       console.error('[AudioTrimmer] Failed to process audio buffer:', error);
       // Create dummy waveform data as fallback
       this.waveformData = new Array(this.waveformSamples).fill(0.5);
+    } finally {
+      // Always close audio context to free resources
+      if (audioContext) {
+        try {
+          audioContext.close();
+        } catch (e) {
+          // Ignore close errors
+        }
+        audioContext = null;
+      }
     }
   }
 
   /**
-   * Draw waveform on canvas
+   * Generate placeholder waveform data (visually appealing pattern)
+   * Similar to the "my media" tab design
    */
-  drawWaveform() {
-    const canvas = this.canvasElement;
-    const ctx = canvas.getContext('2d');
-    const width = canvas.width;
-    const height = canvas.height;
+  generatePlaceholderWaveform(count) {
+    const data = [];
+    for (let i = 0; i < count; i++) {
+      // Create a wave pattern with some variation
+      const baseHeight = Math.sin((i / count) * Math.PI) * 0.6 + 0.3;
+      const variance = Math.sin(i * 0.5) * 0.1 + Math.cos(i * 0.8) * 0.08;
+      const height = Math.max(0.15, Math.min(0.95, baseHeight + variance));
+      data.push(height);
+    }
+    return data;
+  }
 
-    // Clear canvas
-    ctx.clearRect(0, 0, width, height);
+  /**
+   * Render waveform as HTML bars (like "my media" tab design)
+   */
+  renderWaveformBars() {
+    if (!this.waveformBarsContainer) return;
 
-    // Background
-    ctx.fillStyle = '#1a1a1a';
-    ctx.fillRect(0, 0, width, height);
+    // Generate HTML for all bars
+    const barsHtml = this.waveformData.map((value, index) => {
+      // Scale value to percentage (15-95% range for visual appeal)
+      const height = Math.max(15, Math.min(95, value * 80 + 15));
+      return `<div class="ff-waveform-bar" data-index="${index}" style="height: ${height}%"></div>`;
+    }).join('');
 
-    // Draw waveform
-    const barWidth = width / this.waveformData.length;
-    const middleY = height / 2;
+    this.waveformBarsContainer.innerHTML = barsHtml;
+  }
 
-    ctx.fillStyle = '#3b82f6';
+  /**
+   * Update waveform progress (highlight played portion)
+   */
+  updateWaveformProgress() {
+    if (!this.waveformBarsContainer || !this.duration) return;
 
-    this.waveformData.forEach((value, index) => {
-      const barHeight = value * middleY * 0.9;
-      const x = index * barWidth;
+    const progress = this.currentTime / this.duration;
+    const bars = this.waveformBarsContainer.querySelectorAll('.ff-waveform-bar');
+    const playedCount = Math.floor(bars.length * progress);
 
-      // Draw bar (symmetric around middle)
-      ctx.fillRect(x, middleY - barHeight, barWidth - 1, barHeight * 2);
+    bars.forEach((bar, index) => {
+      if (index < playedCount) {
+        bar.classList.add('played');
+      } else {
+        bar.classList.remove('played');
+      }
     });
   }
 
@@ -259,16 +556,25 @@ class AudioTrimmer {
     this.audioElement.addEventListener('play', () => {
       this.isPlaying = true;
       this.updatePlayButton();
+      // Add playing class for waveform animation
+      if (this.waveformContainer) {
+        this.waveformContainer.closest('.ff-audio-trimmer')?.classList.add('playing');
+      }
     });
 
     this.audioElement.addEventListener('pause', () => {
       this.isPlaying = false;
       this.updatePlayButton();
+      // Remove playing class
+      if (this.waveformContainer) {
+        this.waveformContainer.closest('.ff-audio-trimmer')?.classList.remove('playing');
+      }
     });
 
     this.audioElement.addEventListener('timeupdate', () => {
       this.currentTime = this.audioElement.currentTime;
       this.updatePlayhead();
+      this.updateWaveformProgress();
 
       // Loop within trim range
       if (this.currentTime >= this.trimPoints[1]) {
@@ -450,8 +756,15 @@ class AudioTrimmer {
     if (this.isPlaying) {
       this.audioElement.pause();
     } else {
+      // If audio hasn't been loaded yet (FFprobe was used), load it now
+      if (!this.audioElement.src && this.audioUrl) {
+        console.log('[AudioTrimmer] Loading audio for playback...');
+        this.audioElement.src = this.audioUrl;
+      }
       this.audioElement.currentTime = this.trimPoints[0];
-      this.audioElement.play();
+      this.audioElement.play().catch(err => {
+        console.error('[AudioTrimmer] Playback failed:', err);
+      });
     }
   }
 
@@ -556,16 +869,44 @@ class AudioTrimmer {
     // Remove keyboard listener
     if (this.keyboardHandler) {
       document.removeEventListener('keydown', this.keyboardHandler);
+      this.keyboardHandler = null;
     }
 
+    // Clear waveform bars
+    if (this.waveformBarsContainer) {
+      this.waveformBarsContainer.innerHTML = '';
+    }
+
+    // Clear waveform data
+    this.waveformData = [];
+    this.audioBuffer = null;
+
+    // Cleanup audio element
     if (this.audioElement) {
       this.audioElement.pause();
-      this.audioElement.src = '';
+      this.audioElement.removeAttribute('src');
+      this.audioElement.load(); // Reset the element
     }
 
+    // Revoke object URL
     if (this.audioUrl) {
       URL.revokeObjectURL(this.audioUrl);
+      this.audioUrl = null;
     }
+
+    // Null all DOM references to allow garbage collection
+    this.audioElement = null;
+    this.waveformContainer = null;
+    this.waveformBarsContainer = null;
+    this.selectionElement = null;
+    this.startHandleElement = null;
+    this.endHandleElement = null;
+    this.playheadElement = null;
+    this.playButton = null;
+    this.inButton = null;
+    this.outButton = null;
+    this.resetButton = null;
+    this.timeDisplays = null;
   }
 }
 
