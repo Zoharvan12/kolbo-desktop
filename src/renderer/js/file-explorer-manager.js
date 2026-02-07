@@ -18,6 +18,8 @@ class FileExplorerManager {
     // View settings
     this.viewMode = localStorage.getItem('fe_view_mode') || 'list'; // 'list' or 'grid'
     this.iconSize = parseInt(localStorage.getItem('fe_icon_size')) || 2; // 1-4 scale
+    this.lastOpenedPath = localStorage.getItem('fe_last_path') || null;
+    this.searchQuery = ''; // Current search filter
 
     // Default locations cache
     this.defaultLocations = [];
@@ -27,6 +29,10 @@ class FileExplorerManager {
 
     // Expanded folders in sidebar (path -> children)
     this.expandedFolders = new Map();
+    // Folders known to have no subfolders
+    this.emptyFolders = new Set();
+    // Collapsed sidebar sections (persisted)
+    this.collapsedSections = this.loadCollapsedSections();
 
     // DOM references
     this.container = null;
@@ -51,6 +57,7 @@ class FileExplorerManager {
     this.previewDuration = 0;
     this.previewInPoint = 0;
     this.previewOutPoint = 0;
+    this.hasSelection = false; // No selection by default
     this.isPreviewPlaying = false;
     this.previewAnimationFrame = null;
 
@@ -59,6 +66,12 @@ class FileExplorerManager {
     this.isTrimmedCacheReady = false;
     this.isExportingTrim = false;
     this._exportDebounceTimer = null;
+
+    // Web Audio API for volume gain > 100%
+    this.audioContext = null;
+    this.gainNode = null;
+    this.mediaSource = null;
+    this.currentGain = 1.0;
 
     // Bound methods for event listeners
     this._handleKeyDown = this.handleKeyDown.bind(this);
@@ -101,10 +114,24 @@ class FileExplorerManager {
       // Load default locations and drives
       await this.loadSidebarData();
 
-      // Navigate to home directory by default
-      const home = await window.kolboDesktop.fileExplorer.getHome();
-      console.log('[FileExplorer] Home directory:', home);
-      await this.navigateTo(home);
+      // Determine starting location (priority: last opened > first custom folder > home)
+      let startPath = null;
+
+      if (this.lastOpenedPath) {
+        // Try to use last opened path
+        startPath = this.lastOpenedPath;
+        console.log('[FileExplorer] Using last opened path:', startPath);
+      } else if (this.customFolders.length > 0) {
+        // Use first custom folder
+        startPath = this.customFolders[0].path;
+        console.log('[FileExplorer] Using first custom folder:', startPath);
+      } else {
+        // Fallback to home directory
+        startPath = await window.kolboDesktop.fileExplorer.getHome();
+        console.log('[FileExplorer] Using home directory:', startPath);
+      }
+
+      await this.navigateTo(startPath);
 
       // Setup global event listeners
       document.addEventListener('keydown', this._handleKeyDown);
@@ -141,6 +168,23 @@ class FileExplorerManager {
 
     this.container.innerHTML = `
       <div class="file-explorer-container">
+        <!-- Search Bar (Prominent, Top Center) -->
+        <div class="fe-search-bar">
+          <div class="fe-search-container-large">
+            <svg class="fe-search-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <circle cx="11" cy="11" r="8"/>
+              <path d="M21 21l-4.35-4.35"/>
+            </svg>
+            <input type="text" class="fe-search-input-large" id="fe-search-input" placeholder="Search files in current folder..." />
+            <span class="fe-search-count hidden" id="fe-search-count"></span>
+            <button class="fe-search-clear-btn hidden" id="fe-search-clear" title="Clear search">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M18 6L6 18M6 6l12 12"/>
+              </svg>
+            </button>
+          </div>
+        </div>
+
         <!-- Toolbar -->
         <div class="fe-toolbar">
           <div class="fe-breadcrumb" id="fe-breadcrumb">
@@ -260,6 +304,11 @@ class FileExplorerManager {
               </div>
               <span class="fe-drag-status-text">Drag to app</span>
             </div>
+            <!-- Video trimming loading overlay -->
+            <div class="fe-trim-loading-overlay" id="fe-trim-loading">
+              <div class="fe-trim-loading-spinner"></div>
+              <span class="fe-trim-loading-text">Trimming video...</span>
+            </div>
           </div>
 
           <!-- Center: Timeline with In/Out -->
@@ -273,6 +322,8 @@ class FileExplorerManager {
                 <!-- Video thumbnails filmstrip (for video files) -->
                 <div class="fe-preview-thumbnails-container hidden" id="fe-thumbnails-container">
                   <canvas id="fe-thumbnails-canvas"></canvas>
+                  <div class="fe-thumbnails-dim fe-thumbnails-dim-left" id="fe-dim-left"></div>
+                  <div class="fe-thumbnails-dim fe-thumbnails-dim-right" id="fe-dim-right"></div>
                 </div>
                 <!-- Selection, progress, playhead, handles -->
                 <div class="fe-preview-timeline-selection" id="fe-preview-selection"></div>
@@ -307,6 +358,26 @@ class FileExplorerManager {
               <svg viewBox="0 0 24 24" fill="currentColor"><path d="M6 18l8.5-6L6 6v12zM16 6v12h2V6h-2z"/></svg>
             </button>
             <button class="fe-preview-io-btn out-btn" id="fe-btn-out" title="Set Out Point (O)">OUT</button>
+            <div class="fe-preview-divider"></div>
+            <!-- Audio controls (speed & volume) -->
+            <div class="fe-audio-controls hidden" id="fe-audio-controls">
+              <div class="fe-audio-control" title="Playback Speed">
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <circle cx="12" cy="12" r="10"/>
+                  <path d="M12 6v6l4 2"/>
+                </svg>
+                <input type="range" min="0.5" max="2" step="0.1" value="1" class="fe-audio-slider" id="fe-speed-slider" />
+                <span class="fe-audio-value" id="fe-speed-value">1.0x</span>
+              </div>
+              <div class="fe-audio-control" title="Volume">
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/>
+                  <path d="M15.54 8.46a5 5 0 0 1 0 7.07"/>
+                </svg>
+                <input type="range" min="0" max="4" step="0.1" value="1" class="fe-audio-slider" id="fe-volume-slider" />
+                <span class="fe-audio-value" id="fe-volume-value">100%</span>
+              </div>
+            </div>
             <div class="fe-preview-divider"></div>
             <button class="fe-preview-close" id="fe-preview-close" title="Close Preview">
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -411,6 +482,96 @@ class FileExplorerManager {
     this.container.querySelector('#fe-btn-in').addEventListener('click', () => this.setPreviewInPoint());
     this.container.querySelector('#fe-btn-out').addEventListener('click', () => this.setPreviewOutPoint());
 
+    // Search input with debouncing for performance
+    const searchInput = this.container.querySelector('#fe-search-input');
+    const searchClear = this.container.querySelector('#fe-search-clear');
+    const searchCount = this.container.querySelector('#fe-search-count');
+    let searchDebounceTimer = null;
+
+    searchInput.addEventListener('input', (e) => {
+      const query = e.target.value.toLowerCase().trim();
+      searchClear.classList.toggle('hidden', !query);
+
+      // Debounce search to prevent lag
+      if (searchDebounceTimer) clearTimeout(searchDebounceTimer);
+      searchDebounceTimer = setTimeout(() => {
+        this.searchQuery = query;
+        this.renderFileList();
+
+        // Update result count
+        if (query && searchCount) {
+          const count = this.getFilteredFileCount();
+          searchCount.textContent = `${count} result${count !== 1 ? 's' : ''}`;
+          searchCount.classList.remove('hidden');
+        } else if (searchCount) {
+          searchCount.classList.add('hidden');
+        }
+      }, 150); // 150ms debounce
+    });
+
+    searchClear.addEventListener('click', () => {
+      searchInput.value = '';
+      this.searchQuery = '';
+      searchClear.classList.add('hidden');
+      if (searchCount) searchCount.classList.add('hidden');
+      if (searchDebounceTimer) clearTimeout(searchDebounceTimer);
+      this.renderFileList();
+    });
+
+    // Focus search with Ctrl+F
+    document.addEventListener('keydown', (e) => {
+      if ((e.ctrlKey || e.metaKey) && e.key === 'f') {
+        if (this.container && this.container.offsetParent !== null) {
+          e.preventDefault();
+          searchInput.focus();
+          searchInput.select();
+        }
+      }
+    });
+
+    // Audio controls (speed & volume)
+    const speedSlider = this.container.querySelector('#fe-speed-slider');
+    const speedValue = this.container.querySelector('#fe-speed-value');
+    const volumeSlider = this.container.querySelector('#fe-volume-slider');
+    const volumeValue = this.container.querySelector('#fe-volume-value');
+
+    speedSlider.addEventListener('input', (e) => {
+      const speed = parseFloat(e.target.value);
+      speedValue.textContent = speed.toFixed(1) + 'x';
+      if (this.previewMediaEl) {
+        this.previewMediaEl.playbackRate = speed;
+      }
+      // Invalidate trim cache when effects change
+      this.invalidateTrimCache();
+    });
+
+    // Double-click to reset speed
+    speedSlider.addEventListener('dblclick', () => {
+      speedSlider.value = 1;
+      speedValue.textContent = '1.0x';
+      if (this.previewMediaEl) {
+        this.previewMediaEl.playbackRate = 1;
+      }
+      this.invalidateTrimCache();
+    });
+
+    volumeSlider.addEventListener('input', (e) => {
+      const volume = parseFloat(e.target.value);
+      volumeValue.textContent = Math.round(volume * 100) + '%';
+      // Use Web Audio API gain node for volume > 100%
+      this.setPreviewGain(volume);
+      // Invalidate trim cache when effects change
+      this.invalidateTrimCache();
+    });
+
+    // Double-click to reset volume
+    volumeSlider.addEventListener('dblclick', () => {
+      volumeSlider.value = 1;
+      volumeValue.textContent = '100%';
+      this.setPreviewGain(1);
+      this.invalidateTrimCache();
+    });
+
     // Preview media area - click to export and drag
     this.setupPreviewDragEvents();
 
@@ -480,40 +641,75 @@ class FileExplorerManager {
   renderSidebar() {
     let html = '';
 
-    // Quick Access section
-    if (this.defaultLocations.length > 0 || this.customFolders.length > 0) {
-      html += `<div class="fe-sidebar-section">
-        <div class="fe-sidebar-title">
-          Quick Access
+    // Helper to render collapse toggle icon
+    const collapseIcon = (isCollapsed) => `
+      <span class="fe-section-toggle ${isCollapsed ? 'collapsed' : ''}">
+        <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M6 9l6 6 6-6"/>
+        </svg>
+      </span>`;
+
+    // My Folders section - Custom folders FIRST
+    if (this.customFolders.length > 0) {
+      const isCollapsed = this.collapsedSections.has('my-folders');
+      html += `<div class="fe-sidebar-section${isCollapsed ? ' collapsed' : ''}">
+        <div class="fe-sidebar-title" data-section="my-folders">
+          ${collapseIcon(isCollapsed)}
+          <span class="fe-section-label">My Folders</span>
           <button class="fe-add-folder-btn" id="fe-add-folder-btn" title="Add Folder">
             <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
               <path d="M12 5v14M5 12h14"/>
             </svg>
           </button>
-        </div>`;
-
-      // Default locations with expandable tree
-      for (const loc of this.defaultLocations) {
-        html += this.renderTreeItem(loc.path, loc.name, loc.icon);
-      }
+        </div>
+        <div class="fe-section-content${isCollapsed ? ' hidden' : ''}">`;
 
       // Custom folders with expandable tree and colors
       for (const folder of this.customFolders) {
         html += this.renderTreeItem(folder.path, folder.name, 'folder', true, folder.color);
       }
 
-      html += `</div>`;
+      html += `</div></div>`;
+    }
+
+    // Quick Access section (Documents, Downloads, etc.)
+    if (this.defaultLocations.length > 0) {
+      const isCollapsed = this.collapsedSections.has('quick-access');
+      html += `<div class="fe-sidebar-section${isCollapsed ? ' collapsed' : ''}">
+        <div class="fe-sidebar-title" data-section="quick-access">
+          ${collapseIcon(isCollapsed)}
+          <span class="fe-section-label">Quick Access</span>
+          ${this.customFolders.length === 0 ? `
+          <button class="fe-add-folder-btn" id="fe-add-folder-btn" title="Add Folder">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M12 5v14M5 12h14"/>
+            </svg>
+          </button>` : ''}
+        </div>
+        <div class="fe-section-content${isCollapsed ? ' hidden' : ''}">`;
+
+      // Default locations with expandable tree
+      for (const loc of this.defaultLocations) {
+        html += this.renderTreeItem(loc.path, loc.name, loc.icon);
+      }
+
+      html += `</div></div>`;
     }
 
     // Drives section
     if (this.drives.length > 0) {
-      html += `<div class="fe-sidebar-section">
-        <div class="fe-sidebar-title">Drives</div>`;
+      const isCollapsed = this.collapsedSections.has('drives');
+      html += `<div class="fe-sidebar-section${isCollapsed ? ' collapsed' : ''}">
+        <div class="fe-sidebar-title" data-section="drives">
+          ${collapseIcon(isCollapsed)}
+          <span class="fe-section-label">Drives</span>
+        </div>
+        <div class="fe-section-content${isCollapsed ? ' hidden' : ''}">`;
 
       for (const drive of this.drives) {
         html += this.renderTreeItem(drive.path, drive.name, 'drive');
       }
-      html += `</div>`;
+      html += `</div></div>`;
     }
 
     this.sidebarList.innerHTML = html;
@@ -527,6 +723,7 @@ class FileExplorerManager {
     const isExpanded = this.expandedFolders.has(folderPath);
     const children = this.expandedFolders.get(folderPath) || [];
     const isActive = this.currentPath === folderPath;
+    const isEmpty = this.emptyFolders.has(folderPath);
 
     // Color style for custom folders
     const colorStyle = color ? `style="color: ${color}"` : '';
@@ -542,14 +739,19 @@ class FileExplorerManager {
       iconHtml = this.getLocationIcon(iconType);
     }
 
-    let html = `
-      <div class="fe-tree-item" data-path="${this.escapeHtml(folderPath)}">
-        <div class="fe-tree-row${isActive ? ' active' : ''}${isCustom ? ' fe-custom-folder' : ''}" data-path="${this.escapeHtml(folderPath)}">
-          <span class="fe-tree-toggle${isExpanded ? ' expanded' : ''}" data-toggle-path="${this.escapeHtml(folderPath)}">
+    // Toggle button - hidden if folder is known to be empty
+    const toggleHtml = isEmpty
+      ? `<span class="fe-tree-toggle-placeholder"></span>`
+      : `<span class="fe-tree-toggle${isExpanded ? ' expanded' : ''}" data-toggle-path="${this.escapeHtml(folderPath)}">
             <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
               <path d="M9 18l6-6-6-6"/>
             </svg>
-          </span>
+          </span>`;
+
+    let html = `
+      <div class="fe-tree-item" data-path="${this.escapeHtml(folderPath)}">
+        <div class="fe-tree-row${isActive ? ' active' : ''}${isCustom ? ' fe-custom-folder' : ''}" data-path="${this.escapeHtml(folderPath)}">
+          ${toggleHtml}
           <span class="fe-tree-icon" ${colorStyle}>${iconHtml}</span>
           ${colorDot}
           <span class="fe-tree-name">${this.escapeHtml(name)}</span>
@@ -565,12 +767,11 @@ class FileExplorerManager {
         </div>
         <div class="fe-tree-children${!isExpanded ? ' collapsed' : ''}">`;
 
+    // Only show children if expanded and has children
     if (isExpanded && children.length > 0) {
       for (const child of children) {
         html += this.renderTreeItem(child.path, child.name, 'folder');
       }
-    } else if (isExpanded) {
-      html += `<div class="fe-tree-loading">Loading...</div>`;
     }
 
     html += `</div></div>`;
@@ -581,6 +782,18 @@ class FileExplorerManager {
    * Setup sidebar event listeners
    */
   setupSidebarEventListeners() {
+    // Section collapse/expand toggle
+    this.sidebarList.querySelectorAll('.fe-sidebar-title[data-section]').forEach(title => {
+      title.addEventListener('click', (e) => {
+        // Don't toggle if clicking on add folder button
+        if (e.target.closest('.fe-add-folder-btn')) return;
+        const sectionId = title.dataset.section;
+        if (sectionId) {
+          this.toggleSectionCollapse(sectionId);
+        }
+      });
+    });
+
     // Add folder button
     const addFolderBtn = this.sidebarList.querySelector('#fe-add-folder-btn');
     if (addFolderBtn) {
@@ -640,6 +853,11 @@ class FileExplorerManager {
    * Toggle folder expansion in sidebar
    */
   async toggleFolderExpand(folderPath) {
+    // Don't toggle if we already know it's empty
+    if (this.emptyFolders.has(folderPath)) {
+      return;
+    }
+
     if (this.expandedFolders.has(folderPath)) {
       // Collapse
       this.expandedFolders.delete(folderPath);
@@ -647,14 +865,15 @@ class FileExplorerManager {
       // Expand - load children
       try {
         const result = await window.kolboDesktop.fileExplorer.listDirectory(folderPath);
-        if (result.success) {
+        if (result.success && result.folders && result.folders.length > 0) {
           this.expandedFolders.set(folderPath, result.folders);
         } else {
-          this.expandedFolders.set(folderPath, []);
+          // No subfolders - mark as empty and don't expand
+          this.emptyFolders.add(folderPath);
         }
       } catch (error) {
         console.error('[FileExplorer] Failed to load folder children:', error);
-        this.expandedFolders.set(folderPath, []);
+        this.emptyFolders.add(folderPath);
       }
     }
     this.renderSidebar();
@@ -690,6 +909,10 @@ class FileExplorerManager {
       this.files = result.files; // ALL media files from all subfolders
       this.isRecursiveView = true;
       this.isTruncated = result.truncated || false;
+
+      // Save last opened path for next session
+      localStorage.setItem('fe_last_path', this.currentPath);
+      this.lastOpenedPath = this.currentPath;
 
       // Clear selection when navigating
       this.clearSelection();
@@ -910,17 +1133,45 @@ class FileExplorerManager {
   }
 
   /**
+   * Get count of files matching current search filter
+   */
+  getFilteredFileCount() {
+    if (!this.searchQuery) return this.files.length;
+    return this.files.filter(f =>
+      f.name.toLowerCase().includes(this.searchQuery)
+    ).length;
+  }
+
+  /**
    * Render the file list
    */
   renderFileList() {
-    if (this.folders.length === 0 && this.files.length === 0) {
+    // Filter files by search query
+    let filteredFiles = this.files;
+    let filteredFolders = this.folders;
+
+    if (this.searchQuery) {
+      filteredFiles = this.files.filter(f =>
+        f.name.toLowerCase().includes(this.searchQuery)
+      );
+      filteredFolders = this.folders.filter(f =>
+        f.name.toLowerCase().includes(this.searchQuery)
+      );
+    }
+
+    if (filteredFolders.length === 0 && filteredFiles.length === 0) {
+      const message = this.searchQuery
+        ? `No results for "${this.searchQuery}"`
+        : 'This folder contains no video, audio, or image files';
+      const title = this.searchQuery ? 'No matches' : 'No media files';
+
       this.fileListEl.innerHTML = `
         <div class="fe-empty-state">
           <svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
             <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/>
           </svg>
-          <h3>No media files</h3>
-          <p>This folder contains no video, audio, or image files</p>
+          <h3>${title}</h3>
+          <p>${message}</p>
         </div>`;
       return;
     }
@@ -928,12 +1179,12 @@ class FileExplorerManager {
     let html = '';
 
     // Render folders first
-    for (const folder of this.folders) {
+    for (const folder of filteredFolders) {
       html += this.renderFolderItem(folder);
     }
 
     // Render files
-    for (const file of this.files) {
+    for (const file of filteredFiles) {
       html += this.renderFileItem(file);
     }
 
@@ -1135,6 +1386,9 @@ class FileExplorerManager {
     // Stop any previous playback
     this.stopPreviewPlayback();
 
+    // Cleanup Web Audio from previous file
+    this.cleanupAudioContext();
+
     // Clear cached trim from previous file
     this.cachedTrimmedPath = null;
     this.isTrimmedCacheReady = false;
@@ -1165,6 +1419,9 @@ class FileExplorerManager {
     const waveformContainer = this.container.querySelector('#fe-waveform-container');
     const waveformBars = this.container.querySelector('#fe-waveform-bars');
 
+    // Audio controls element
+    const audioControls = this.container.querySelector('#fe-audio-controls');
+
     if (file.type === 'video') {
       playerEl.innerHTML = `<video id="fe-media-el" src="${fileUrl}" preload="metadata"></video>`;
       this.previewMediaEl = playerEl.querySelector('#fe-media-el');
@@ -1173,6 +1430,8 @@ class FileExplorerManager {
       this.previewTimeline.style.display = '';
       // Hide waveform for video (thumbnails will show instead)
       if (waveformContainer) waveformContainer.classList.add('hidden');
+      // Hide audio controls for video
+      if (audioControls) audioControls.classList.add('hidden');
     } else if (file.type === 'audio') {
       // Audio: show icon in preview, waveform spans timeline section
       playerEl.innerHTML = `
@@ -1192,7 +1451,18 @@ class FileExplorerManager {
       // Show waveform in timeline track (full width)
       if (waveformContainer && waveformBars) {
         waveformContainer.classList.remove('hidden');
-        waveformBars.innerHTML = this.generateWaveformBars(100); // More bars for wider display
+        // Analyze actual audio and generate real waveform
+        this.analyzeAudioWaveform(filePath, 100);
+      }
+
+      // Show audio controls (speed & volume)
+      if (audioControls) {
+        audioControls.classList.remove('hidden');
+        // Reset sliders to default values
+        this.container.querySelector('#fe-speed-slider').value = 1;
+        this.container.querySelector('#fe-speed-value').textContent = '1.0x';
+        this.container.querySelector('#fe-volume-slider').value = 1;
+        this.container.querySelector('#fe-volume-value').textContent = '100%';
       }
     } else if (file.type === 'image') {
       playerEl.innerHTML = `<img src="${fileUrl}" alt="${this.escapeHtml(file.name)}">`;
@@ -1202,16 +1472,18 @@ class FileExplorerManager {
       this.previewDuration = 0;
       this.previewInPoint = 0;
       this.previewOutPoint = 0;
-      // Hide waveform and thumbnails for images
+      // Hide waveform, thumbnails, and audio controls for images
       if (waveformContainer) waveformContainer.classList.add('hidden');
+      if (audioControls) audioControls.classList.add('hidden');
       const thumbnailsContainer = this.container.querySelector('#fe-thumbnails-container');
       if (thumbnailsContainer) thumbnailsContainer.classList.add('hidden');
     } else {
       playerEl.innerHTML = `<div class="fe-preview-icon-placeholder">${this.getFileTypeIcon(file.type)}</div>`;
       this.previewMediaEl = null;
       this.previewTimeline.style.display = 'none';
-      // Hide waveform and thumbnails for other types
+      // Hide waveform, thumbnails, and audio controls for other types
       if (waveformContainer) waveformContainer.classList.add('hidden');
+      if (audioControls) audioControls.classList.add('hidden');
       const thumbnailsContainer = this.container.querySelector('#fe-thumbnails-container');
       if (thumbnailsContainer) thumbnailsContainer.classList.add('hidden');
     }
@@ -1221,21 +1493,47 @@ class FileExplorerManager {
   }
 
   /**
-   * Generate waveform bar elements with realistic wave pattern
+   * Generate placeholder waveform bars (shown while analyzing)
    */
-  generateWaveformBars(count) {
+  generatePlaceholderWaveformBars(count) {
     let html = '';
     for (let i = 0; i < count; i++) {
-      // Create a more natural waveform pattern using sine waves with noise
-      const position = i / count;
-      const wave1 = Math.sin(position * Math.PI * 4) * 0.3;
-      const wave2 = Math.sin(position * Math.PI * 8 + 0.5) * 0.2;
-      const noise = (Math.random() - 0.5) * 0.3;
-      const baseHeight = 0.4;
-      const height = Math.max(15, Math.min(95, (baseHeight + wave1 + wave2 + noise) * 100));
-      html += `<div class="fe-waveform-bar" style="height: ${height}%"></div>`;
+      html += `<div class="fe-waveform-bar" style="height: 20%"></div>`;
     }
     return html;
+  }
+
+  /**
+   * Analyze audio file and generate real waveform using FFmpeg (via main process)
+   */
+  async analyzeAudioWaveform(filePath, barCount = 100) {
+    const waveformBars = this.container.querySelector('#fe-waveform-bars');
+    if (!waveformBars) return;
+
+    // Show placeholder while analyzing
+    waveformBars.innerHTML = this.generatePlaceholderWaveformBars(barCount);
+
+    try {
+      // Use IPC to analyze waveform in main process (safer, uses FFmpeg)
+      const result = await window.kolboDesktop.fileExplorer.analyzeWaveform(filePath, barCount);
+
+      if (result.success && result.peaks) {
+        // Generate bar HTML with real heights
+        let html = '';
+        for (let i = 0; i < result.peaks.length; i++) {
+          // Scale to 15-95% height range
+          const height = Math.max(15, Math.min(95, result.peaks[i] * 80 + 15));
+          html += `<div class="fe-waveform-bar" style="height: ${height}%"></div>`;
+        }
+        waveformBars.innerHTML = html;
+        console.log('[FileBridge] Waveform analysis complete');
+      } else {
+        console.warn('[FileBridge] Waveform analysis returned no peaks');
+      }
+    } catch (err) {
+      console.error('[FileBridge] Waveform analysis failed:', err);
+      // Keep placeholder on error
+    }
   }
 
   /**
@@ -1248,6 +1546,7 @@ class FileExplorerManager {
       this.previewDuration = this.previewMediaEl.duration || 0;
       this.previewInPoint = 0;
       this.previewOutPoint = this.previewDuration;
+      this.hasSelection = false; // No selection by default
       this.updatePreviewTimeDisplay();
       this.updatePreviewTimeline();
       this.updateWaveformSelection();
@@ -1256,12 +1555,15 @@ class FileExplorerManager {
       if (this.previewFile?.type === 'video') {
         this.generateVideoThumbnails();
       }
+
+      // Auto-play when file is loaded
+      this.playPreview();
     });
 
     this.previewMediaEl.addEventListener('timeupdate', () => {
       this.updatePreviewProgress();
-      // Loop within in/out region
-      if (this.previewMediaEl.currentTime >= this.previewOutPoint) {
+      // Only loop within in/out region if user has made a selection
+      if (this.hasSelection && this.previewMediaEl.currentTime >= this.previewOutPoint) {
         this.previewMediaEl.currentTime = this.previewInPoint;
         if (!this.isPreviewPlaying) {
           this.previewMediaEl.pause();
@@ -1476,6 +1778,21 @@ class FileExplorerManager {
   }
 
   /**
+   * Start preview playback (for auto-play on file load)
+   */
+  playPreview() {
+    if (!this.previewMediaEl) return;
+
+    this.previewMediaEl.currentTime = 0;
+    this.previewMediaEl.play().catch(err => {
+      // Auto-play may be blocked by browser, ignore silently
+      console.log('[FileBridge] Auto-play blocked:', err.message);
+    });
+    this.isPreviewPlaying = true;
+    this.updatePlayButton();
+  }
+
+  /**
    * Stop preview playback
    */
   stopPreviewPlayback() {
@@ -1487,6 +1804,73 @@ class FileExplorerManager {
       cancelAnimationFrame(this.previewAnimationFrame);
     }
     this.updatePlayButton();
+  }
+
+  /**
+   * Set preview volume gain using Web Audio API
+   * Supports values > 1.0 for amplification above 100%
+   * @param {number} volume - Gain value (0.0 to 4.0)
+   */
+  setPreviewGain(volume) {
+    if (!this.previewMediaEl) return;
+    this.currentGain = volume;
+
+    // If Web Audio was never used, and volume <= 1.0, use native (efficient)
+    if (volume <= 1.0 && !this.mediaSource) {
+      this.previewMediaEl.volume = volume;
+      return;
+    }
+
+    // Once Web Audio is connected, always route through it
+    // (can't go back to native without recreating the element)
+
+    // Create AudioContext if not exists
+    if (!this.audioContext) {
+      this.audioContext = new (window.AudioContext || window.webkitAudioContext)();
+    }
+
+    // Resume context if suspended
+    if (this.audioContext.state === 'suspended') {
+      this.audioContext.resume();
+    }
+
+    // Create GainNode if not exists
+    if (!this.gainNode) {
+      this.gainNode = this.audioContext.createGain();
+      this.gainNode.connect(this.audioContext.destination);
+    }
+
+    // Connect media element if not already connected
+    if (!this.mediaSource) {
+      try {
+        this.mediaSource = this.audioContext.createMediaElementSource(this.previewMediaEl);
+        this.mediaSource.connect(this.gainNode);
+        // Set native volume to max since Web Audio handles gain
+        this.previewMediaEl.volume = 1.0;
+      } catch (e) {
+        console.warn('[FileExplorer] Could not connect media to AudioContext:', e.message);
+        // Fallback to native volume
+        this.previewMediaEl.volume = Math.min(1.0, volume);
+        return;
+      }
+    }
+
+    // Set the gain value (works for 0-4 range)
+    this.gainNode.gain.value = volume;
+  }
+
+  /**
+   * Cleanup Web Audio API resources when switching files
+   */
+  cleanupAudioContext() {
+    if (this.mediaSource) {
+      try {
+        this.mediaSource.disconnect();
+      } catch (e) { /* ignore */ }
+      this.mediaSource = null;
+    }
+    // Don't close the context - reuse it for next file
+    this.currentGain = 1.0;
   }
 
   /**
@@ -1506,6 +1890,11 @@ class FileExplorerManager {
    */
   setPreviewInPoint() {
     if (!this.previewMediaEl) return;
+
+    // Stop playback when setting in/out points
+    this.stopPreviewPlayback();
+
+    this.hasSelection = true;
     this.previewInPoint = this.previewMediaEl.currentTime;
     if (this.previewInPoint >= this.previewOutPoint) {
       this.previewOutPoint = this.previewDuration;
@@ -1526,6 +1915,11 @@ class FileExplorerManager {
    */
   setPreviewOutPoint() {
     if (!this.previewMediaEl) return;
+
+    // Stop playback when setting in/out points
+    this.stopPreviewPlayback();
+
+    this.hasSelection = true;
     this.previewOutPoint = this.previewMediaEl.currentTime;
     if (this.previewOutPoint <= this.previewInPoint) {
       this.previewInPoint = 0;
@@ -1580,17 +1974,44 @@ class FileExplorerManager {
     const inPercent = (this.previewInPoint / this.previewDuration) * 100;
     const outPercent = (this.previewOutPoint / this.previewDuration) * 100;
 
-    // Update selection area
+    // Update selection area - only show if user has made a selection
     if (this.previewSelection) {
-      this.previewSelection.style.left = `${inPercent}%`;
-      this.previewSelection.style.width = `${outPercent - inPercent}%`;
+      if (this.hasSelection) {
+        this.previewSelection.style.display = 'block';
+        this.previewSelection.style.left = `${inPercent}%`;
+        this.previewSelection.style.width = `${outPercent - inPercent}%`;
+      } else {
+        this.previewSelection.style.display = 'none';
+      }
     }
 
-    // Update handles - use left percentage, CSS handles centering with transform
+    // Update handles - only show if user has made a selection
     const handleIn = this.container.querySelector('#fe-handle-in');
     const handleOut = this.container.querySelector('#fe-handle-out');
-    if (handleIn) handleIn.style.left = `${inPercent}%`;
-    if (handleOut) handleOut.style.left = `${outPercent}%`;
+    if (handleIn) {
+      handleIn.style.display = this.hasSelection ? 'flex' : 'none';
+      handleIn.style.left = `${inPercent}%`;
+    }
+    if (handleOut) {
+      handleOut.style.display = this.hasSelection ? 'flex' : 'none';
+      handleOut.style.left = `${outPercent}%`;
+    }
+
+    // Update video thumbnail dim overlays
+    const dimLeft = this.container.querySelector('#fe-dim-left');
+    const dimRight = this.container.querySelector('#fe-dim-right');
+    if (dimLeft && dimRight) {
+      if (this.hasSelection) {
+        dimLeft.style.display = 'block';
+        dimLeft.style.width = `${inPercent}%`;
+        dimRight.style.display = 'block';
+        dimRight.style.left = `${outPercent}%`;
+        dimRight.style.width = `${100 - outPercent}%`;
+      } else {
+        dimLeft.style.display = 'none';
+        dimRight.style.display = 'none';
+      }
+    }
   }
 
   /**
@@ -1681,27 +2102,122 @@ class FileExplorerManager {
 
       let isSelectionDragging = false;
 
-      selectionEl.addEventListener('mousedown', (e) => {
+      selectionEl.addEventListener('mousedown', async (e) => {
         e.stopPropagation(); // Prevent timeline from handling this
         e.preventDefault();
 
         if (!this.previewFile || isSelectionDragging) return;
 
+        // Stop playback when starting drag
+        this.stopPreviewPlayback();
+
         isSelectionDragging = true;
-        console.log('[FileBridge] Starting drag from selection area');
 
         // Check if we have a trimmed selection
         const isFullDuration = this.previewInPoint <= 0.1 &&
                                this.previewOutPoint >= (this.previewDuration - 0.1);
 
+        // Need to trim if: has selection AND not full duration
+        const needsTrim = this.hasSelection && !isFullDuration;
+
+        console.log('[FileBridge] Starting drag from selection area', {
+          hasSelection: this.hasSelection,
+          isFullDuration,
+          needsTrim,
+          fileType: this.previewFile.type,
+          inPoint: this.previewInPoint,
+          outPoint: this.previewOutPoint,
+          duration: this.previewDuration
+        });
+
         let fileToDrag = this.previewFile.path;
 
-        // If trimmed and cache is ready, use the cached file
-        if (!isFullDuration && this.isTrimmedCacheReady && this.cachedTrimmedPath) {
-          fileToDrag = this.cachedTrimmedPath;
-          console.log('[FileBridge] Using cached trimmed file:', fileToDrag);
-        } else if (!isFullDuration && !this.isTrimmedCacheReady) {
-          console.log('[FileBridge] Trim cache not ready, dragging original file');
+        if (needsTrim) {
+          // Need trimmed file
+          if (this.isTrimmedCacheReady && this.cachedTrimmedPath) {
+            // Audio: cache is ready
+            fileToDrag = this.cachedTrimmedPath;
+            console.log('[FileBridge] Using cached trimmed file:', fileToDrag);
+          } else if (this.previewFile.type === 'video') {
+            // Check if video is too long for trimmed export (> 1 minute)
+            const MAX_TRIM_VIDEO_DURATION = 60; // 1 minute in seconds
+
+            if (this.previewDuration > MAX_TRIM_VIDEO_DURATION) {
+              // Video too long - show dialog and cancel drag
+              isSelectionDragging = false;
+
+              await window.kolboDesktop.dialog.showMessage({
+                type: 'info',
+                title: 'Video Too Long for Trimmed Export',
+                message: 'Trimmed drag-and-drop is only available for videos under 1 minute.',
+                detail: 'For longer videos, exporting would take too long.\n\nYou can:\n' +
+                        '• Use Quick Tools → Video Trimmer for precise exports\n' +
+                        '• Double-click the timeline to clear selection and drag the full video',
+                buttons: ['OK']
+              });
+
+              return; // Don't proceed with drag
+            }
+
+            // Video is short enough - proceed with export
+            console.log('[FileBridge] Exporting video trim on-demand...');
+            selectionEl.classList.add('exporting');
+
+            // Show loading overlay
+            const loadingOverlay = this.container.querySelector('#fe-trim-loading');
+            if (loadingOverlay) {
+              loadingOverlay.classList.add('visible');
+            }
+
+            try {
+              const result = await window.kolboDesktop.ffmpeg.exportTrimmed({
+                inputPath: this.previewFile.path,
+                inPoint: this.previewInPoint,
+                outPoint: this.previewOutPoint
+              });
+
+              console.log('[FileBridge] FFmpeg export result:', result);
+
+              if (result.success && result.outputPath) {
+                fileToDrag = result.outputPath;
+                console.log('[FileBridge] Video trim ready:', fileToDrag);
+              } else {
+                console.error('[FileBridge] Video trim failed:', result.error);
+              }
+            } catch (err) {
+              console.error('[FileBridge] Video trim exception:', err);
+            }
+
+            // Hide loading overlay
+            if (loadingOverlay) {
+              loadingOverlay.classList.remove('visible');
+            }
+            selectionEl.classList.remove('exporting');
+          } else if (this.previewFile.type === 'audio' && !this.isTrimmedCacheReady) {
+            // Audio cache not ready yet - export on demand with effects
+            const effects = this.getAudioEffectSettings();
+            console.log('[FileBridge] Audio cache not ready, exporting on-demand...', effects);
+            selectionEl.classList.add('exporting');
+
+            try {
+              const result = await window.kolboDesktop.ffmpeg.exportTrimmed({
+                inputPath: this.previewFile.path,
+                inPoint: this.previewInPoint,
+                outPoint: this.previewOutPoint,
+                speed: effects.speed,
+                volume: effects.volume
+              });
+
+              if (result.success && result.outputPath) {
+                fileToDrag = result.outputPath;
+                console.log('[FileBridge] Audio trim ready:', fileToDrag);
+              }
+            } catch (err) {
+              console.error('[FileBridge] Audio trim failed:', err);
+            }
+
+            selectionEl.classList.remove('exporting');
+          }
         }
 
         // Start native OS drag using the same mechanism as My Media panel
@@ -1775,6 +2291,9 @@ class FileExplorerManager {
             hasMoved = true;
             isJustSeeking = false;
 
+            // User is creating a selection
+            this.hasSelection = true;
+
             // Set in/out based on drag direction
             const inTime = Math.min(dragStartTime, time);
             const outTime = Math.max(dragStartTime, time);
@@ -1830,15 +2349,18 @@ class FileExplorerManager {
       }
     });
 
-    // Double-click to reset in/out
+    // Double-click to clear selection
     track.addEventListener('dblclick', () => {
       if (!this.previewDuration) return;
+      this.hasSelection = false;
       this.previewInPoint = 0;
       this.previewOutPoint = this.previewDuration;
       this.updatePreviewTimeDisplay();
       this.updatePreviewTimeline();
       this.updateWaveformSelection();
-      this.scheduleTrimExport();
+      // Clear cached trim since no selection
+      this.cachedTrimmedPath = null;
+      this.isTrimmedCacheReady = false;
     });
   }
 
@@ -1888,6 +2410,9 @@ class FileExplorerManager {
         e.preventDefault();
         return;
       }
+
+      // Stop playback when starting drag
+      this.stopPreviewPlayback();
 
       e.stopPropagation();
       console.log('[FileBridge] Dragstart triggered');
@@ -1969,6 +2494,7 @@ class FileExplorerManager {
 
   /**
    * Pre-export trimmed segment in background (called when in/out points change)
+   * Note: Only pre-exports audio files. Video files are too large for on-the-fly export.
    */
   scheduleTrimExport() {
     // Clear any pending export
@@ -1989,10 +2515,46 @@ class FileExplorerManager {
       return; // No trim needed
     }
 
-    // Debounce: wait 150ms after last change before exporting (fast enough for responsive UX)
+    // Skip pre-export for video files (too heavy) - will export on-demand when dragging
+    if (this.previewFile.type === 'video') {
+      return;
+    }
+
+    // Debounce: wait 500ms after last change before exporting
     this._exportDebounceTimer = setTimeout(() => {
       this.exportTrimmedSegment();
     }, 500);
+  }
+
+  /**
+   * Invalidate trim cache (when effects or in/out change)
+   */
+  invalidateTrimCache() {
+    this.cachedTrimmedPath = null;
+    this.isTrimmedCacheReady = false;
+    // Schedule new export with debounce
+    this.scheduleTrimExport();
+  }
+
+  /**
+   * Get current audio effect settings (speed & volume)
+   */
+  getAudioEffectSettings() {
+    const speedSlider = this.container.querySelector('#fe-speed-slider');
+    const volumeSlider = this.container.querySelector('#fe-volume-slider');
+
+    return {
+      speed: speedSlider ? parseFloat(speedSlider.value) : 1.0,
+      volume: volumeSlider ? parseFloat(volumeSlider.value) : 1.0
+    };
+  }
+
+  /**
+   * Check if audio effects are modified from defaults
+   */
+  hasAudioEffects() {
+    const { speed, volume } = this.getAudioEffectSettings();
+    return Math.abs(speed - 1.0) > 0.01 || Math.abs(volume - 1.0) > 0.01;
   }
 
   /**
@@ -2003,18 +2565,26 @@ class FileExplorerManager {
 
     const isFullDuration = this.previewInPoint <= 0.1 &&
                            this.previewOutPoint >= (this.previewDuration - 0.1);
-    if (isFullDuration) return;
+
+    // Check if we need effects (speed/volume changes)
+    const hasEffects = this.previewFile.type === 'audio' && this.hasAudioEffects();
+
+    // Skip if full duration AND no effects
+    if (isFullDuration && !hasEffects) return;
 
     this.isExportingTrim = true;
     this.updateDragOverlayStatus();
 
-    console.log(`[FileBridge] Pre-exporting: ${this.formatDuration(this.previewInPoint)} - ${this.formatDuration(this.previewOutPoint)}`);
+    const effects = this.getAudioEffectSettings();
+    console.log(`[FileBridge] Pre-exporting: ${this.formatDuration(this.previewInPoint)} - ${this.formatDuration(this.previewOutPoint)}`, effects);
 
     try {
       const result = await window.kolboDesktop.ffmpeg.exportTrimmed({
         inputPath: this.previewFile.path,
         inPoint: this.previewInPoint,
-        outPoint: this.previewOutPoint
+        outPoint: this.previewOutPoint,
+        speed: effects.speed,
+        volume: effects.volume
       });
 
       if (result.success && result.outputPath) {
@@ -2040,6 +2610,13 @@ class FileExplorerManager {
     if (!waveformBars) return;
 
     const bars = waveformBars.querySelectorAll('.fe-waveform-bar');
+
+    // If no selection, all bars should be bright (no dimming)
+    if (!this.hasSelection) {
+      bars.forEach(bar => bar.classList.remove('outside-selection'));
+      return;
+    }
+
     const inPercent = (this.previewInPoint / this.previewDuration) * 100;
     const outPercent = (this.previewOutPoint / this.previewDuration) * 100;
 
@@ -2076,6 +2653,7 @@ class FileExplorerManager {
    */
   nudgeInPoint(delta) {
     if (!this.previewDuration) return;
+    this.hasSelection = true;
     const frameTime = 1/30; // ~1 frame at 30fps
     this.previewInPoint = Math.max(0, Math.min(this.previewInPoint + (delta * frameTime * 5), this.previewOutPoint - 0.1));
     this.previewMediaEl.currentTime = this.previewInPoint;
@@ -2087,6 +2665,7 @@ class FileExplorerManager {
 
   nudgeOutPoint(delta) {
     if (!this.previewDuration) return;
+    this.hasSelection = true;
     const frameTime = 1/30;
     this.previewOutPoint = Math.min(this.previewDuration, Math.max(this.previewOutPoint + (delta * frameTime * 5), this.previewInPoint + 0.1));
     this.updatePreviewTimeDisplay();
@@ -2217,6 +2796,9 @@ class FileExplorerManager {
       e.preventDefault();
       return;
     }
+
+    // Stop playback when starting drag
+    this.stopPreviewPlayback();
 
     const filePath = item.dataset.path;
 
@@ -2638,6 +3220,43 @@ class FileExplorerManager {
     } catch (e) {
       console.error('[FileExplorer] Failed to save custom folders:', e);
     }
+  }
+
+  /**
+   * Load collapsed sidebar sections from localStorage
+   */
+  loadCollapsedSections() {
+    try {
+      const saved = localStorage.getItem('fe_collapsed_sections');
+      return saved ? new Set(JSON.parse(saved)) : new Set();
+    } catch (e) {
+      console.error('[FileExplorer] Failed to load collapsed sections:', e);
+      return new Set();
+    }
+  }
+
+  /**
+   * Save collapsed sidebar sections to localStorage
+   */
+  saveCollapsedSections() {
+    try {
+      localStorage.setItem('fe_collapsed_sections', JSON.stringify([...this.collapsedSections]));
+    } catch (e) {
+      console.error('[FileExplorer] Failed to save collapsed sections:', e);
+    }
+  }
+
+  /**
+   * Toggle sidebar section collapse state
+   */
+  toggleSectionCollapse(sectionId) {
+    if (this.collapsedSections.has(sectionId)) {
+      this.collapsedSections.delete(sectionId);
+    } else {
+      this.collapsedSections.add(sectionId);
+    }
+    this.saveCollapsedSections();
+    this.renderSidebar();
   }
 
   /**

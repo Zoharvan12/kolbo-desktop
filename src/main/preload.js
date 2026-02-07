@@ -487,7 +487,17 @@ contextBridge.exposeInMainWorld('kolboDesktop', {
 
     // Get home directory
     getHome: () =>
-      ipcRenderer.invoke('fe:get-home')
+      ipcRenderer.invoke('fe:get-home'),
+
+    // Analyze audio waveform for visualization
+    analyzeWaveform: (filePath, barCount = 100) =>
+      ipcRenderer.invoke('fe:analyze-waveform', filePath, barCount)
+  },
+
+  // Dialog utilities
+  dialog: {
+    showMessage: (options) =>
+      ipcRenderer.invoke('dialog:show-message', options)
   }
 });
 

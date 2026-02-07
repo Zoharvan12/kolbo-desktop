@@ -1,6 +1,7 @@
 // Kolbo Studio - FFmpeg Conversion Handler
 // Handles all media file conversions with hardware acceleration
 
+const { app } = require('electron');
 const ffmpeg = require('fluent-ffmpeg');
 let ffmpegPath = require('@ffmpeg-installer/ffmpeg').path;
 const path = require('path');
@@ -92,6 +93,46 @@ class FFmpegHandler {
     } catch (error) {
       console.error('[FFmpeg Handler] GPU detection failed:', error);
       this.gpuInfo = this.gpuDetector.getFallbackResult();
+    }
+
+    // Cleanup old trim cache files on startup
+    this.cleanupTrimCache();
+  }
+
+  /**
+   * Clean up old files in TrimCache folder
+   * Trim files are temporary and can be deleted after 1 hour
+   */
+  cleanupTrimCache() {
+    try {
+      const trimCachePath = path.join(app.getPath('userData'), 'TrimCache');
+      if (!fs.existsSync(trimCachePath)) return;
+
+      const files = fs.readdirSync(trimCachePath);
+      const now = Date.now();
+      const maxAge = 60 * 60 * 1000; // 1 hour
+      let deletedCount = 0;
+
+      for (const file of files) {
+        try {
+          const filePath = path.join(trimCachePath, file);
+          const stats = fs.statSync(filePath);
+          const age = now - stats.mtimeMs;
+
+          if (age > maxAge) {
+            fs.unlinkSync(filePath);
+            deletedCount++;
+          }
+        } catch (e) {
+          // Ignore errors for individual files
+        }
+      }
+
+      if (deletedCount > 0) {
+        console.log(`[FFmpeg Handler] Cleaned up ${deletedCount} old trim cache files`);
+      }
+    } catch (error) {
+      console.error('[FFmpeg Handler] TrimCache cleanup error:', error.message);
     }
   }
 
@@ -913,12 +954,13 @@ class FFmpegHandler {
   /**
    * Export a trimmed segment of a media file
    * Used for drag-and-drop with in/out points
+   * For video: Re-encodes for frame-accurate cuts
+   * For audio: Uses stream copy (fast, keyframes are frequent)
    * @param {Object} job - Job configuration
    * @returns {Promise<string>} Output file path
    */
   async exportTrimmed(job) {
-    const { inputPath, inPoint, outPoint } = job;
-    const os = require('os');
+    const { inputPath, inPoint, outPoint, speed = 1.0, volume = 1.0 } = job;
     const crypto = require('crypto');
 
     // Validate inputs
@@ -930,24 +972,93 @@ class FFmpegHandler {
       throw new Error('Invalid in/out points');
     }
 
-    // Get input file extension
+    // Get input file extension and determine if it's video
     const inputExt = path.extname(inputPath).toLowerCase();
     const inputName = path.basename(inputPath, inputExt);
+    const videoExtensions = ['.mp4', '.mov', '.avi', '.mkv', '.webm', '.m4v', '.wmv', '.flv', '.mpeg', '.mpg'];
+    const isVideo = videoExtensions.includes(inputExt);
 
-    // Create temp output file with same extension for fast copy
+    // Check if we need audio effects
+    const hasSpeedChange = Math.abs(speed - 1.0) > 0.01;
+    const hasVolumeChange = Math.abs(volume - 1.0) > 0.01;
+    const hasAudioEffects = hasSpeedChange || hasVolumeChange;
+
+    // Use dedicated TrimCache folder (separate from MediaCache)
+    const trimCachePath = path.join(app.getPath('userData'), 'TrimCache');
+    if (!fs.existsSync(trimCachePath)) {
+      fs.mkdirSync(trimCachePath, { recursive: true });
+      console.log('[FFmpeg Handler] Created TrimCache folder:', trimCachePath);
+    }
+
+    // Create output file in TrimCache
     const tempId = crypto.randomBytes(6).toString('hex');
-    const outputPath = path.join(os.tmpdir(), `${inputName}_trim_${tempId}${inputExt}`);
+    const outputExt = isVideo ? '.mp4' : inputExt;
+    const outputPath = path.join(trimCachePath, `${inputName}_trim_${tempId}${outputExt}`);
 
     const duration = outPoint - inPoint;
-    console.log(`[FFmpeg Handler] Exporting trimmed: ${inPoint.toFixed(2)}s - ${outPoint.toFixed(2)}s (${duration.toFixed(2)}s)`);
+    const effectsInfo = hasAudioEffects ? ` [speed:${speed.toFixed(1)}x, vol:${Math.round(volume*100)}%]` : '';
+    console.log(`[FFmpeg Handler] Exporting trimmed: ${inPoint.toFixed(2)}s - ${outPoint.toFixed(2)}s (${duration.toFixed(2)}s) [${isVideo ? 'VIDEO - re-encode' : 'AUDIO'}]${effectsInfo}`);
 
     return new Promise((resolve, reject) => {
-      const command = ffmpeg(inputPath)
-        .setStartTime(inPoint)
-        .setDuration(duration)
-        // Use stream copy for speed (no re-encoding)
-        .outputOptions(['-c', 'copy', '-avoid_negative_ts', 'make_zero'])
-        .output(outputPath);
+      let command;
+
+      if (isVideo) {
+        // For video: Re-encode for frame-accurate cuts
+        command = ffmpeg(inputPath)
+          .setStartTime(inPoint)
+          .setDuration(duration)
+          .outputOptions([
+            '-c:v', 'libx264',      // H.264 video codec
+            '-preset', 'ultrafast', // Fastest encoding
+            '-crf', '18',           // High quality (visually lossless)
+            '-c:a', 'aac',          // AAC audio codec
+            '-b:a', '192k',         // Audio bitrate
+            '-avoid_negative_ts', 'make_zero',
+            '-movflags', '+faststart' // Web-optimized MP4
+          ])
+          .output(outputPath);
+      } else if (hasAudioEffects) {
+        // For audio with effects: Need to re-encode with filters
+        // Build audio filter chain
+        const audioFilters = [];
+
+        if (hasSpeedChange) {
+          // atempo filter only supports 0.5 to 2.0, chain multiple for extreme values
+          let tempSpeed = speed;
+          while (tempSpeed > 2.0) {
+            audioFilters.push('atempo=2.0');
+            tempSpeed /= 2.0;
+          }
+          while (tempSpeed < 0.5) {
+            audioFilters.push('atempo=0.5');
+            tempSpeed /= 0.5;
+          }
+          if (Math.abs(tempSpeed - 1.0) > 0.01) {
+            audioFilters.push(`atempo=${tempSpeed.toFixed(4)}`);
+          }
+        }
+
+        if (hasVolumeChange) {
+          audioFilters.push(`volume=${volume.toFixed(2)}`);
+        }
+
+        const filterStr = audioFilters.join(',');
+        console.log(`[FFmpeg Handler] Audio filters: ${filterStr}`);
+
+        command = ffmpeg(inputPath)
+          .setStartTime(inPoint)
+          .setDuration(duration)
+          .audioFilters(filterStr)
+          .outputOptions(['-avoid_negative_ts', 'make_zero'])
+          .output(outputPath);
+      } else {
+        // For audio without effects: Stream copy is fine (keyframes are frequent)
+        command = ffmpeg(inputPath)
+          .setStartTime(inPoint)
+          .setDuration(duration)
+          .outputOptions(['-c', 'copy', '-avoid_negative_ts', 'make_zero'])
+          .output(outputPath);
+      }
 
       command.on('start', (cmd) => {
         console.log('[FFmpeg Handler] Trim command:', cmd);

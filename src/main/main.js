@@ -528,6 +528,23 @@ function setupWindowHandlers() {
     }
   });
 
+  // Show message dialog from renderer
+  ipcMain.handle('dialog:show-message', async (event, options) => {
+    try {
+      const result = await dialog.showMessageBox(mainWindow, {
+        type: options.type || 'info',
+        title: options.title || 'Kolbo Studio',
+        message: options.message || '',
+        detail: options.detail || '',
+        buttons: options.buttons || ['OK']
+      });
+      return { success: true, response: result.response };
+    } catch (error) {
+      console.error('[Main] Error showing dialog:', error);
+      return { success: false, error: error.message };
+    }
+  });
+
   ipcMain.handle('window:create-new', (event, url) => {
     // Create a new window with the specified URL
     const newWindow = new BrowserWindow({
@@ -2823,126 +2840,27 @@ function setupMediaCacheHandlers() {
     }
   }
 
-  // Helper: Create audio icon
-  function createAudioIcon() {
+  // Simple native file drag - just like Windows Explorer
+  ipcMain.on('file:start-drag', (event, filePaths) => {
     const { nativeImage } = require('electron');
     const path = require('path');
 
-    // Try to use a music/audio icon if available, otherwise use default
-    const audioIconPath = path.join(__dirname, '../../assets/audio-icon.png');
-    const fs = require('fs');
-
-    if (fs.existsSync(audioIconPath)) {
-      return audioIconPath;
-    }
-
-    // Fallback to default icon
-    return path.join(__dirname, '../../assets/icon-source.png');
-  }
-
-  // Start native file drag (supports single file or multiple files)
-  ipcMain.on('file:start-drag', async (event, filePaths) => {
-    const path = require('path');
-    const { nativeImage } = require('electron');
-
-    // Convert single path to array for consistent handling
     const paths = Array.isArray(filePaths) ? filePaths : [filePaths];
+    console.log('[Native Drag] Dragging:', paths);
 
-    console.log('[Native Drag] Starting drag for', paths.length, 'file(s):', paths);
+    // Simple icon - just load it once
+    const iconPath = path.join(__dirname, '../../assets/icon-source.png');
+    const icon = nativeImage.createFromPath(iconPath);
 
-    // Validate and retry access for all files before starting drag
-    const validatedPaths = [];
-    const failedPaths = [];
-
-    for (const filePath of paths) {
-      const result = await retryFileAccess(filePath, 3, 50);
-      if (result.success) {
-        validatedPaths.push(filePath);
+    try {
+      if (paths.length === 1) {
+        event.sender.startDrag({ file: paths[0], icon });
       } else {
-        console.error(`[Native Drag] Cannot access file: ${filePath} (${result.error})`);
-        failedPaths.push({ path: filePath, error: result.error });
+        event.sender.startDrag({ files: paths, icon });
       }
-    }
-
-    // If all files failed validation, abort drag
-    if (validatedPaths.length === 0) {
-      console.error('[Native Drag] All files are inaccessible, aborting drag');
-      console.error('[Native Drag] Failed files:', failedPaths);
-
-      // Send error back to renderer
-      event.sender.send('drag:error', {
-        message: 'Cannot access selected files. They may be locked by another application.',
-        failedFiles: failedPaths
-      });
-      return;
-    }
-
-    // If some files failed, warn but continue with accessible files
-    if (failedPaths.length > 0) {
-      console.warn(`[Native Drag] ${failedPaths.length} file(s) inaccessible, continuing with ${validatedPaths.length} accessible file(s)`);
-      console.warn('[Native Drag] Failed files:', failedPaths);
-
-      // Notify renderer about partial failure
-      event.sender.send('drag:warning', {
-        message: `${failedPaths.length} file(s) could not be accessed and will be skipped`,
-        accessibleCount: validatedPaths.length,
-        failedCount: failedPaths.length
-      });
-    }
-
-    // Use validated paths for drag operation
-    const dragPaths = validatedPaths;
-
-    // Use the actual file as icon if it's an image, extract frame for video, or use audio icon
-    let dragIcon;
-    const firstFile = dragPaths[0]; // Use validated path
-    const ext = path.extname(firstFile).toLowerCase();
-
-    if (['.png', '.jpg', '.jpeg', '.gif', '.webp'].includes(ext)) {
-      // Use the actual image file as drag icon
-      try {
-        dragIcon = nativeImage.createFromPath(firstFile);
-        // Resize to reasonable thumbnail size for drag preview
-        dragIcon = dragIcon.resize({ width: 200, height: 200, quality: 'good' });
-        console.log('[Native Drag] Using actual image as drag icon');
-      } catch (err) {
-        console.warn('[Native Drag] Failed to load image icon, using default:', err);
-        dragIcon = path.join(__dirname, '../../assets/icon-source.png');
-      }
-    } else if (['.mp4', '.mov', '.avi', '.webm', '.mkv'].includes(ext)) {
-      // Try to extract video first frame
-      const videoThumb = await extractVideoThumbnail(firstFile);
-      if (videoThumb) {
-        dragIcon = videoThumb;
-        console.log('[Native Drag] Using video first frame as drag icon');
-      } else {
-        // Fallback to default
-        dragIcon = path.join(__dirname, '../../assets/icon-source.png');
-      }
-    } else if (['.mp3', '.wav', '.aac', '.ogg', '.m4a'].includes(ext)) {
-      // Use audio icon
-      dragIcon = createAudioIcon();
-      console.log('[Native Drag] Using audio icon for drag');
-    } else {
-      // For unknown types, use default icon
-      dragIcon = path.join(__dirname, '../../assets/icon-source.png');
-    }
-
-    // Use 'file' for single, 'files' for multiple
-    // Note: According to Electron docs, 'files' array should work for multiple files
-    // but some apps (Premiere) may not accept it properly
-    if (dragPaths.length === 1) {
-      event.sender.startDrag({
-        file: dragPaths[0],
-        icon: dragIcon
-      });
-      console.log('[Native Drag] Single file drag started');
-    } else {
-      event.sender.startDrag({
-        files: dragPaths,
-        icon: dragIcon
-      });
-      console.log(`[Native Drag] Multi-file drag started (${dragPaths.length} files)`);
+      console.log('[Native Drag] Done');
+    } catch (err) {
+      console.error('[Native Drag] Error:', err);
     }
   });
 

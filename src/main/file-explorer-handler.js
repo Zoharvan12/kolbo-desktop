@@ -81,6 +81,11 @@ class FileExplorerHandler {
       return os.homedir();
     });
 
+    // Analyze audio waveform using FFmpeg
+    ipcMain.handle('fe:analyze-waveform', async (event, filePath, barCount = 100) => {
+      return handler.analyzeWaveform(filePath, barCount);
+    });
+
     console.log('[FileExplorerHandler] IPC handlers registered');
     return handler;
   }
@@ -664,6 +669,124 @@ class FileExplorerHandler {
       return den ? Math.round((num / den) * 100) / 100 : null;
     }
     return parseFloat(fpsString);
+  }
+
+  /**
+   * Analyze audio waveform using FFmpeg
+   * Extracts raw PCM samples and calculates peaks for visualization
+   * @param {string} filePath - Path to audio file
+   * @param {number} barCount - Number of bars to generate
+   * @returns {Object} - { success, peaks, error }
+   */
+  async analyzeWaveform(filePath, barCount = 100) {
+    try {
+      if (!fs.existsSync(filePath)) {
+        return { success: false, error: 'File not found' };
+      }
+
+      const ffmpeg = require('fluent-ffmpeg');
+      const { spawn } = require('child_process');
+      const ffmpegPath = this.ffmpegHandler?.ffmpegPath || 'ffmpeg';
+
+      console.log('[FileExplorerHandler] Analyzing waveform for:', filePath);
+
+      return new Promise((resolve) => {
+        // Use FFmpeg to extract raw 8-bit mono PCM samples at low sample rate
+        // This gives us amplitude data we can use for peaks
+        const args = [
+          '-i', filePath,
+          '-ac', '1',           // Mono
+          '-ar', '1000',        // 1000 samples per second (enough for visualization)
+          '-f', 's16le',        // Signed 16-bit little-endian
+          '-acodec', 'pcm_s16le',
+          '-'                   // Output to stdout
+        ];
+
+        const ffmpegProcess = spawn(ffmpegPath, args);
+        const chunks = [];
+
+        ffmpegProcess.stdout.on('data', (chunk) => {
+          chunks.push(chunk);
+        });
+
+        ffmpegProcess.stderr.on('data', (data) => {
+          // FFmpeg outputs info to stderr, we can ignore it
+        });
+
+        ffmpegProcess.on('close', (code) => {
+          if (chunks.length === 0) {
+            console.log('[FileExplorerHandler] No audio data extracted, using fallback');
+            const fallbackPeaks = this.generateFallbackPeaks(barCount);
+            resolve({ success: true, peaks: fallbackPeaks });
+            return;
+          }
+
+          // Combine chunks into a single buffer
+          const buffer = Buffer.concat(chunks);
+          const samples = new Int16Array(buffer.buffer, buffer.byteOffset, buffer.length / 2);
+
+          if (samples.length === 0) {
+            const fallbackPeaks = this.generateFallbackPeaks(barCount);
+            resolve({ success: true, peaks: fallbackPeaks });
+            return;
+          }
+
+          // Calculate peaks for each bar
+          const samplesPerBar = Math.max(1, Math.floor(samples.length / barCount));
+          const peaks = [];
+
+          for (let i = 0; i < barCount; i++) {
+            const start = i * samplesPerBar;
+            const end = Math.min(start + samplesPerBar, samples.length);
+            let maxAmp = 0;
+
+            for (let j = start; j < end; j++) {
+              const amp = Math.abs(samples[j]);
+              if (amp > maxAmp) maxAmp = amp;
+            }
+
+            // Normalize to 0-1 (max int16 is 32767)
+            peaks.push(maxAmp / 32767);
+          }
+
+          // Normalize peaks so the loudest is 1.0
+          const maxPeak = Math.max(...peaks, 0.01);
+          const normalizedPeaks = peaks.map(p => p / maxPeak);
+
+          console.log('[FileExplorerHandler] Waveform analysis complete:', barCount, 'bars from', samples.length, 'samples');
+          resolve({ success: true, peaks: normalizedPeaks });
+        });
+
+        ffmpegProcess.on('error', (err) => {
+          console.error('[FileExplorerHandler] FFmpeg spawn error:', err.message);
+          const fallbackPeaks = this.generateFallbackPeaks(barCount);
+          resolve({ success: true, peaks: fallbackPeaks });
+        });
+
+        // Timeout after 10 seconds
+        setTimeout(() => {
+          ffmpegProcess.kill();
+        }, 10000);
+      });
+    } catch (err) {
+      console.error('[FileExplorerHandler] Waveform analysis failed:', err);
+      return { success: false, error: err.message };
+    }
+  }
+
+  /**
+   * Generate fallback peaks when analysis fails
+   */
+  generateFallbackPeaks(barCount) {
+    const peaks = [];
+    for (let i = 0; i < barCount; i++) {
+      // Create a wave-like pattern
+      const position = i / barCount;
+      const wave = Math.sin(position * Math.PI * 4) * 0.3;
+      const noise = Math.random() * 0.4;
+      peaks.push(0.3 + wave + noise);
+    }
+    return peaks;
   }
 }
 
