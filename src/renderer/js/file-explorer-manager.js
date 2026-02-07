@@ -111,6 +111,9 @@ class FileExplorerManager {
       // Render the UI structure
       this.render();
 
+      // Initialize header spacer width based on saved icon size
+      this.updateHeaderSpacerWidth();
+
       // Load default locations and drives
       await this.loadSidebarData();
 
@@ -265,6 +268,7 @@ class FileExplorerManager {
           <div class="fe-file-panel">
             <!-- Column headers (list view only) -->
             <div class="fe-file-header" id="fe-file-header" style="${this.viewMode === 'grid' ? 'display: none;' : ''}">
+              <div class="fe-col-icon-spacer"></div>
               <div class="fe-file-header-col fe-col-name sorted" data-sort="name">
                 Name
                 <svg class="sort-icon" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -981,6 +985,20 @@ class FileExplorerManager {
     // Update file list class
     this.fileListEl.className = this.fileListEl.className.replace(/fe-icon-size-\d/g, '');
     this.fileListEl.classList.add(`fe-icon-size-${size}`);
+
+    // Update header spacer to match
+    this.updateHeaderSpacerWidth();
+  }
+
+  /**
+   * Update header spacer width to match current icon size
+   */
+  updateHeaderSpacerWidth() {
+    const iconSizes = { 1: 24, 2: 32, 3: 48, 4: 64 };
+    const spacer = this.container.querySelector('.fe-col-icon-spacer');
+    if (spacer) {
+      spacer.style.width = `${iconSizes[this.iconSize] || 32}px`;
+    }
   }
 
   /**

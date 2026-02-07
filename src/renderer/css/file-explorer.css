@@ -428,12 +428,20 @@
   opacity: 1;
 }
 
-.fe-col-name { flex: 1; min-width: 180px; }
+/* Header icon spacer - matches file icon column (JS updates width on icon size change) */
+.fe-col-icon-spacer {
+  width: 32px; /* Default for size-2, JS updates for other sizes */
+  margin-right: 12px;
+  flex-shrink: 0;
+}
+
+/* Header column widths - must match file row columns */
+.fe-col-name { flex: 1; min-width: 200px; }
 .fe-col-folder { width: 140px; }
-.fe-col-type { width: 70px; }
-.fe-col-duration { width: 70px; }
-.fe-col-size { width: 70px; text-align: right; }
-.fe-col-date { width: 100px; }
+.fe-col-type { width: 80px; }
+.fe-col-duration { width: 80px; }
+.fe-col-size { width: 80px; text-align: right; }
+.fe-col-date { width: 120px; }
 
 .fe-file-folder {
   width: 140px;
