@@ -48,10 +48,10 @@ const ERROR_MESSAGES = {
 };
 
 // YouTube-specific options to bypass restrictions
+// Let yt-dlp use its own defaults for player_client (changes frequently)
 const YOUTUBE_EXTRACTOR_ARGS = [
-  '--extractor-args', 'youtube:player_client=android,web',
   '--no-check-certificates',
-  '--user-agent', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+  '--user-agent', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36'
 ];
 
 class YtdlpHandler {
@@ -80,17 +80,17 @@ class YtdlpHandler {
       if (fs.existsSync(binaryPath)) {
         console.log('[yt-dlp Handler] Using existing binary:', binaryPath);
         this.ytdlp = new YTDlpWrap(binaryPath);
+        this.initialized = true;
 
-        // Check if yt-dlp needs update (check once per day)
-        this.checkForUpdate();
+        // Always check for latest version on launch (non-blocking)
+        this.updateToLatest();
       } else {
-        console.log('[yt-dlp Handler] Binary not found, downloading...');
-        await YTDlpWrap.downloadFromGithub(binaryPath);
-        console.log('[yt-dlp Handler] Binary downloaded to:', binaryPath);
+        console.log('[yt-dlp Handler] Binary not found, downloading latest...');
+        await this.downloadLatestBinary(binaryPath);
         this.ytdlp = new YTDlpWrap(binaryPath);
+        this.initialized = true;
       }
 
-      this.initialized = true;
       console.log('[yt-dlp Handler] Initialized successfully');
     } catch (error) {
       console.error('[yt-dlp Handler] Initialization failed:', error);
@@ -99,64 +99,121 @@ class YtdlpHandler {
   }
 
   /**
-   * Check for yt-dlp updates (runs in background, doesn't block)
+   * Get the currently installed yt-dlp version
    */
-  async checkForUpdate() {
+  async getInstalledVersion() {
     try {
-      const lastCheckPath = path.join(app.getPath('userData'), 'ytdlp-last-update-check');
-      const now = Date.now();
-      const oneDay = 24 * 60 * 60 * 1000;
-
-      // Check if we already checked today
-      if (fs.existsSync(lastCheckPath)) {
-        const lastCheck = parseInt(fs.readFileSync(lastCheckPath, 'utf8'), 10);
-        if (now - lastCheck < oneDay) {
-          return; // Already checked today
-        }
-      }
-
-      // Update timestamp
-      fs.writeFileSync(lastCheckPath, now.toString());
-
-      console.log('[yt-dlp Handler] Checking for updates...');
-
-      // Run yt-dlp --update in background
       const binaryPath = this.getBinaryPath();
-      const { spawn } = require('child_process');
+      if (!fs.existsSync(binaryPath)) return null;
 
-      const updateProcess = spawn(binaryPath, ['--update'], {
-        detached: true,
-        stdio: 'ignore'
-      });
-
-      updateProcess.unref();
-      console.log('[yt-dlp Handler] Update check started in background');
+      const { execFileSync } = require('child_process');
+      const version = execFileSync(binaryPath, ['--version'], { timeout: 10000 }).toString().trim();
+      return version;
     } catch (error) {
-      console.warn('[yt-dlp Handler] Failed to check for updates:', error.message);
-      // Non-critical, continue anyway
+      console.warn('[yt-dlp Handler] Could not get installed version:', error.message);
+      return null;
     }
   }
 
   /**
-   * Force update yt-dlp
+   * Get the latest yt-dlp version from GitHub API
+   */
+  async getLatestVersion() {
+    return new Promise((resolve, reject) => {
+      const options = {
+        hostname: 'api.github.com',
+        path: '/repos/yt-dlp/yt-dlp/releases/latest',
+        headers: { 'User-Agent': 'KolboStudio' },
+        timeout: 15000
+      };
+
+      const req = https.get(options, (res) => {
+        let data = '';
+        res.on('data', (chunk) => { data += chunk; });
+        res.on('end', () => {
+          try {
+            const release = JSON.parse(data);
+            resolve(release.tag_name || null);
+          } catch {
+            resolve(null);
+          }
+        });
+      });
+
+      req.on('error', () => resolve(null));
+      req.on('timeout', () => { req.destroy(); resolve(null); });
+    });
+  }
+
+  /**
+   * Update yt-dlp to latest version on every launch (non-blocking).
+   * Compares installed version to GitHub latest — re-downloads if different.
+   */
+  async updateToLatest() {
+    try {
+      const installedVersion = await this.getInstalledVersion();
+      const latestVersion = await this.getLatestVersion();
+
+      console.log(`[yt-dlp Handler] Installed: ${installedVersion}, Latest: ${latestVersion}`);
+
+      if (!latestVersion) {
+        console.log('[yt-dlp Handler] Could not check latest version (offline?), skipping update');
+        return;
+      }
+
+      if (installedVersion === latestVersion) {
+        console.log('[yt-dlp Handler] Already up to date');
+        return;
+      }
+
+      console.log('[yt-dlp Handler] New version available, updating...');
+      const binaryPath = this.getBinaryPath();
+      await this.downloadLatestBinary(binaryPath);
+
+      // Re-initialize with new binary
+      this.ytdlp = new this.YTDlpWrap(binaryPath);
+      console.log('[yt-dlp Handler] Updated to latest version');
+    } catch (error) {
+      console.warn('[yt-dlp Handler] Background update failed (non-critical):', error.message);
+      // Non-critical — the existing binary still works
+    }
+  }
+
+  /**
+   * Download the latest yt-dlp binary from GitHub releases.
+   * Deletes old binary first to avoid stale/locked file issues.
+   */
+  async downloadLatestBinary(binaryPath) {
+    // Remove old binary if it exists
+    try {
+      if (fs.existsSync(binaryPath)) {
+        fs.unlinkSync(binaryPath);
+      }
+    } catch (error) {
+      // On Windows the file might be locked — rename it instead
+      console.warn('[yt-dlp Handler] Could not delete old binary, renaming:', error.message);
+      const oldPath = binaryPath + '.old';
+      try { fs.unlinkSync(oldPath); } catch {}
+      fs.renameSync(binaryPath, oldPath);
+    }
+
+    await this.YTDlpWrap.downloadFromGithub(binaryPath);
+    console.log('[yt-dlp Handler] Downloaded latest binary to:', binaryPath);
+  }
+
+  /**
+   * Force update yt-dlp (called after extraction failures)
    */
   async forceUpdate() {
     try {
       console.log('[yt-dlp Handler] Forcing yt-dlp update...');
       const binaryPath = this.getBinaryPath();
-
-      // Delete existing binary and re-download
-      if (fs.existsSync(binaryPath)) {
-        fs.unlinkSync(binaryPath);
-      }
-
-      await this.YTDlpWrap.downloadFromGithub(binaryPath);
+      await this.downloadLatestBinary(binaryPath);
       this.ytdlp = new this.YTDlpWrap(binaryPath);
-
-      console.log('[yt-dlp Handler] yt-dlp updated successfully');
+      console.log('[yt-dlp Handler] yt-dlp force-updated successfully');
       return true;
     } catch (error) {
-      console.error('[yt-dlp Handler] Failed to update yt-dlp:', error);
+      console.error('[yt-dlp Handler] Failed to force-update yt-dlp:', error);
       return false;
     }
   }
@@ -348,51 +405,51 @@ class YtdlpHandler {
 
   /**
    * Get video info with custom options (for YouTube, etc.)
+   * Uses child_process.execFile directly for reliable stdout/stderr capture.
    */
   async getVideoInfoWithOptions(url, extraOptions = []) {
-    // Ensure yt-dlp is initialized
-    if (!this.initialized || !this.ytdlp) {
-      await this.initialize();
-      if (!this.initialized || !this.ytdlp) {
-        throw new Error('yt-dlp is not available');
-      }
+    const binaryPath = this.getBinaryPath();
+    if (!fs.existsSync(binaryPath)) {
+      throw new Error('yt-dlp binary not found');
     }
 
+    const args = [
+      '--dump-json',
+      '--no-playlist',
+      ...extraOptions,
+      url
+    ];
+
+    console.log('[yt-dlp Handler] Running:', binaryPath, args.join(' '));
+
     return new Promise((resolve, reject) => {
-      const options = [
-        '--dump-json',
-        '--no-playlist',
-        ...extraOptions,
-        url
-      ];
+      const { execFile } = require('child_process');
 
-      let stdout = '';
-      let stderr = '';
+      execFile(binaryPath, args, { maxBuffer: 50 * 1024 * 1024, timeout: 60000 }, (error, stdout, stderr) => {
+        if (stderr) {
+          console.warn('[yt-dlp Handler] stderr:', stderr.substring(0, 500));
+        }
 
-      const process = this.ytdlp.exec(options)
-        .on('stdout', (data) => {
-          stdout += data;
-        })
-        .on('stderr', (data) => {
-          stderr += data;
-        })
-        .on('error', (error) => {
-          console.error('[yt-dlp Handler] getVideoInfo error:', stderr || error.message);
+        if (error) {
+          console.error('[yt-dlp Handler] getVideoInfo error (code ' + error.code + '):', stderr || error.message);
           reject(new Error(stderr || error.message));
-        })
-        .on('close', () => {
-          try {
-            if (stdout.trim()) {
-              const info = JSON.parse(stdout);
-              resolve(info);
-            } else {
-              reject(new Error(stderr || 'No output from yt-dlp'));
-            }
-          } catch (parseError) {
-            console.error('[yt-dlp Handler] JSON parse error:', parseError);
-            reject(new Error(stderr || 'Failed to parse video info'));
+          return;
+        }
+
+        try {
+          if (stdout && stdout.trim()) {
+            const info = JSON.parse(stdout);
+            resolve(info);
+          } else {
+            console.error('[yt-dlp Handler] No stdout. stderr:', stderr);
+            reject(new Error(stderr || 'No output from yt-dlp'));
           }
-        });
+        } catch (parseError) {
+          console.error('[yt-dlp Handler] JSON parse error:', parseError.message);
+          console.error('[yt-dlp Handler] Raw stdout (first 500 chars):', (stdout || '').substring(0, 500));
+          reject(new Error(stderr || 'Failed to parse video info'));
+        }
+      });
     });
   }
 
