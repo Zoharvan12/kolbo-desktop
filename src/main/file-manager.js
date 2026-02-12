@@ -4,6 +4,7 @@
 const { ipcMain, app, dialog } = require('electron');
 const Store = require('electron-store');
 const config = require('../config');
+const APP_UA = `KolboStudio/${app.getVersion()} (Electron)`;
 const fs = require('fs');
 const path = require('path');
 const https = require('https');
@@ -531,7 +532,8 @@ class FileManager {
 
       const response = await fetch(url, {
         headers: {
-          'Authorization': `Bearer ${token}`
+          'Authorization': `Bearer ${token}`,
+          'User-Agent': APP_UA
         }
       });
 
@@ -587,7 +589,8 @@ class FileManager {
 
       const response = await fetch(url, {
         headers: {
-          'Authorization': `Bearer ${token}`
+          'Authorization': `Bearer ${token}`,
+          'User-Agent': APP_UA
         }
       });
 
@@ -668,7 +671,8 @@ class FileManager {
 
       const response = await fetch(`${API_BASE_URL}/project`, {
         headers: {
-          'Authorization': `Bearer ${token}`
+          'Authorization': `Bearer ${token}`,
+          'User-Agent': APP_UA
         }
       });
 

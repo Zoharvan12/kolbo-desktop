@@ -8,6 +8,10 @@ const config = require('../config');
 
 const store = new Store();
 
+// Cloudflare SBFM flags the default Node.js UA ("node") as "definitely automated".
+// A proper UA prevents managed_challenge responses that break login/polling.
+const APP_UA = `KolboStudio/${app.getVersion()} (Electron)`;
+
 class AuthManager {
   static setupHandlers() {
     ipcMain.handle('auth:login', this.handleEmailLogin);
@@ -28,7 +32,7 @@ class AuthManager {
 
       const response = await fetch(`${API_BASE_URL}/auth/login`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', 'User-Agent': APP_UA },
         body: JSON.stringify({ email, password })
       });
 
@@ -87,7 +91,8 @@ class AuthManager {
 
         try {
           const response = await fetch(
-            `${API_BASE_URL}/auth/google/check-auth-code?auth_code=${authCode}`
+            `${API_BASE_URL}/auth/google/check-auth-code?auth_code=${authCode}`,
+            { headers: { 'User-Agent': APP_UA } }
           );
 
           if (response.ok) {
