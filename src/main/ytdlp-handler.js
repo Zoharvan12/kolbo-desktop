@@ -78,7 +78,15 @@ class YtdlpHandler {
       const binaryPath = this.getBinaryPath();
 
       if (fs.existsSync(binaryPath)) {
-        console.log('[yt-dlp Handler] Using existing binary:', binaryPath);
+        console.log('[yt-dlp Handler] Found existing binary:', binaryPath);
+
+        // Validate the binary works (catches Python version issues, corrupted files, etc.)
+        const isValid = await this.validateBinary(binaryPath);
+        if (!isValid) {
+          console.log('[yt-dlp Handler] Existing binary is invalid, re-downloading...');
+          await this.downloadLatestBinary(binaryPath);
+        }
+
         this.ytdlp = new YTDlpWrap(binaryPath);
         this.initialized = true;
 
@@ -95,6 +103,32 @@ class YtdlpHandler {
     } catch (error) {
       console.error('[yt-dlp Handler] Initialization failed:', error);
       this.initialized = false;
+    }
+  }
+
+  /**
+   * Validate that the yt-dlp binary works correctly.
+   * Returns false if the binary has issues (wrong Python version, corrupted, etc.)
+   */
+  async validateBinary(binaryPath) {
+    try {
+      const { execFileSync } = require('child_process');
+      execFileSync(binaryPath, ['--version'], { timeout: 10000 });
+      console.log('[yt-dlp Handler] Binary validation passed');
+      return true;
+    } catch (error) {
+      const errorMsg = error.message || error.toString();
+      console.warn('[yt-dlp Handler] Binary validation failed:', errorMsg);
+
+      // Check for common issues
+      if (errorMsg.includes('unsupported version of Python') ||
+          errorMsg.includes('Python') ||
+          errorMsg.includes('ImportError') ||
+          errorMsg.includes('ModuleNotFoundError')) {
+        console.log('[yt-dlp Handler] Binary requires Python - need standalone version');
+      }
+
+      return false;
     }
   }
 
@@ -180,7 +214,27 @@ class YtdlpHandler {
   }
 
   /**
+   * Get the correct yt-dlp binary filename for the current platform.
+   * - Windows: yt-dlp.exe
+   * - macOS: yt-dlp_macos (standalone binary, no Python required)
+   * - Linux: yt-dlp_linux
+   */
+  getPlatformBinaryName() {
+    switch (process.platform) {
+      case 'win32':
+        return 'yt-dlp.exe';
+      case 'darwin':
+        return 'yt-dlp_macos';  // Standalone binary, no Python required
+      case 'linux':
+        return 'yt-dlp_linux';
+      default:
+        return 'yt-dlp';
+    }
+  }
+
+  /**
    * Download the latest yt-dlp binary from GitHub releases.
+   * Downloads platform-specific standalone binary (no Python required on macOS/Linux).
    * Deletes old binary first to avoid stale/locked file issues.
    */
   async downloadLatestBinary(binaryPath) {
@@ -197,8 +251,78 @@ class YtdlpHandler {
       fs.renameSync(binaryPath, oldPath);
     }
 
-    await this.YTDlpWrap.downloadFromGithub(binaryPath);
+    // Download the correct platform-specific binary
+    const binaryName = this.getPlatformBinaryName();
+    const downloadUrl = `https://github.com/yt-dlp/yt-dlp/releases/latest/download/${binaryName}`;
+
+    console.log(`[yt-dlp Handler] Downloading ${binaryName} from:`, downloadUrl);
+
+    await this.downloadFile(downloadUrl, binaryPath);
+
+    // Make executable on Unix systems
+    if (process.platform !== 'win32') {
+      fs.chmodSync(binaryPath, 0o755);
+    }
+
     console.log('[yt-dlp Handler] Downloaded latest binary to:', binaryPath);
+  }
+
+  /**
+   * Download a file from URL to local path, following redirects.
+   */
+  downloadFile(url, destPath) {
+    return new Promise((resolve, reject) => {
+      const file = fs.createWriteStream(destPath);
+
+      const request = https.get(url, {
+        headers: { 'User-Agent': 'KolboStudio' }
+      }, (response) => {
+        // Handle redirects (GitHub releases redirect to CDN)
+        if (response.statusCode >= 300 && response.statusCode < 400 && response.headers.location) {
+          file.close();
+          fs.unlinkSync(destPath);
+          this.downloadFile(response.headers.location, destPath).then(resolve).catch(reject);
+          return;
+        }
+
+        if (response.statusCode !== 200) {
+          file.close();
+          fs.unlinkSync(destPath);
+          reject(new Error(`Failed to download: HTTP ${response.statusCode}`));
+          return;
+        }
+
+        response.pipe(file);
+
+        file.on('finish', () => {
+          file.close();
+          resolve();
+        });
+
+        file.on('error', (err) => {
+          file.close();
+          fs.unlinkSync(destPath);
+          reject(err);
+        });
+      });
+
+      request.on('error', (err) => {
+        file.close();
+        if (fs.existsSync(destPath)) {
+          fs.unlinkSync(destPath);
+        }
+        reject(err);
+      });
+
+      request.on('timeout', () => {
+        request.destroy();
+        file.close();
+        if (fs.existsSync(destPath)) {
+          fs.unlinkSync(destPath);
+        }
+        reject(new Error('Download timeout'));
+      });
+    });
   }
 
   /**
