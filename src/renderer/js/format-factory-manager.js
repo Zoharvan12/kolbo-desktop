@@ -2037,8 +2037,26 @@ class FormatFactoryManager {
       this.scheduleTableUpdate();
 
     } catch (error) {
-      console.error('[Format Factory] Failed to generate video thumbnail:', error);
-      // Keep showing icon if thumbnail generation fails
+      console.warn('[Format Factory] Browser thumbnail failed, trying FFmpeg fallback:', error.message);
+      // Browser can't decode ProRes and other professional codecs - use FFmpeg
+      try {
+        if (window.kolboDesktop && window.kolboDesktop.quickTools) {
+          const result = await window.kolboDesktop.quickTools.extractFrame({
+            id: `thumb_${job.id}`,
+            filePath: job.filePath,
+            timestamp: 1,
+            outputFormat: 'jpg'
+          });
+          if (result && result.success && result.outputPath) {
+            // Convert local path to file:// URL (handles Windows backslashes)
+            const fileUrl = 'file:///' + result.outputPath.replace(/\\/g, '/');
+            job.thumbnailUrl = fileUrl;
+            this.scheduleTableUpdate();
+          }
+        }
+      } catch (ffmpegError) {
+        console.error('[Format Factory] FFmpeg thumbnail also failed:', ffmpegError);
+      }
     } finally {
       // Cleanup
       this.thumbnailGenerating.delete(job.id);

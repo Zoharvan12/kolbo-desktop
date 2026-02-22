@@ -168,27 +168,28 @@ class FFmpegHandler {
       throw error;
     }
 
-    // If extracting audio, check if source has audio stream
+    // If extracting audio, check if source has a decodable audio stream
+    let audioMetadata = null;
     if (outputType === 'audio') {
       try {
-        const metadata = await this.probeFile(filePath);
-        const hasAudio = metadata.streams.some(s => s.codec_type === 'audio');
+        audioMetadata = await this.probeFile(filePath);
+        const audioStreams = audioMetadata.streams.filter(s => s.codec_type === 'audio');
+        console.log('[FFmpeg Handler] Audio streams found:', audioStreams.map(s => ({
+          codec_name: s.codec_name,
+          codec_tag_string: s.codec_tag_string,
+          sample_rate: s.sample_rate,
+          channels: s.channels
+        })));
 
-        if (!hasAudio) {
+        if (audioStreams.length === 0) {
           const error = new Error('Source file has no audio stream to extract');
-          console.error('[FFmpeg Handler] No audio stream found');
-
           if (this.mainWindow && !this.mainWindow.isDestroyed()) {
-            this.mainWindow.webContents.send('ff:error', {
-              jobId: id,
-              error: error.message
-            });
+            this.mainWindow.webContents.send('ff:error', { jobId: id, error: error.message });
           }
-
           throw error;
         }
       } catch (probeError) {
-        // If it's our intentional "no audio stream" error, re-throw it
+        // If it's our intentional validation error, re-throw it
         if (probeError.message && probeError.message.includes('no audio stream')) {
           throw probeError;
         }
@@ -201,6 +202,18 @@ class FFmpegHandler {
     // Determine output path
     const outputPath = this.getOutputPath(filePath, outputFormat, outputFolder);
     console.log('[FFmpeg Handler] Output path:', outputPath);
+
+    // Probe video files before conversion to get stream info
+    // (must be done before Promise since probe is async)
+    let videoMetadata = null;
+    if (outputType === 'video') {
+      try {
+        videoMetadata = await this.probeFile(filePath);
+        console.log('[FFmpeg Handler] Probed streams:', videoMetadata.streams.map(s => `${s.codec_type}:${s.codec_name}`));
+      } catch (probeError) {
+        console.warn('[FFmpeg Handler] Failed to probe file, continuing without metadata:', probeError.message);
+      }
+    }
 
     return new Promise((resolve, reject) => {
       try {
@@ -216,11 +229,11 @@ class FFmpegHandler {
 
         // Apply conversion settings based on type
         if (outputType === 'video') {
-          this.applyVideoSettings(command, outputFormat, settings);
+          this.applyVideoSettings(command, outputFormat, settings, videoMetadata);
           const ffmpegFormat = FORMAT_MAPPINGS.video[outputFormat] || outputFormat;
           command.format(ffmpegFormat);
         } else if (outputType === 'audio') {
-          this.applyAudioSettings(command, outputFormat, settings);
+          this.applyAudioSettings(command, outputFormat, settings, audioMetadata);
           const ffmpegFormat = FORMAT_MAPPINGS.audio[outputFormat] || outputFormat;
           command.format(ffmpegFormat);
         } else if (outputType === 'image') {
@@ -296,8 +309,30 @@ class FFmpegHandler {
   /**
    * Apply video conversion settings
    */
-  applyVideoSettings(command, outputFormat, settings) {
+  applyVideoSettings(command, outputFormat, settings, metadata = null) {
     const { resolution, bitrate, framerate, codec, maxWidth, maxHeight } = settings;
+
+    // Explicit stream mapping to avoid processing data/timecode streams
+    // Without this, FFmpeg tries to decode ALL streams including metadata tracks
+    // that have no decoder (e.g., "codec none" in ProRes .mov files)
+
+    // Force decoder for streams with unsupported container tags (e.g., Sony XAVC ipcm)
+    // ffprobe can identify the real codec even when FFmpeg's demuxer can't auto-detect from the tag
+    if (metadata) {
+      const audioStream = metadata.streams.find(s => s.codec_type === 'audio');
+      if (audioStream) {
+        const tag = (audioStream.codec_tag_string || '').toLowerCase();
+        const realCodec = (audioStream.codec_name || '').toLowerCase();
+        if (tag === 'ipcm' && realCodec && realCodec !== 'none' && realCodec !== 'unknown') {
+          console.log(`[FFmpeg Handler] ipcm detected in video conversion, forcing audio decoder: ${realCodec}`);
+          command.inputOptions(['-c:a', realCodec]);
+        }
+      }
+    }
+
+    const mappings = ['-map', '0:v:0']; // First video stream only
+    mappings.push('-map', '0:a:0?');     // First audio stream (optional)
+    command.outputOptions(mappings);
 
     // ALWAYS use CPU encoding for maximum compatibility
     // The bundled FFmpeg is too old (2018) and has NVENC compatibility issues
@@ -331,25 +366,36 @@ class FFmpegHandler {
     }
 
     // Apply resolution based on preset
+    // H.264 requires even width and height - always pad to ensure divisible by 2
+    const evenPad = "pad=ceil(iw/2)*2:ceil(ih/2)*2";
     if (resolution === 'preset' && maxWidth && maxHeight) {
       // Preset mode: scale to fit within maxWidth x maxHeight while maintaining aspect ratio
-      // Use FFmpeg's scale filter with force_original_aspect_ratio=decrease to prevent upscaling
       console.log(`[FFmpeg Handler] Applying preset resolution: max ${maxWidth}x${maxHeight} (no upscaling)`);
       command.outputOptions([
-        '-vf', `scale='min(${maxWidth},iw)':'min(${maxHeight},ih)':force_original_aspect_ratio=decrease`
+        '-vf', `scale='min(${maxWidth},iw)':'min(${maxHeight},ih)':force_original_aspect_ratio=decrease,${evenPad}`
       ]);
     } else if (resolution && resolution !== 'original' && resolution !== 'preset') {
-      // Legacy mode: direct resolution specification
-      command.size(resolution);
+      // Legacy mode: direct resolution specification + ensure even dimensions
+      const [w, h] = resolution.split('x');
+      command.outputOptions([
+        '-vf', `scale=${w}:${h}:force_original_aspect_ratio=decrease,${evenPad}`
+      ]);
+    } else {
+      // Original resolution - still need to ensure even dimensions for H.264
+      command.outputOptions(['-vf', evenPad]);
     }
-    // If resolution is 'original' or not set, no scaling is applied
 
     // Apply framerate if specified
     if (framerate) {
       command.fps(framerate);
     }
 
-    // Audio codec (copy if possible, otherwise re-encode)
+    // Force compatible pixel format for H.264 output
+    // ProRes and other professional codecs use 10-bit formats (e.g., yuv422p10le)
+    // that H.264 cannot encode - yuv420p is the universal compatible format
+    command.outputOptions(['-pix_fmt', 'yuv420p']);
+
+    // Audio codec for the (optional) audio stream
     command.audioCodec('aac');
     command.audioBitrate('192k');
   }
@@ -357,8 +403,22 @@ class FFmpegHandler {
   /**
    * Apply audio conversion settings
    */
-  applyAudioSettings(command, outputFormat, settings) {
+  applyAudioSettings(command, outputFormat, settings, metadata = null) {
     const { audioBitrate, sampleRate, channels } = settings;
+
+    // Force decoder for streams with unsupported container tags (e.g., Sony XAVC ipcm)
+    // ffprobe can identify the real codec even when FFmpeg's demuxer can't auto-detect from the tag
+    if (metadata) {
+      const audioStream = metadata.streams.find(s => s.codec_type === 'audio');
+      if (audioStream) {
+        const tag = (audioStream.codec_tag_string || '').toLowerCase();
+        const realCodec = (audioStream.codec_name || '').toLowerCase();
+        if (tag === 'ipcm' && realCodec && realCodec !== 'none' && realCodec !== 'unknown') {
+          console.log(`[FFmpeg Handler] ipcm detected, forcing audio decoder: ${realCodec}`);
+          command.inputOptions(['-c:a', realCodec]);
+        }
+      }
+    }
 
     // Remove video stream and explicitly map audio
     command.noVideo();
