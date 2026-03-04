@@ -423,6 +423,16 @@ class FileExplorerManager {
     this.previewProgress = this.container.querySelector('#fe-preview-progress');
     this.previewPlayhead = this.container.querySelector('#fe-preview-playhead');
 
+    // Cached handle/dim elements (used in updatePreviewTimeline on every mousemove)
+    this._handleInEl = this.container.querySelector('#fe-handle-in');
+    this._handleOutEl = this.container.querySelector('#fe-handle-out');
+    this._dimLeftEl = this.container.querySelector('#fe-dim-left');
+    this._dimRightEl = this.container.querySelector('#fe-dim-right');
+
+    // Cached waveform bars (rebuilt after analyzeAudioWaveform generates real bars)
+    this._waveformBarsCache = null;
+    this._lastWaveformPlayedCount = -1;
+
     // Setup event listeners
     this.setupEventListeners();
   }
@@ -1530,6 +1540,8 @@ class FileExplorerManager {
 
     // Show placeholder while analyzing
     waveformBars.innerHTML = this.generatePlaceholderWaveformBars(barCount);
+    this._waveformBarsCache = Array.from(waveformBars.children);
+    this._lastWaveformPlayedCount = -1;
 
     try {
       // Use IPC to analyze waveform in main process (safer, uses FFmpeg)
@@ -1544,6 +1556,9 @@ class FileExplorerManager {
           html += `<div class="fe-waveform-bar" style="height: ${height}%"></div>`;
         }
         waveformBars.innerHTML = html;
+        // Rebuild cache with real bars
+        this._waveformBarsCache = Array.from(waveformBars.children);
+        this._lastWaveformPlayedCount = -1;
         console.log('[FileBridge] Waveform analysis complete');
       } else {
         console.warn('[FileBridge] Waveform analysis returned no peaks');
@@ -1700,7 +1715,7 @@ class FileExplorerManager {
       video.currentTime = Math.min(Math.max(0, time), video.duration - 0.1);
 
       // Timeout fallback in case seeked event doesn't fire
-      setTimeout(resolve, 200);
+      setTimeout(resolve, 100);
     });
   }
 
@@ -2004,8 +2019,8 @@ class FileExplorerManager {
     }
 
     // Update handles - only show if user has made a selection
-    const handleIn = this.container.querySelector('#fe-handle-in');
-    const handleOut = this.container.querySelector('#fe-handle-out');
+    const handleIn = this._handleInEl;
+    const handleOut = this._handleOutEl;
     if (handleIn) {
       handleIn.style.display = this.hasSelection ? 'flex' : 'none';
       handleIn.style.left = `${inPercent}%`;
@@ -2016,8 +2031,8 @@ class FileExplorerManager {
     }
 
     // Update video thumbnail dim overlays
-    const dimLeft = this.container.querySelector('#fe-dim-left');
-    const dimRight = this.container.querySelector('#fe-dim-right');
+    const dimLeft = this._dimLeftEl;
+    const dimRight = this._dimRightEl;
     if (dimLeft && dimRight) {
       if (this.hasSelection) {
         dimLeft.style.display = 'block';
@@ -2049,18 +2064,19 @@ class FileExplorerManager {
     }
 
     // Update waveform bars for audio (played state)
-    if (this.previewFile?.type === 'audio') {
-      const waveformBars = this.container.querySelector('#fe-waveform-bars');
-      if (waveformBars) {
-        const bars = waveformBars.querySelectorAll('.fe-waveform-bar');
-        bars.forEach((bar, i) => {
-          const barPercent = (i / bars.length) * 100;
-          if (barPercent <= percent) {
-            bar.classList.add('played');
+    if (this.previewFile?.type === 'audio' && this._waveformBarsCache?.length) {
+      const bars = this._waveformBarsCache;
+      const playedCount = Math.floor(bars.length * (percent / 100));
+      // Skip DOM update if played count hasn't changed
+      if (playedCount !== this._lastWaveformPlayedCount) {
+        this._lastWaveformPlayedCount = playedCount;
+        for (let i = 0; i < bars.length; i++) {
+          if (i < playedCount) {
+            bars[i].classList.add('played');
           } else {
-            bar.classList.remove('played');
+            bars[i].classList.remove('played');
           }
-        });
+        }
       }
     }
   }
@@ -2623,29 +2639,29 @@ class FileExplorerManager {
    */
   updateWaveformSelection() {
     if (this.previewFile?.type !== 'audio' || !this.previewDuration) return;
+    if (!this._waveformBarsCache?.length) return;
 
-    const waveformBars = this.container.querySelector('#fe-waveform-bars');
-    if (!waveformBars) return;
-
-    const bars = waveformBars.querySelectorAll('.fe-waveform-bar');
+    const bars = this._waveformBarsCache;
 
     // If no selection, all bars should be bright (no dimming)
     if (!this.hasSelection) {
-      bars.forEach(bar => bar.classList.remove('outside-selection'));
+      for (let i = 0; i < bars.length; i++) {
+        bars[i].classList.remove('outside-selection');
+      }
       return;
     }
 
     const inPercent = (this.previewInPoint / this.previewDuration) * 100;
     const outPercent = (this.previewOutPoint / this.previewDuration) * 100;
 
-    bars.forEach((bar, i) => {
+    for (let i = 0; i < bars.length; i++) {
       const barPercent = (i / bars.length) * 100;
       if (barPercent < inPercent || barPercent > outPercent) {
-        bar.classList.add('outside-selection');
+        bars[i].classList.add('outside-selection');
       } else {
-        bar.classList.remove('outside-selection');
+        bars[i].classList.remove('outside-selection');
       }
-    });
+    }
   }
 
   /**

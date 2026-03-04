@@ -144,7 +144,8 @@ class VideoTrimmer {
       if (filePath && window.kolboDesktop?.ffmpeg?.probeFile) {
         console.log('[VideoTrimmer] Using FFprobe to get duration...');
         try {
-          const metadata = await window.kolboDesktop.ffmpeg.probeFile(filePath);
+          const result = await window.kolboDesktop.ffmpeg.probeFile(filePath);
+          const metadata = result?.metadata; // IPC wraps result in { success, metadata }
 
           if (metadata?.format?.duration) {
             this.duration = parseFloat(metadata.format.duration);
@@ -182,14 +183,16 @@ class VideoTrimmer {
         await this.loadVideoViaBrowser();
       }
 
-      // Generate thumbnails
-      await this.generateThumbnails();
-
-      // Mark as ready
+      // Mark as ready immediately — don't wait for thumbnails
       this.isLoadingThumbnails = false;
       this.onReady({
         duration: this.duration,
         trimPoints: this.trimPoints
+      });
+
+      // Generate thumbnails in the background (non-blocking)
+      this.generateThumbnails().catch(err => {
+        console.warn('[VideoTrimmer] Background thumbnail generation failed:', err);
       });
 
     } catch (error) {
@@ -333,7 +336,7 @@ class VideoTrimmer {
         // Wait for seek
         await new Promise((resolve) => {
           this.videoElement.onseeked = resolve;
-          setTimeout(resolve, 500); // Timeout fallback
+          setTimeout(resolve, 100); // Timeout fallback
         });
 
         // Draw frame to canvas
@@ -378,8 +381,8 @@ class VideoTrimmer {
       this.currentTime = this.videoElement.currentTime;
       this.updatePlayhead();
 
-      // Loop within trim range
-      if (this.currentTime >= this.trimPoints[1]) {
+      // Keep playback within trim range (handles out-point and dragged in-point past current time)
+      if (this.currentTime >= this.trimPoints[1] || this.currentTime < this.trimPoints[0]) {
         this.videoElement.pause();
         this.videoElement.currentTime = this.trimPoints[0];
       }
@@ -407,8 +410,10 @@ class VideoTrimmer {
 
     // Keyboard shortcuts
     this.keyboardHandler = (e) => {
-      // Only handle if trimmer is active
+      // Only handle if trimmer is active and focus is not on an input element
       if (!this.videoElement) return;
+      const tag = document.activeElement?.tagName;
+      if (tag === 'INPUT' || tag === 'TEXTAREA' || document.activeElement?.isContentEditable) return;
 
       if (e.key === 'i' || e.key === 'I') {
         e.preventDefault();
@@ -441,9 +446,11 @@ class VideoTrimmer {
       const rect = this.timelineElement.getBoundingClientRect();
       const x = e.clientX - rect.left;
       const percent = x / rect.width;
-      const time = percent * this.duration;
+      const rawTime = percent * this.duration;
 
-      // Seek to clicked time
+      // Clamp seek position within in/out range
+      const time = Math.max(this.trimPoints[0], Math.min(rawTime, this.trimPoints[1]));
+
       this.videoElement.currentTime = time;
     });
   }
@@ -558,7 +565,11 @@ class VideoTrimmer {
     if (this.isPlaying) {
       this.videoElement.pause();
     } else {
-      this.videoElement.currentTime = this.trimPoints[0];
+      // Only reset to in-point if current position is outside the trim range
+      const ct = this.videoElement.currentTime;
+      if (ct < this.trimPoints[0] || ct >= this.trimPoints[1]) {
+        this.videoElement.currentTime = this.trimPoints[0];
+      }
       this.videoElement.play();
     }
   }

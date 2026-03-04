@@ -527,25 +527,32 @@ class AudioTrimmer {
     }).join('');
 
     this.waveformBarsContainer.innerHTML = barsHtml;
+
+    // Cache bars array to avoid repeated querySelectorAll on every timeupdate
+    this._cachedBars = Array.from(this.waveformBarsContainer.querySelectorAll('.ff-waveform-bar'));
+    this._lastPlayedCount = -1;
   }
 
   /**
    * Update waveform progress (highlight played portion)
    */
   updateWaveformProgress() {
-    if (!this.waveformBarsContainer || !this.duration) return;
+    if (!this._cachedBars || !this._cachedBars.length || !this.duration) return;
 
     const progress = this.currentTime / this.duration;
-    const bars = this.waveformBarsContainer.querySelectorAll('.ff-waveform-bar');
-    const playedCount = Math.floor(bars.length * progress);
+    const playedCount = Math.floor(this._cachedBars.length * progress);
 
-    bars.forEach((bar, index) => {
-      if (index < playedCount) {
-        bar.classList.add('played');
+    // Skip DOM update if nothing changed
+    if (playedCount === this._lastPlayedCount) return;
+    this._lastPlayedCount = playedCount;
+
+    for (let i = 0; i < this._cachedBars.length; i++) {
+      if (i < playedCount) {
+        this._cachedBars[i].classList.add('played');
       } else {
-        bar.classList.remove('played');
+        this._cachedBars[i].classList.remove('played');
       }
-    });
+    }
   }
 
   /**
@@ -576,8 +583,8 @@ class AudioTrimmer {
       this.updatePlayhead();
       this.updateWaveformProgress();
 
-      // Loop within trim range
-      if (this.currentTime >= this.trimPoints[1]) {
+      // Keep playback within trim range (handles out-point and dragged in-point past current time)
+      if (this.currentTime >= this.trimPoints[1] || this.currentTime < this.trimPoints[0]) {
         this.audioElement.pause();
         this.audioElement.currentTime = this.trimPoints[0];
       }
@@ -605,8 +612,10 @@ class AudioTrimmer {
 
     // Keyboard shortcuts
     this.keyboardHandler = (e) => {
-      // Only handle if trimmer is active
+      // Only handle if trimmer is active and focus is not on an input element
       if (!this.audioElement) return;
+      const tag = document.activeElement?.tagName;
+      if (tag === 'INPUT' || tag === 'TEXTAREA' || document.activeElement?.isContentEditable) return;
 
       if (e.key === 'i' || e.key === 'I') {
         e.preventDefault();
@@ -639,10 +648,22 @@ class AudioTrimmer {
       const rect = this.waveformContainer.getBoundingClientRect();
       const x = e.clientX - rect.left;
       const percent = x / rect.width;
-      const time = percent * this.duration;
+      const rawTime = percent * this.duration;
 
-      // Seek to clicked time
-      this.audioElement.currentTime = time;
+      // Clamp seek position within in/out range
+      const time = Math.max(this.trimPoints[0], Math.min(rawTime, this.trimPoints[1]));
+
+      // Update visual playhead immediately regardless of whether audio is loaded
+      this.currentTime = time;
+      this.updatePlayhead();
+      this.updateWaveformProgress();
+
+      // Seek audio element if loaded, otherwise store for when play is pressed
+      if (this.audioElement.src) {
+        this.audioElement.currentTime = time;
+      } else {
+        this._pendingSeekTime = time;
+      }
     });
   }
 
@@ -760,8 +781,17 @@ class AudioTrimmer {
       if (!this.audioElement.src && this.audioUrl) {
         console.log('[AudioTrimmer] Loading audio for playback...');
         this.audioElement.src = this.audioUrl;
+        // Apply any pending seek from waveform click before audio was loaded
+        if (this._pendingSeekTime != null) {
+          this.audioElement.currentTime = this._pendingSeekTime;
+          this._pendingSeekTime = null;
+        }
       }
-      this.audioElement.currentTime = this.trimPoints[0];
+      // Only reset to in-point if current position is outside the trim range
+      const ct = this.audioElement.currentTime;
+      if (ct < this.trimPoints[0] || ct >= this.trimPoints[1]) {
+        this.audioElement.currentTime = this.trimPoints[0];
+      }
       this.audioElement.play().catch(err => {
         console.error('[AudioTrimmer] Playback failed:', err);
       });

@@ -48,7 +48,11 @@ class FileManager {
       return [];
     }
 
-    return fileNames.map(fileName => {
+    // Guard: too many synchronous fs.existsSync calls block the main thread
+    const MAX_BATCH = 500;
+    const batch = fileNames.length > MAX_BATCH ? fileNames.slice(0, MAX_BATCH) : fileNames;
+
+    return batch.map(fileName => {
       const filePath = path.join(CACHE_DIR, fileName);
       const exists = fs.existsSync(filePath);
       return { fileName, cached: exists, filePath };
@@ -504,11 +508,6 @@ class FileManager {
   // Media API proxies (call Kolbo API from main process)
   static async getMedia(event, params) {
     try {
-      // Use favorites endpoint if filtering by favorites
-      if (params.isFavorited || params.category === 'favorites') {
-        return this.getFavorites(event, params);
-      }
-
       const API_BASE_URL = config.apiUrl;
       const token = store.get('token') || store.get('kolbo_access_token') || store.get('kolbo_token');
 
@@ -524,8 +523,10 @@ class FileManager {
       if (params.pageSize) queryParams.set('pageSize', params.pageSize);
       if (params.type && params.type !== 'all') queryParams.set('type', params.type);
       if (params.projectId && params.projectId !== 'all') queryParams.set('projectId', params.projectId);
-      if (params.category && params.category !== 'favorites') queryParams.set('category', params.category);
+      if (params.category) queryParams.set('category', params.category);
       if (params.sort) queryParams.set('sort', params.sort);
+      // Exclude uploaded media from desktop app — show AI-generated only (except uploaded/favorites tabs)
+      if (params.category !== 'uploaded' && params.category !== 'favorites') queryParams.set('sourceType', 'generated');
 
       const url = `${API_BASE_URL}/media/db/all?${queryParams.toString()}`;
       console.log('[FileManager] Fetching media from:', url);

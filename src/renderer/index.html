@@ -354,6 +354,8 @@
           <button class="subcategory-btn" data-subcategory="ai">AI Generated</button>
           <button class="subcategory-btn" data-subcategory="training-lab">Training Lab</button>
           <button class="subcategory-btn" data-subcategory="edited">Edited</button>
+          <button class="subcategory-btn" data-subcategory="uploaded">Uploaded</button>
+          <button class="subcategory-btn" data-subcategory="favorites">Favorites</button>
         </div>
         <div id="video-subcategories" class="subcategory-group hidden">
           <button class="subcategory-btn active" data-subcategory="all">All</button>
@@ -361,12 +363,16 @@
           <button class="subcategory-btn" data-subcategory="image-to-video">Image to Video</button>
           <button class="subcategory-btn" data-subcategory="lipsync-videos">Lipsync</button>
           <button class="subcategory-btn" data-subcategory="video-to-video">Video to Video</button>
+          <button class="subcategory-btn" data-subcategory="uploaded">Uploaded</button>
+          <button class="subcategory-btn" data-subcategory="favorites">Favorites</button>
         </div>
         <div id="audio-subcategories" class="subcategory-group hidden">
           <button class="subcategory-btn active" data-subcategory="all">All</button>
           <button class="subcategory-btn" data-subcategory="text-to-speech">Text to Speech</button>
           <button class="subcategory-btn" data-subcategory="music">Music</button>
           <button class="subcategory-btn" data-subcategory="text-to-sound">Text to Sound</button>
+          <button class="subcategory-btn" data-subcategory="uploaded">Uploaded</button>
+          <button class="subcategory-btn" data-subcategory="favorites">Favorites</button>
         </div>
       </div>
 
@@ -1405,6 +1411,10 @@
       <div class="batch-count-badge">
         <span class="badge-number" id="floating-batch-count">0</span>
         <span class="badge-text">selected</span>
+      </div>
+      <div id="batch-caching-status" class="batch-caching-status hidden">
+        <div class="batch-caching-spinner"></div>
+        <span id="batch-caching-text">Preparing files...</span>
       </div>
       <div class="batch-actions">
         <button class="batch-action-btn batch-btn-premiere" id="floating-batch-import-premiere-btn" title="Import to Premiere Pro">

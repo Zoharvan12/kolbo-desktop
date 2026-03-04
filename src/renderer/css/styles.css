@@ -1736,6 +1736,29 @@ body.is-mac .window-controls {
   font-weight: 500;
 }
 
+/* Batch Caching Status */
+.batch-caching-status {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: rgb(var(--muted-foreground));
+}
+
+.batch-caching-status.hidden {
+  display: none;
+}
+
+.batch-caching-spinner {
+  width: 12px;
+  height: 12px;
+  border: 2px solid rgba(255, 255, 255, 0.2);
+  border-top-color: #4CAF50;
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+  flex-shrink: 0;
+}
+
 /* Action Buttons */
 .batch-actions {
   display: flex;
@@ -2122,6 +2145,33 @@ body.is-mac .window-controls {
 }
 
 .cache-status svg {
+  display: block;
+}
+
+/* Cache spinner (while downloading for drag) */
+.cache-spinner {
+  width: 14px;
+  height: 14px;
+  border: 2px solid rgba(255, 255, 255, 0.3);
+  border-top-color: #4CAF50;
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+  display: none;
+}
+
+.cache-status.loading .cache-spinner {
+  display: block;
+}
+
+.cache-status.loading .cache-checkmark {
+  display: none;
+}
+
+.cache-status.ready .cache-spinner {
+  display: none;
+}
+
+.cache-status.ready .cache-checkmark {
   display: block;
 }
 

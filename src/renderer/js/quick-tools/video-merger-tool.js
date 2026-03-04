@@ -41,27 +41,29 @@ class VideoMergerTool {
         continue;
       }
 
-      // Get metadata
-      let metadata = null;
+      // Get metadata via FFprobe
+      let probeData = null;
       try {
-        metadata = await window.kolboDesktop.ffmpeg.probeFile(file.path);
+        const result = await window.kolboDesktop.ffmpeg.probeFile(file.path);
+        probeData = result?.metadata; // IPC wraps result in { success, metadata }
       } catch (error) {
         console.error('[VideoMergerTool] Failed to probe file:', file.name, error);
       }
 
-      // Get video stream info
-      const videoStream = metadata?.streams?.find(s => s.codec_type === 'video');
-      const duration = metadata?.format?.duration || 0;
+      // Get video stream info and duration from probe
+      const videoStream = probeData?.streams?.find(s => s.codec_type === 'video');
+      const probeDuration = parseFloat(probeData?.format?.duration) || 0;
 
-      // Generate thumbnail
-      const thumbnail = await this.generateThumbnail(file);
+      // Generate thumbnail (also captures duration as fallback when probe fails)
+      const { thumbnail, duration: thumbDuration } = await this.generateThumbnail(file);
+      const duration = probeDuration || thumbDuration;
 
       this.clips.push({
         file: file,
         path: file.path,
         name: file.name,
         thumbnail: thumbnail,
-        duration: parseFloat(duration),
+        duration: duration,
         resolution: videoStream ? {
           width: videoStream.width,
           height: videoStream.height
@@ -81,6 +83,7 @@ class VideoMergerTool {
 
   /**
    * Generate thumbnail for a video file
+   * Returns { thumbnail, duration } — duration is a fallback if FFprobe failed
    */
   async generateThumbnail(file) {
     return new Promise((resolve) => {
@@ -100,20 +103,20 @@ class VideoMergerTool {
         canvas.height = 90;
         ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
         const dataUrl = canvas.toDataURL('image/jpeg', 0.7);
+        const dur = video.duration || 0;
         URL.revokeObjectURL(video.src);
-        resolve(dataUrl);
+        resolve({ thumbnail: dataUrl, duration: dur });
       };
 
       video.onerror = () => {
         URL.revokeObjectURL(video.src);
-        resolve(null);
+        resolve({ thumbnail: null, duration: 0 });
       };
 
       // Timeout fallback
       setTimeout(() => {
-        if (!video.onseeked) return;
         URL.revokeObjectURL(video.src);
-        resolve(null);
+        resolve({ thumbnail: null, duration: 0 });
       }, 5000);
     });
   }
@@ -160,6 +163,7 @@ class VideoMergerTool {
         <div class="qt-progress-header">
           <span class="qt-progress-label">Merging videos...</span>
           <span class="qt-progress-percent" id="qt-merger-progress-percent">0%</span>
+          <button class="qt-btn qt-btn-danger qt-btn-sm" id="qt-merger-cancel-btn">Stop</button>
         </div>
         <div class="qt-progress-bar">
           <div class="qt-progress-fill" id="qt-merger-progress-fill" style="width: 0%;"></div>
@@ -448,6 +452,7 @@ class VideoMergerTool {
     const progressContainer = document.getElementById('qt-merger-progress');
     const progressFill = document.getElementById('qt-merger-progress-fill');
     const progressPercent = document.getElementById('qt-merger-progress-percent');
+    const cancelBtn = document.getElementById('qt-merger-cancel-btn');
     const mergeBtn = document.getElementById('qt-merger-merge-btn');
 
     progressContainer?.classList.remove('hidden');
@@ -498,9 +503,29 @@ class VideoMergerTool {
         }
       };
 
+      // Cancel button
+      const cancelHandler = () => {
+        window.kolboDesktop.ffmpeg.cancelJob(jobId);
+      };
+      if (cancelBtn) cancelBtn.addEventListener('click', cancelHandler);
+
+      const cancelledHandler = (data) => {
+        if (data.jobId !== jobId) return;
+        this.isProcessing = false;
+        progressContainer?.classList.add('hidden');
+        if (progressFill) progressFill.style.width = '0%';
+        if (mergeBtn) mergeBtn.disabled = false;
+        if (cancelBtn) cancelBtn.removeEventListener('click', cancelHandler);
+        this.manager.showToast('Merge cancelled', 'info');
+      };
+
       window.kolboDesktop.ffmpeg.onProgress(progressHandler);
       window.kolboDesktop.ffmpeg.onComplete(completeHandler);
       window.kolboDesktop.ffmpeg.onError(errorHandler);
+      window.kolboDesktop.ffmpeg.onCancelled(cancelledHandler);
+
+      // Total duration needed for accurate progress reporting
+      const totalDuration = this.clips.reduce((sum, clip) => sum + clip.duration, 0);
 
       // Call merge API
       if (window.kolboDesktop.quickTools) {
@@ -508,7 +533,8 @@ class VideoMergerTool {
           id: jobId,
           filePaths: filePaths,
           outputFolder: outputFolder || this.clips[0].path.replace(/[^/\\]+$/, ''),
-          resolution: targetResolution
+          resolution: targetResolution,
+          totalDuration: totalDuration
         });
       } else {
         throw new Error('Quick Tools API not available');

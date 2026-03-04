@@ -1915,9 +1915,9 @@ class KolboApp {
         this.dragCacheStatus.set(id, result.filePath);
 
         // Show visual indicator
-        const cacheStatus = document.querySelector(`.cache-status[data-id="${id}"]`);
-        if (cacheStatus) {
-          cacheStatus.style.display = 'block';
+        const cacheItemEl = document.querySelector(`.media-item[data-id="${id}"]`);
+        if (cacheItemEl) {
+          this.showCacheReady(cacheItemEl);
         }
       }
     }
@@ -2029,7 +2029,8 @@ class KolboApp {
       <div class="media-item media-item-image ${isSelected ? 'selected' : ''}" data-id="${item.id}" draggable="true" data-filename="${fileName}" data-url="${item.url}" data-type="${item.type}">
         <div class="selection-checkbox ${isSelected ? 'checked' : ''}" data-id="${item.id}"></div>
         <div class="cache-status" data-id="${item.id}" style="display: none;">
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="#4CAF50">
+          <div class="cache-spinner"></div>
+          <svg class="cache-checkmark" width="14" height="14" viewBox="0 0 24 24" fill="#4CAF50">
             <path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/>
           </svg>
         </div>
@@ -2053,7 +2054,8 @@ class KolboApp {
       <div class="media-item media-item-video ${isSelected ? 'selected' : ''} ${isPlaying ? 'playing' : ''}" data-id="${item.id}" draggable="true" data-filename="${fileName}" data-url="${item.url}" data-type="${item.type}">
         <div class="selection-checkbox ${isSelected ? 'checked' : ''}" data-id="${item.id}"></div>
         <div class="cache-status" data-id="${item.id}" style="display: none;">
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="#4CAF50">
+          <div class="cache-spinner"></div>
+          <svg class="cache-checkmark" width="14" height="14" viewBox="0 0 24 24" fill="#4CAF50">
             <path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/>
           </svg>
         </div>
@@ -2117,7 +2119,8 @@ class KolboApp {
       <div class="media-item media-item-audio ${isSelected ? 'selected' : ''}" data-id="${item.id}" draggable="true" data-filename="${fileName}" data-url="${item.url}" data-type="${item.type}">
         <div class="selection-checkbox ${isSelected ? 'checked' : ''}" data-id="${item.id}"></div>
         <div class="cache-status" data-id="${item.id}" style="display: none;">
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="#4CAF50">
+          <div class="cache-spinner"></div>
+          <svg class="cache-checkmark" width="14" height="14" viewBox="0 0 24 24" fill="#4CAF50">
             <path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/>
           </svg>
         </div>
@@ -2343,6 +2346,24 @@ class KolboApp {
 
         const allMediaItems = e.currentTarget.querySelectorAll('.media-item[draggable="true"]');
 
+        // Block drag if any selected item is still downloading
+        let anyLoading = false;
+        allMediaItems.forEach(item => {
+          if (this.selectedItems.has(item.dataset.id) && this.isCacheLoading(item)) {
+            anyLoading = true;
+          }
+        });
+
+        if (anyLoading) {
+          e.preventDefault();
+          e.stopPropagation();
+          this.showToast('Please wait — files are still downloading...', 'info');
+          if (this.DEBUG_MODE) {
+          console.log('[Drag] Blocked: some selected items still downloading');
+          }
+          return;
+        }
+
         allMediaItems.forEach(item => {
           const id = item.dataset.id;
           if (this.selectedItems.has(id)) {
@@ -2421,6 +2442,7 @@ class KolboApp {
         const url = mediaItem.dataset.url;
         const type = mediaItem.dataset.type;
 
+        this.showCacheSpinner(mediaItem);
         window.kolboDesktop.preloadCache([{
           id: mediaId,
           fileName,
@@ -2432,13 +2454,7 @@ class KolboApp {
             window.kolboDesktop.getCachedFilePath(mediaId).then(cacheResult => {
               if (cacheResult.cached) {
                 this.dragCacheStatus.set(mediaId, cacheResult.filePath);
-
-                // Show cache indicator
-                const cacheStatus = mediaItem.querySelector('.cache-status');
-                if (cacheStatus) {
-                  cacheStatus.style.display = 'block';
-                }
-
+                this.showCacheReady(mediaItem);
                 if (this.DEBUG_MODE) {
                 console.log('[Drag] File downloaded and ready for next drag');
                 }
@@ -2447,6 +2463,8 @@ class KolboApp {
           }
         }).catch(error => {
           console.error('[Drag] Download error:', error);
+          const cacheStatus = mediaItem.querySelector('.cache-status');
+          if (cacheStatus) cacheStatus.style.display = 'none';
         });
       }
     };
@@ -2942,17 +2960,13 @@ class KolboApp {
             if (this.DEBUG_MODE) {
             console.log('[Selection] Item already cached:', itemId);
             }
-
-            // Show cache indicator
-            const cacheStatus = item.querySelector('.cache-status');
-            if (cacheStatus) {
-              cacheStatus.style.display = 'block';
-            }
+            this.showCacheReady(item);
           } else {
-            // Not cached - download it
+            // Not cached - download it, show spinner first
             if (this.DEBUG_MODE) {
             console.log('[Selection] Pre-downloading selected item:', itemId);
             }
+            this.showCacheSpinner(item);
 
             // Start background download
             window.kolboDesktop.preloadCache([{
@@ -2966,13 +2980,7 @@ class KolboApp {
                 window.kolboDesktop.getCachedFilePath(itemId).then(cacheResult => {
                   if (cacheResult.cached) {
                     this.dragCacheStatus.set(itemId, cacheResult.filePath);
-
-                    // Show cache indicator
-                    const cacheStatus = item.querySelector('.cache-status');
-                    if (cacheStatus) {
-                      cacheStatus.style.display = 'block';
-                    }
-
+                    this.showCacheReady(item);
                     if (this.DEBUG_MODE) {
                     console.log('[Selection] Item cached and ready:', itemId);
                     }
@@ -2981,6 +2989,9 @@ class KolboApp {
               }
             }).catch(error => {
               console.error('[Selection] Download error:', error);
+              // Hide spinner on error
+              const cacheStatus = item.querySelector('.cache-status');
+              if (cacheStatus) cacheStatus.style.display = 'none';
             });
           }
         });
@@ -3043,11 +3054,9 @@ class KolboApp {
         window.kolboDesktop.getCachedFilePath(itemId).then(cacheResult => {
           if (cacheResult.cached) {
             this.dragCacheStatus.set(itemId, cacheResult.filePath);
-            const cacheStatus = item.querySelector('.cache-status');
-            if (cacheStatus) {
-              cacheStatus.style.display = 'block';
-            }
+            this.showCacheReady(item);
           } else {
+            this.showCacheSpinner(item);
             window.kolboDesktop.preloadCache([{
               id: itemId,
               fileName,
@@ -3058,15 +3067,14 @@ class KolboApp {
                 window.kolboDesktop.getCachedFilePath(itemId).then(cacheResult => {
                   if (cacheResult.cached) {
                     this.dragCacheStatus.set(itemId, cacheResult.filePath);
-                    const cacheStatus = item.querySelector('.cache-status');
-                    if (cacheStatus) {
-                      cacheStatus.style.display = 'block';
-                    }
+                    this.showCacheReady(item);
                   }
                 });
               }
             }).catch(error => {
               console.error('[Selection] Range download error:', error);
+              const cacheStatus = item.querySelector('.cache-status');
+              if (cacheStatus) cacheStatus.style.display = 'none';
             });
           }
         });
@@ -3079,15 +3087,62 @@ class KolboApp {
     this.updateBatchMenu();
   }
 
+  showCacheSpinner(itemEl) {
+    const cacheStatus = itemEl.querySelector('.cache-status');
+    if (cacheStatus) {
+      cacheStatus.style.display = 'flex';
+      cacheStatus.classList.remove('ready');
+      cacheStatus.classList.add('loading');
+    }
+    this.updateBatchMenu();
+  }
+
+  showCacheReady(itemEl) {
+    const cacheStatus = itemEl.querySelector('.cache-status');
+    if (cacheStatus) {
+      cacheStatus.style.display = 'flex';
+      cacheStatus.classList.remove('loading');
+      cacheStatus.classList.add('ready');
+    }
+    this.updateBatchMenu();
+  }
+
+  isCacheLoading(itemEl) {
+    const cacheStatus = itemEl.querySelector('.cache-status');
+    return cacheStatus && cacheStatus.classList.contains('loading');
+  }
+
   updateBatchMenu() {
     const menu = document.getElementById('floating-batch-menu');
     const count = document.getElementById('floating-batch-count');
+    const cachingStatus = document.getElementById('batch-caching-status');
+    const cachingText = document.getElementById('batch-caching-text');
 
     if (this.selectedItems.size > 0) {
       menu?.classList.remove('hidden');
       if (count) count.textContent = this.selectedItems.size;
+
+      // Count how many selected items are still downloading to cache
+      const loadingCount = Array.from(this.selectedItems).filter(id => {
+        const el = document.querySelector(`.media-item[data-id="${id}"]`);
+        return el && this.isCacheLoading(el);
+      }).length;
+
+      if (cachingStatus) {
+        if (loadingCount > 0) {
+          cachingStatus.classList.remove('hidden');
+          if (cachingText) {
+            cachingText.textContent = loadingCount === 1
+              ? 'Preparing 1 file...'
+              : `Preparing ${loadingCount} files...`;
+          }
+        } else {
+          cachingStatus.classList.add('hidden');
+        }
+      }
     } else {
       menu?.classList.add('hidden');
+      cachingStatus?.classList.add('hidden');
     }
   }
 
@@ -3340,7 +3395,26 @@ class KolboApp {
     if (this.DEBUG_MODE) {
     console.log(`[Toast ${type}] ${message}`);
     }
-    // TODO: Implement toast notifications
+
+    const toast = document.getElementById('toast-notification');
+    if (!toast) return;
+
+    const messageEl = toast.querySelector('.toast-message');
+    const iconEl = toast.querySelector('.toast-icon');
+
+    if (messageEl) messageEl.textContent = message;
+
+    if (iconEl) {
+      iconEl.style.stroke = type === 'error' ? '#ef4444' :
+                           type === 'success' ? '#22c55e' : '#3b82f6';
+    }
+
+    toast.classList.add('show');
+
+    clearTimeout(this._toastTimer);
+    this._toastTimer = setTimeout(() => {
+      toast.classList.remove('show');
+    }, 3000);
   }
 
   // ============================================================================

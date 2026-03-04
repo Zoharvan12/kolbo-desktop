@@ -20,6 +20,7 @@ const FileExplorerHandler = require('./file-explorer-handler');
 const store = new Store();
 
 let mainWindow = null;
+let splashWindow = null;
 let tray = null;
 
 // GPU acceleration needed for video rendering
@@ -55,14 +56,14 @@ const totalRAM = os.totalmem() / (1024 * 1024 * 1024); // Convert to GB
 const heapSizeGB = Math.floor(totalRAM * 0.5); // Use 50% of system RAM
 const heapSizeMB = heapSizeGB * 1024;
 
-// Apply the dynamic limit and expose gc() for manual garbage collection
-app.commandLine.appendSwitch('js-flags', `--max-old-space-size=${heapSizeMB} --expose-gc`);
-// Enable speed optimization instead of size (better performance for embedded webapp)
-app.commandLine.appendSwitch('js-flags', '--optimize-for-speed');
-// Enable TurboFan fast API calls for better performance
-app.commandLine.appendSwitch('js-flags', '--turbo-fast-api-calls');
-// Optimize for low memory pressure (more frequent GC when memory is high)
-app.commandLine.appendSwitch('js-flags', '--gc-interval=100');
+// All V8 flags must be in a SINGLE appendSwitch call (later calls override earlier ones in Electron/Chromium)
+// Cap heap at 4GB max — 50% of RAM on large machines could starve the OS, GPU, and other apps
+const heapSizeMBCapped = Math.min(heapSizeMB, 4096);
+app.commandLine.appendSwitch('js-flags',
+  `--max-old-space-size=${heapSizeMBCapped} --expose-gc --optimize-for-speed --turbo-fast-api-calls`
+);
+// NOTE: --gc-interval=100 was intentionally removed — it triggered GC every 100 V8 allocations
+// (default is ~100,000+), causing constant GC pauses that blocked the JS event loop.
 
 console.log('[Main] System RAM:', totalRAM.toFixed(2), 'GB');
 console.log('[Main] V8 heap limit (50% of RAM):', heapSizeGB, 'GB (', heapSizeMB, 'MB)');
@@ -82,6 +83,56 @@ console.log('[Main] User data path:', userDataPath);
 // Single instance lock removed - allow multiple instances
 // Users can now open multiple windows of the app simultaneously
 console.log('[Main] Multiple instances allowed');
+
+function createSplashWindow() {
+  const primaryDisplay = screen.getPrimaryDisplay();
+  const { width: screenWidth, height: screenHeight } = primaryDisplay.workAreaSize;
+
+  // Match the main window size exactly so the splash covers the same area
+  const windowWidth = Math.floor(screenWidth * 0.75);
+  const windowHeight = Math.floor(screenHeight * 0.75);
+  const x = Math.floor((screenWidth - windowWidth) / 2);
+  const y = Math.floor((screenHeight - windowHeight) / 2);
+
+  splashWindow = new BrowserWindow({
+    width: windowWidth,
+    height: windowHeight,
+    x,
+    y,
+    frame: false,
+    resizable: false,
+    movable: false,
+    show: true,
+    skipTaskbar: true,
+    alwaysOnTop: true,
+    backgroundColor: '#000000',
+    webPreferences: {
+      nodeIntegration: false,
+      contextIsolation: true,
+    }
+  });
+
+  splashWindow.loadFile(path.join(__dirname, '..', 'renderer', 'splash.html'));
+}
+
+function closeSplash() {
+  if (!splashWindow || splashWindow.isDestroyed()) return;
+
+  // Fade out over ~300ms then close
+  let opacity = 1.0;
+  const fade = setInterval(() => {
+    opacity -= 0.1;
+    if (opacity <= 0) {
+      clearInterval(fade);
+      if (splashWindow && !splashWindow.isDestroyed()) {
+        splashWindow.close();
+        splashWindow = null;
+      }
+    } else {
+      splashWindow.setOpacity(opacity);
+    }
+  }, 30);
+}
 
 function createWindow() {
   // Get primary display dimensions
@@ -121,9 +172,9 @@ function createWindow() {
       v8CacheOptions: 'bypassHeatCheck',  // Aggressive caching for faster execution (was 'code')
       enableWebSQL: false,         // Disable unused WebSQL to save memory
       spellcheck: false,           // Disable spellcheck to reduce memory overhead
-      backgroundThrottling: false  // Don't throttle background tabs for better responsiveness
+      backgroundThrottling: true   // Allow Chromium to throttle timers/animations when window is hidden
     },
-    show: true // Show immediately for debugging
+    show: false // Stay hidden until ready-to-show fires (prevents blank window flash)
   });
 
   // Load the main application HTML
@@ -138,8 +189,9 @@ function createWindow() {
       console.error('[Main] Failed to load HTML file:', err);
     });
 
-  // Show window when ready (prevents flash)
+  // Show window when ready — fade out splash simultaneously
   mainWindow.once('ready-to-show', () => {
+    closeSplash();
     mainWindow.show();
     console.log('[Main] Window shown');
   });
@@ -154,10 +206,13 @@ function createWindow() {
     console.log('[Main] Page finished loading');
   });
 
-  // Log console messages from renderer
-  mainWindow.webContents.on('console-message', (event, level, message, line, sourceId) => {
-    console.log('[Renderer]', message);
-  });
+  // Log console messages from renderer (development only — in production this causes
+  // an IPC round-trip + console write for every single renderer log statement)
+  if (process.env.NODE_ENV === 'development') {
+    mainWindow.webContents.on('console-message', (event, level, message, line, sourceId) => {
+      console.log('[Renderer]', message);
+    });
+  }
 
   // Intercept window.open() calls to download files instead of opening in new tabs
   mainWindow.webContents.setWindowOpenHandler(({ url }) => {
@@ -787,8 +842,12 @@ function setupAutoUpdater() {
     });
   }, 3000);
 
-  // Check for updates every 4 hours
+  // Check for updates every 4 hours, but only when the window is visible/focused
+  let lastUpdateCheck = Date.now();
   setInterval(() => {
+    if (!mainWindow || mainWindow.isDestroyed()) return;
+    if (!mainWindow.isVisible()) return; // Skip if app is hidden/minimized
+    lastUpdateCheck = Date.now();
     console.log('[Updater] Periodic update check...');
     autoUpdater.checkForUpdates().catch(err => {
       console.error('[Updater] Failed to check for updates:', err);
@@ -2289,8 +2348,8 @@ class MediaCache {
 
         console.log(`[MediaCache] Downloaded ${actualFileName} (${(stats.size / 1024 / 1024).toFixed(2)} MB)`);
 
-        // Check cache size and evict if needed
-        this.evictOldItemsIfNeeded();
+        // Auto-eviction disabled — users manage cache manually via Settings
+        // (prevents NLE project corruption from automatic file deletion)
 
         this.downloadQueue.delete(id);
         return filePath;
@@ -3039,7 +3098,7 @@ function setupFirstTimeDefaults() {
  * Also includes session cache cleanup
  */
 function setupMemoryMonitoring() {
-  const MEMORY_CHECK_INTERVAL = 30 * 1000; // Check every 30 seconds (was 60)
+  const MEMORY_CHECK_INTERVAL = 60 * 1000; // Check every 60 seconds
   const CLEANUP_THRESHOLD = 70; // Start cleanup at 70% (was 80)
   const WARNING_THRESHOLD = 85; // Warn user at 85% (was 90)
   const CRITICAL_THRESHOLD = 92; // Critical warning at 92% (was 95)
@@ -3058,21 +3117,27 @@ function setupMemoryMonitoring() {
       return;
     }
 
+    // When the window is hidden/minimized, skip renderer IPC entirely.
+    // Periodic cache cleanup still runs (below) — it's I/O-only, no renderer wakeup.
+    const windowVisible = mainWindow.isVisible();
+
     try {
       // Get main process memory
       const mainMemUsage = process.memoryUsage();
       const mainHeapUsedMB = mainMemUsage.heapUsed / (1024 * 1024);
       const mainRssMB = mainMemUsage.rss / (1024 * 1024);
 
-      // Get renderer process memory (where iframes live)
+      // Get renderer process memory only when visible (avoids waking the renderer process)
       let rendererMemoryMB = 0;
       let rendererPrivateMB = 0;
-      try {
-        const rendererMemInfo = await mainWindow.webContents.getProcessMemoryInfo();
-        rendererMemoryMB = rendererMemInfo.workingSetSize / 1024; // KB to MB
-        rendererPrivateMB = rendererMemInfo.private / 1024;
-      } catch (e) {
-        // Renderer process info may not be available
+      if (windowVisible) {
+        try {
+          const rendererMemInfo = await mainWindow.webContents.getProcessMemoryInfo();
+          rendererMemoryMB = rendererMemInfo.workingSetSize / 1024; // KB to MB
+          rendererPrivateMB = rendererMemInfo.private / 1024;
+        } catch (e) {
+          // Renderer process info may not be available
+        }
       }
 
       // Total memory = main RSS + renderer working set
@@ -3099,6 +3164,16 @@ function setupMemoryMonitoring() {
         });
       }
 
+      // Periodic session cache cleanup (every 10 minutes) — runs regardless of visibility
+      const now = Date.now();
+      if (now - lastCacheCleanupTime > CACHE_CLEANUP_INTERVAL) {
+        lastCacheCleanupTime = now;
+        await cleanupSessionCache();
+      }
+
+      // All renderer IPC and warnings are skipped when the window is hidden
+      if (!windowVisible) return;
+
       // Send memory status to renderer for display
       mainWindow.webContents.send('memory:status', {
         heapUsedGB: parseFloat((mainHeapUsedMB / 1024).toFixed(2)),
@@ -3108,13 +3183,6 @@ function setupMemoryMonitoring() {
         usagePercent: parseFloat(usagePercent.toFixed(1)),
         rss: parseFloat((mainRssMB / 1024).toFixed(2))
       });
-
-      // Periodic session cache cleanup (every 10 minutes)
-      const now = Date.now();
-      if (now - lastCacheCleanupTime > CACHE_CLEANUP_INTERVAL) {
-        lastCacheCleanupTime = now;
-        await cleanupSessionCache();
-      }
 
       // CRITICAL: 92%+ - Show dialog and offer to reload
       if (usagePercent >= CRITICAL_THRESHOLD || totalMemoryMB > TOTAL_MEMORY_LIMIT_MB) {
@@ -3213,10 +3281,15 @@ function setupSessionCSP() {
   defaultSession.webRequest.onHeadersReceived(
     { urls: ['*://localhost/*', '*://*.kolbo.ai/*', '*://staging.kolbo.ai/*'] },
     (details, callback) => {
-      // Only modify CSP for localhost (development) or web app URLs
-      // URL filtering already done by filter above, so we know this is a Kolbo URL
+      // Quick exit: skip string work if there are no CSP headers at all
+      const headers = details.responseHeaders;
+      if (!headers ||
+          (!headers['content-security-policy'] && !headers['Content-Security-Policy'])) {
+        return callback({ responseHeaders: headers });
+      }
+
       try {
-        if (details.responseHeaders) {
+        if (headers) {
           // Helper function to modify CSP header
           const modifyCSP = (headerName) => {
             if (details.responseHeaders[headerName]) {
@@ -3260,18 +3333,8 @@ function setupSessionCSP() {
 app.whenReady().then(() => {
   console.log('[Main] App ready, creating window and tray');
 
-  // PERFORMANCE FIX: Clear corrupted GPU cache to fix rendering issues
-  // GPU cache can become corrupted and cause "Unable to create cache" errors
-  const gpuCachePath = path.join(app.getPath('userData'), 'GPUCache');
-  try {
-    if (require('fs').existsSync(gpuCachePath)) {
-      require('fs').rmSync(gpuCachePath, { recursive: true, force: true });
-      console.log('[Main] Cleared GPU cache to prevent corruption issues');
-    }
-  } catch (error) {
-    console.error('[Main] Could not clear GPU cache:', error.message);
-    // Non-fatal, continue anyway
-  }
+  // Show splash immediately so user sees something while the app loads
+  createSplashWindow();
 
   // Setup session CSP modification (must be before creating window)
   setupSessionCSP();
@@ -3320,24 +3383,39 @@ app.whenReady().then(() => {
     console.log('[Main] Auto-updater disabled (development mode)');
   }
 
-  // Setup FFmpeg handlers
-  setupFFmpegHandlers();
-
-  // Setup yt-dlp downloader handlers
-  setupDownloaderHandlers();
-
   // Setup Quick Tools handlers
   setupQuickToolsHandlers();
 
-  // Setup File Explorer handlers
-  const fileExplorerHandler = FileExplorerHandler.setupHandlers(mainWindow);
-  // Connect FFmpeg handler for metadata extraction
-  if (ffmpegHandler) {
-    fileExplorerHandler.setFFmpegHandler(ffmpegHandler);
-  }
-
   // Setup proactive memory monitoring
   setupMemoryMonitoring();
+
+  // Deferred post-show init: runs after the window is visible to the user.
+  // Keeps these off the critical startup path since none are needed before first paint.
+  mainWindow.once('ready-to-show', () => {
+    setImmediate(() => {
+      // FFmpeg + GPU detection (async, can take 200-500ms)
+      setupFFmpegHandlers();
+
+      // yt-dlp binary validation / version check (async, hits GitHub API)
+      setupDownloaderHandlers();
+
+      // File Explorer — depends on ffmpegHandler being set
+      const fileExplorerHandler = FileExplorerHandler.setupHandlers(mainWindow);
+      if (ffmpegHandler) {
+        fileExplorerHandler.setFFmpegHandler(ffmpegHandler);
+      }
+
+      // GPU cache cleanup — was synchronous rmSync on the critical path (100-500ms)
+      const gpuCachePath = path.join(app.getPath('userData'), 'GPUCache');
+      try {
+        if (fs.existsSync(gpuCachePath)) {
+          fs.rmSync(gpuCachePath, { recursive: true, force: true });
+        }
+      } catch (e) {
+        // Non-fatal — GPU cache lock by another process is expected on Windows
+      }
+    });
+  });
 });
 
 // Window all closed
@@ -3359,6 +3437,13 @@ app.on('activate', () => {
 // Quit handler
 app.on('before-quit', () => {
   app.isQuitting = true;
+
+  // Clean up tray to release system resources and prevent listener accumulation
+  if (tray && !tray.isDestroyed()) {
+    tray.removeAllListeners();
+    tray.destroy();
+    tray = null;
+  }
 });
 
 console.log('[Main] Kolbo Studio starting...');

@@ -71,7 +71,8 @@ class FFmpegHandler {
   constructor(mainWindow) {
     this.mainWindow = mainWindow;
     this.gpuDetector = new GPUDetector();
-    this.activeJobs = new Map(); // jobId -> FFmpeg command
+    this.activeJobs = new Map(); // jobId -> { command, outputPath, tempFiles[] }
+    this.cancelledJobs = new Set(); // jobIds intentionally cancelled (suppress error events)
     this.gpuInfo = null;
 
     // Initialize GPU detection
@@ -95,8 +96,7 @@ class FFmpegHandler {
       this.gpuInfo = this.gpuDetector.getFallbackResult();
     }
 
-    // Cleanup old trim cache files on startup
-    this.cleanupTrimCache();
+    // Note: TrimCache cleanup removed - trimmed files are now stored in MediaCache permanently
   }
 
   /**
@@ -248,7 +248,7 @@ class FFmpegHandler {
         // Track progress
         command.on('start', (commandLine) => {
           console.log('[FFmpeg Handler] Command:', commandLine);
-          this.activeJobs.set(id, command);
+          this.activeJobs.set(id, { command, outputPath });
         });
 
         command.on('progress', (progress) => {
@@ -281,18 +281,16 @@ class FFmpegHandler {
         });
 
         command.on('error', (error, stdout, stderr) => {
+          this.activeJobs.delete(id);
+          if (this.cancelledJobs.has(id)) {
+            this.cancelledJobs.delete(id);
+            return; // Already handled by cancelJob — don't report as error
+          }
           console.error('[FFmpeg Handler] Conversion error:', error.message);
           console.error('[FFmpeg Handler] stderr:', stderr);
-          this.activeJobs.delete(id);
-
-          // Send error to renderer
           if (this.mainWindow && !this.mainWindow.isDestroyed()) {
-            this.mainWindow.webContents.send('ff:error', {
-              jobId: id,
-              error: error.message
-            });
+            this.mainWindow.webContents.send('ff:error', { jobId: id, error: error.message });
           }
-
           reject(error);
         });
 
@@ -509,11 +507,39 @@ class FFmpegHandler {
    * @param {string} jobId - Job ID to cancel
    */
   cancelJob(jobId) {
-    const command = this.activeJobs.get(jobId);
-    if (command) {
+    const job = this.activeJobs.get(jobId);
+    if (job) {
       console.log('[FFmpeg Handler] Cancelling job:', jobId);
-      command.kill('SIGKILL');
+      this.cancelledJobs.add(jobId);
+      job.command.kill('SIGKILL');
       this.activeJobs.delete(jobId);
+
+      // Delete partial output file
+      if (job.outputPath) {
+        try {
+          if (fs.existsSync(job.outputPath)) {
+            fs.unlinkSync(job.outputPath);
+            console.log('[FFmpeg Handler] Deleted partial output:', job.outputPath);
+          }
+        } catch (e) {
+          console.warn('[FFmpeg Handler] Could not delete partial file:', e.message);
+        }
+      }
+
+      // Delete any associated temp files (e.g. concat list)
+      if (job.tempFiles) {
+        for (const tempFile of job.tempFiles) {
+          try {
+            if (fs.existsSync(tempFile)) fs.unlinkSync(tempFile);
+          } catch (e) { /* ignore */ }
+        }
+      }
+
+      // Notify renderer
+      if (this.mainWindow && !this.mainWindow.isDestroyed()) {
+        this.mainWindow.webContents.send('ff:cancelled', { jobId });
+      }
+
       return true;
     }
     return false;
@@ -524,8 +550,22 @@ class FFmpegHandler {
    */
   cancelAll() {
     console.log('[FFmpeg Handler] Cancelling all jobs');
-    this.activeJobs.forEach((command, jobId) => {
-      command.kill('SIGKILL');
+    this.activeJobs.forEach((job, jobId) => {
+      this.cancelledJobs.add(jobId);
+      job.command.kill('SIGKILL');
+
+      if (job.outputPath) {
+        try {
+          if (fs.existsSync(job.outputPath)) fs.unlinkSync(job.outputPath);
+        } catch (e) { /* ignore */ }
+      }
+      if (job.tempFiles) {
+        for (const tempFile of job.tempFiles) {
+          try {
+            if (fs.existsSync(tempFile)) fs.unlinkSync(tempFile);
+          } catch (e) { /* ignore */ }
+        }
+      }
     });
     this.activeJobs.clear();
   }
@@ -626,7 +666,7 @@ class FFmpegHandler {
 
       command.on('start', (cmd) => {
         console.log('[FFmpeg Handler] Frame extract command:', cmd);
-        this.activeJobs.set(id, command);
+        this.activeJobs.set(id, { command, outputPath });
       });
 
       command.on('end', () => {
@@ -641,13 +681,12 @@ class FFmpegHandler {
       });
 
       command.on('error', (error) => {
-        console.error('[FFmpeg Handler] Frame extraction error:', error);
         this.activeJobs.delete(id);
-
+        if (this.cancelledJobs.has(id)) { this.cancelledJobs.delete(id); return; }
+        console.error('[FFmpeg Handler] Frame extraction error:', error);
         if (this.mainWindow && !this.mainWindow.isDestroyed()) {
           this.mainWindow.webContents.send('ff:error', { jobId: id, error: error.message });
         }
-
         reject(error);
       });
 
@@ -661,53 +700,190 @@ class FFmpegHandler {
    * @param {Object} job - Job configuration
    * @returns {Promise<string>} Output file path
    */
+  /**
+   * Parse fluent-ffmpeg timemark string (HH:MM:SS.ms) to seconds
+   */
+  timemarkToSeconds(timemark) {
+    if (!timemark) return 0;
+    const parts = timemark.split(':');
+    if (parts.length === 3) {
+      return parseFloat(parts[0]) * 3600 + parseFloat(parts[1]) * 60 + parseFloat(parts[2]);
+    }
+    return 0;
+  }
+
   async mergeVideos(job) {
-    const { id, filePaths, outputFolder, resolution } = job;
-
-    // Remove duplicates and validate
+    const { id, filePaths, outputFolder, resolution, totalDuration } = job;
     const uniquePaths = [...new Set(filePaths)];
-    console.log('[FFmpeg Handler] Merging', uniquePaths.length, 'videos with filter_complex');
-    console.log('[FFmpeg Handler] Input files:', uniquePaths);
+    console.log('[FFmpeg Handler] Merging', uniquePaths.length, 'videos');
 
-    // Determine target resolution
+    // Probe all files upfront to decide fast vs re-encode path
+    const compat = await this.checkMergeCompatibility(uniquePaths);
+    console.log('[FFmpeg Handler] Compatibility check:', compat);
+
+    if (compat.canStreamCopy) {
+      console.log('[FFmpeg Handler] Using fast path: concat demuxer (stream copy)');
+      return this.mergeVideosFast(id, uniquePaths, outputFolder, totalDuration);
+    } else {
+      console.log('[FFmpeg Handler] Using re-encode path:', compat.reason);
+      return this.mergeVideosSlow(id, uniquePaths, outputFolder, resolution, totalDuration);
+    }
+  }
+
+  /**
+   * Check if all videos are compatible for stream copy (no re-encoding needed)
+   */
+  async checkMergeCompatibility(filePaths) {
+    try {
+      const probes = await Promise.all(filePaths.map(fp => this.probeFile(fp)));
+
+      const infos = probes.map(p => {
+        const v = p.streams?.find(s => s.codec_type === 'video');
+        const a = p.streams?.find(s => s.codec_type === 'audio');
+        return {
+          vCodec: v?.codec_name,
+          width: v?.width,
+          height: v?.height,
+          fps: v?.r_frame_rate,
+          aCodec: a?.codec_name,
+          hasAudio: !!a
+        };
+      });
+
+      if (!infos.every(i => i.vCodec)) {
+        return { canStreamCopy: false, reason: 'missing video stream info' };
+      }
+
+      const first = infos[0];
+
+      // Only stream-copy H.264/H.265 — other codecs may have issues with MP4 container
+      if (!['h264', 'hevc'].includes(first.vCodec)) {
+        return { canStreamCopy: false, reason: `codec ${first.vCodec} not suitable for copy` };
+      }
+
+      for (const info of infos) {
+        if (info.vCodec !== first.vCodec) {
+          return { canStreamCopy: false, reason: 'mixed video codecs' };
+        }
+        if (info.width !== first.width || info.height !== first.height) {
+          return { canStreamCopy: false, reason: 'mixed resolutions' };
+        }
+        if (info.hasAudio !== first.hasAudio) {
+          return { canStreamCopy: false, reason: 'mixed audio presence' };
+        }
+        if (info.hasAudio && info.aCodec !== first.aCodec) {
+          return { canStreamCopy: false, reason: 'mixed audio codecs' };
+        }
+      }
+
+      return { canStreamCopy: true, hasAudio: first.hasAudio };
+    } catch (e) {
+      console.warn('[FFmpeg Handler] Compatibility check failed:', e.message);
+      return { canStreamCopy: false, reason: 'probe failed' };
+    }
+  }
+
+  /**
+   * Fast merge: concat demuxer with stream copy (no re-encoding)
+   * Works when all clips are the same codec/resolution — nearly instant
+   */
+  async mergeVideosFast(id, uniquePaths, outputFolder, totalDuration) {
+    const os = require('os');
+    const crypto = require('crypto');
+
+    const outputPath = this.getOutputPath(uniquePaths[0], 'mp4', outputFolder);
+
+    // Write concat list file (ffmpeg concat demuxer format)
+    // Use forward slashes so the list works cross-platform inside ffmpeg
+    const tempId = crypto.randomBytes(6).toString('hex');
+    const concatListPath = path.join(os.tmpdir(), `kolbo_merge_${tempId}.txt`);
+    const listContent = uniquePaths
+      .map(p => `file '${p.replace(/\\/g, '/').replace(/'/g, "'\\''")}'`)
+      .join('\n');
+    fs.writeFileSync(concatListPath, listContent, 'utf8');
+
+    return new Promise((resolve, reject) => {
+      const command = ffmpeg()
+        .input(concatListPath)
+        .inputOptions(['-f', 'concat', '-safe', '0'])
+        .outputOptions(['-c', 'copy', '-movflags', '+faststart'])
+        .output(outputPath);
+
+      command.on('start', (cmd) => {
+        console.log('[FFmpeg Handler] Fast merge command:', cmd);
+        this.activeJobs.set(id, { command, outputPath, tempFiles: [concatListPath] });
+      });
+
+      command.on('progress', (progress) => {
+        if (this.mainWindow && !this.mainWindow.isDestroyed()) {
+          const percent = totalDuration > 0
+            ? Math.min(99, (this.timemarkToSeconds(progress.timemark) / totalDuration) * 100)
+            : Math.min(99, progress.percent || 0);
+          this.mainWindow.webContents.send('ff:progress', { jobId: id, progress: percent });
+        }
+      });
+
+      const cleanup = () => {
+        try { fs.unlinkSync(concatListPath); } catch (e) { /* ignore */ }
+      };
+
+      command.on('end', () => {
+        console.log('[FFmpeg Handler] Fast merge complete:', outputPath);
+        this.activeJobs.delete(id);
+        cleanup();
+        if (this.mainWindow && !this.mainWindow.isDestroyed()) {
+          this.mainWindow.webContents.send('ff:progress', { jobId: id, progress: 100 });
+          this.mainWindow.webContents.send('ff:complete', { jobId: id, outputPath });
+        }
+        resolve(outputPath);
+      });
+
+      command.on('error', (error, stdout, stderr) => {
+        this.activeJobs.delete(id);
+        cleanup();
+        if (this.cancelledJobs.has(id)) { this.cancelledJobs.delete(id); return; }
+        console.error('[FFmpeg Handler] Fast merge error:', error.message);
+        if (this.mainWindow && !this.mainWindow.isDestroyed()) {
+          this.mainWindow.webContents.send('ff:error', { jobId: id, error: error.message });
+        }
+        reject(error);
+      });
+
+      command.run();
+    });
+  }
+
+  /**
+   * Slow merge: filter_complex re-encode (needed when clips differ in resolution/codec/fps)
+   * Uses ultrafast preset — same quality as medium at CRF 23, ~5x faster
+   */
+  async mergeVideosSlow(id, uniquePaths, outputFolder, resolution, totalDuration) {
     const targetRes = resolution || { width: 1920, height: 1080 };
-
-    // Output path
     const outputPath = this.getOutputPath(uniquePaths[0], 'mp4', outputFolder);
 
     return new Promise((resolve, reject) => {
       const command = ffmpeg();
 
-      // Add all input files
-      uniquePaths.forEach(filePath => {
-        command.input(filePath);
-      });
+      uniquePaths.forEach(filePath => command.input(filePath));
 
-      // Build filter_complex as a single string for reliability
-      // Each video: scale to target res, normalize audio
+      // Normalize each clip to the same resolution and audio format
+      // fps filter removed — let concat handle mixed fps rather than forcing conversion
       const filterParts = [];
-      const videoStreams = [];
-      const audioStreams = [];
-
-      uniquePaths.forEach((_, i) => {
-        // Scale video to target resolution with padding
-        filterParts.push(`[${i}:v]scale=${targetRes.width}:${targetRes.height}:force_original_aspect_ratio=decrease,pad=${targetRes.width}:${targetRes.height}:(ow-iw)/2:(oh-ih)/2:color=black,setsar=1,fps=30[v${i}]`);
-        // Normalize audio to common format
-        filterParts.push(`[${i}:a]aformat=sample_fmts=fltp:sample_rates=48000:channel_layouts=stereo,aresample=async=1[a${i}]`);
-        videoStreams.push(`[v${i}]`);
-        audioStreams.push(`[a${i}]`);
-      });
-
-      // Build concat filter - video streams first, then audio streams
-      const concatInputs = [];
       for (let i = 0; i < uniquePaths.length; i++) {
-        concatInputs.push(`[v${i}][a${i}]`);
+        filterParts.push(
+          `[${i}:v]scale=${targetRes.width}:${targetRes.height}:force_original_aspect_ratio=decrease,` +
+          `pad=${targetRes.width}:${targetRes.height}:(ow-iw)/2:(oh-ih)/2:color=black,setsar=1[v${i}]`
+        );
+        filterParts.push(
+          `[${i}:a]aformat=sample_fmts=fltp:sample_rates=48000:channel_layouts=stereo,aresample=async=1[a${i}]`
+        );
       }
-      filterParts.push(`${concatInputs.join('')}concat=n=${uniquePaths.length}:v=1:a=1[outv][outa]`);
 
-      // Join all filter parts with semicolons
+      const concatInputs = uniquePaths.map((_, i) => `[v${i}][a${i}]`).join('');
+      filterParts.push(`${concatInputs}concat=n=${uniquePaths.length}:v=1:a=1[outv][outa]`);
+
       const filterComplex = filterParts.join(';');
-      console.log('[FFmpeg Handler] Filter complex:', filterComplex);
+      console.log('[FFmpeg Handler] Re-encode filter complex:', filterComplex);
 
       command
         .outputOptions([
@@ -716,7 +892,7 @@ class FFmpegHandler {
           '-map', '[outa]',
           '-c:v', 'libx264',
           '-c:a', 'aac',
-          '-preset', 'medium',
+          '-preset', 'ultrafast', // was 'medium' — ~5x faster, same perceptual quality at CRF 23
           '-crf', '23',
           '-ar', '48000',
           '-ac', '2',
@@ -725,39 +901,37 @@ class FFmpegHandler {
         .output(outputPath);
 
       command.on('start', (cmd) => {
-        console.log('[FFmpeg Handler] Merge command:', cmd);
-        this.activeJobs.set(id, command);
+        console.log('[FFmpeg Handler] Re-encode merge command:', cmd);
+        this.activeJobs.set(id, { command, outputPath });
       });
 
       command.on('progress', (progress) => {
         if (this.mainWindow && !this.mainWindow.isDestroyed()) {
-          this.mainWindow.webContents.send('ff:progress', {
-            jobId: id,
-            progress: progress.percent || 0
-          });
+          const percent = totalDuration > 0
+            ? Math.min(99, (this.timemarkToSeconds(progress.timemark) / totalDuration) * 100)
+            : Math.min(99, progress.percent || 0);
+          this.mainWindow.webContents.send('ff:progress', { jobId: id, progress: percent });
         }
       });
 
       command.on('end', () => {
-        console.log('[FFmpeg Handler] Merge complete:', outputPath);
+        console.log('[FFmpeg Handler] Re-encode merge complete:', outputPath);
         this.activeJobs.delete(id);
-
         if (this.mainWindow && !this.mainWindow.isDestroyed()) {
+          this.mainWindow.webContents.send('ff:progress', { jobId: id, progress: 100 });
           this.mainWindow.webContents.send('ff:complete', { jobId: id, outputPath });
         }
-
         resolve(outputPath);
       });
 
       command.on('error', (error, stdout, stderr) => {
-        console.error('[FFmpeg Handler] Merge error:', error.message);
-        console.error('[FFmpeg Handler] stderr:', stderr);
         this.activeJobs.delete(id);
-
+        if (this.cancelledJobs.has(id)) { this.cancelledJobs.delete(id); return; }
+        console.error('[FFmpeg Handler] Re-encode merge error:', error.message);
+        console.error('[FFmpeg Handler] stderr:', stderr);
         if (this.mainWindow && !this.mainWindow.isDestroyed()) {
           this.mainWindow.webContents.send('ff:error', { jobId: id, error: error.message });
         }
-
         reject(error);
       });
 
@@ -802,7 +976,7 @@ class FFmpegHandler {
 
       command.on('start', (cmd) => {
         console.log('[FFmpeg Handler] Crop command:', cmd);
-        this.activeJobs.set(id, command);
+        this.activeJobs.set(id, { command, outputPath });
       });
 
       command.on('progress', (progress) => {
@@ -826,13 +1000,12 @@ class FFmpegHandler {
       });
 
       command.on('error', (error) => {
-        console.error('[FFmpeg Handler] Crop error:', error);
         this.activeJobs.delete(id);
-
+        if (this.cancelledJobs.has(id)) { this.cancelledJobs.delete(id); return; }
+        console.error('[FFmpeg Handler] Crop error:', error);
         if (this.mainWindow && !this.mainWindow.isDestroyed()) {
           this.mainWindow.webContents.send('ff:error', { jobId: id, error: error.message });
         }
-
         reject(error);
       });
 
@@ -1043,17 +1216,17 @@ class FFmpegHandler {
     const hasVolumeChange = Math.abs(volume - 1.0) > 0.01;
     const hasAudioEffects = hasSpeedChange || hasVolumeChange;
 
-    // Use dedicated TrimCache folder (separate from MediaCache)
-    const trimCachePath = path.join(app.getPath('userData'), 'TrimCache');
-    if (!fs.existsSync(trimCachePath)) {
-      fs.mkdirSync(trimCachePath, { recursive: true });
-      console.log('[FFmpeg Handler] Created TrimCache folder:', trimCachePath);
+    // Use TrimmedFiles folder — persistent, never auto-evicted, user manages via Settings
+    const trimmedFilesPath = path.join(app.getPath('userData'), 'TrimmedFiles');
+    if (!fs.existsSync(trimmedFilesPath)) {
+      fs.mkdirSync(trimmedFilesPath, { recursive: true });
+      console.log('[FFmpeg Handler] Created TrimmedFiles folder:', trimmedFilesPath);
     }
 
-    // Create output file in TrimCache
+    // Create output file in TrimmedFiles
     const tempId = crypto.randomBytes(6).toString('hex');
     const outputExt = isVideo ? '.mp4' : inputExt;
-    const outputPath = path.join(trimCachePath, `${inputName}_trim_${tempId}${outputExt}`);
+    const outputPath = path.join(trimmedFilesPath, `${inputName}_trim_${tempId}${outputExt}`);
 
     const duration = outPoint - inPoint;
     const effectsInfo = hasAudioEffects ? ` [speed:${speed.toFixed(1)}x, vol:${Math.round(volume*100)}%]` : '';

@@ -349,6 +349,11 @@ contextBridge.exposeInMainWorld('kolboDesktop', {
       ipcRenderer.on('ff:error', (event, data) => callback(data));
     },
 
+    // Listen for intentional cancellations
+    onCancelled: (callback) => {
+      ipcRenderer.on('ff:cancelled', (event, data) => callback(data));
+    },
+
     // Listen for GPU info
     onGPUInfo: (callback) => {
       ipcRenderer.on('ff:gpu-info', (event, data) => callback(data));

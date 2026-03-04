@@ -245,6 +245,13 @@
   box-shadow: 0 4px 16px rgba(239, 68, 68, 0.3);
 }
 
+.qt-btn-sm {
+  padding: 4px 10px;
+  font-size: 11px;
+  height: auto;
+  min-height: unset;
+}
+
 /* ===== PROGRESS BAR ===== */
 .qt-progress-container {
   margin-top: 20px;

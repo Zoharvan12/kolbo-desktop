@@ -80,6 +80,7 @@ class TrimmerTool {
           <div class="qt-progress-header">
             <span class="qt-progress-label">Exporting trimmed ${typeBadge}...</span>
             <span class="qt-progress-percent" id="qt-trimmer-progress-percent">0%</span>
+            <button class="qt-btn qt-btn-danger qt-btn-sm" id="qt-trimmer-cancel-btn">Stop</button>
           </div>
           <div class="qt-progress-bar">
             <div class="qt-progress-fill" id="qt-trimmer-progress-fill" style="width: 0%;"></div>
@@ -214,6 +215,7 @@ class TrimmerTool {
     const progressContainer = document.getElementById('qt-trimmer-progress');
     const progressFill = document.getElementById('qt-trimmer-progress-fill');
     const progressPercent = document.getElementById('qt-trimmer-progress-percent');
+    const cancelBtn = document.getElementById('qt-trimmer-cancel-btn');
     progressContainer?.classList.remove('hidden');
 
     // Disable export button
@@ -268,9 +270,26 @@ class TrimmerTool {
         }
       };
 
+      // Cancel button
+      const cancelHandler = () => {
+        window.kolboDesktop.ffmpeg.cancelJob(jobId);
+      };
+      if (cancelBtn) cancelBtn.addEventListener('click', cancelHandler);
+
+      const cancelledHandler = (data) => {
+        if (data.jobId !== jobId) return;
+        this.isProcessing = false;
+        progressContainer?.classList.add('hidden');
+        if (progressFill) progressFill.style.width = '0%';
+        if (exportBtn) exportBtn.disabled = false;
+        if (cancelBtn) cancelBtn.removeEventListener('click', cancelHandler);
+        this.manager.showToast('Export cancelled', 'info');
+      };
+
       window.kolboDesktop.ffmpeg.onProgress(progressHandler);
       window.kolboDesktop.ffmpeg.onComplete(completeHandler);
       window.kolboDesktop.ffmpeg.onError(errorHandler);
+      window.kolboDesktop.ffmpeg.onCancelled(cancelledHandler);
 
       // Start conversion with trim
       await window.kolboDesktop.ffmpeg.convertJob({
