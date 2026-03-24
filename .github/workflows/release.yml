@@ -285,7 +285,7 @@ jobs:
           echo "=== Final artifacts to upload ==="
           ls -lah ./release-artifacts/
 
-      - name: Create GitHub Release
+      - name: Create GitHub Release (private - for auto-updater)
         uses: softprops/action-gh-release@v1
         with:
           tag_name: ${{ needs.prepare-release.outputs.tag_name }}
@@ -312,3 +312,23 @@ jobs:
           files: release-artifacts/*
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Create Public Release (for manual downloads)
+        uses: softprops/action-gh-release@v1
+        with:
+          repository: Zoharvan12/kolbo-desktop-releases
+          tag_name: ${{ needs.prepare-release.outputs.tag_name }}
+          name: Kolbo Studio v${{ needs.prepare-release.outputs.version }}
+          body: |
+            ## Kolbo Studio v${{ needs.prepare-release.outputs.version }}
+
+            ### Downloads
+            - **Windows**: Kolbo.Studio-Setup-latest.exe
+            - **macOS**: Kolbo.Studio-latest.dmg
+          draft: false
+          prerelease: false
+          files: |
+            release-artifacts/Kolbo.Studio-Setup-latest.exe
+            release-artifacts/Kolbo.Studio-latest.dmg
+        env:
+          GITHUB_TOKEN: ${{ secrets.RELEASES_PAT }}
