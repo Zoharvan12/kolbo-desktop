@@ -309,7 +309,11 @@ jobs:
             🚀 **Auto-generated release from master branch**
           draft: false
           prerelease: false
-          files: release-artifacts/*
+          files: |
+            release-artifacts/latest.yml
+            release-artifacts/latest-mac.yml
+            release-artifacts/Kolbo.Studio-Setup-latest.exe
+            release-artifacts/Kolbo.Studio-latest.dmg
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
