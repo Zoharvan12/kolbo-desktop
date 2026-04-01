@@ -57,17 +57,23 @@ const heapSizeGB = Math.floor(totalRAM * 0.5); // Use 50% of system RAM
 const heapSizeMB = heapSizeGB * 1024;
 
 // All V8 flags must be in a SINGLE appendSwitch call (later calls override earlier ones in Electron/Chromium)
-// Cap heap at 4GB max — 50% of RAM on large machines could starve the OS, GPU, and other apps
-const heapSizeMBCapped = Math.min(heapSizeMB, 4096);
+// Cap heap at 8GB max — 50% of RAM on large machines could starve the OS, GPU, and other apps
+const heapSizeMBCapped = Math.min(heapSizeMB, 8192);
 app.commandLine.appendSwitch('js-flags',
   `--max-old-space-size=${heapSizeMBCapped} --expose-gc --optimize-for-speed --turbo-fast-api-calls`
 );
+
+// Prevent Chromium from aggressively killing the renderer under memory pressure.
+// Without this, Chromium's internal OOM heuristics can terminate the renderer even when
+// the system has plenty of free RAM — because the *process* working set looks large
+// (decoded images, video buffers, canvas bitmaps are all counted as native memory).
+app.commandLine.appendSwitch('disable-features', 'RendererCodeIntegrity,MemoryPressureBasedSourceBufferGC');
 // NOTE: --gc-interval=100 was intentionally removed — it triggered GC every 100 V8 allocations
 // (default is ~100,000+), causing constant GC pauses that blocked the JS event loop.
 
 console.log('[Main] System RAM:', totalRAM.toFixed(2), 'GB');
-console.log('[Main] V8 heap limit (50% of RAM):', heapSizeGB, 'GB (', heapSizeMB, 'MB)');
-console.log('[Main] Remaining RAM for native memory, GPU, OS:', (totalRAM - heapSizeGB).toFixed(2), 'GB');
+console.log('[Main] V8 heap limit (50% of RAM, capped 8GB):', (heapSizeMBCapped / 1024).toFixed(1), 'GB (', heapSizeMBCapped, 'MB)');
+console.log('[Main] Remaining RAM for native memory, GPU, OS:', (totalRAM - heapSizeMBCapped / 1024).toFixed(2), 'GB');
 
 // Ignore certificate errors ONLY in development
 if (process.env.NODE_ENV === 'development') {
@@ -189,12 +195,19 @@ function createWindow() {
       console.error('[Main] Failed to load HTML file:', err);
     });
 
-  // Show window when ready — fade out splash simultaneously
-  mainWindow.once('ready-to-show', () => {
-    closeSplash();
+  // Show window when Chromium signals first paint is ready.
+  // Fallback: force-show after 2s in case ready-to-show is delayed by
+  // external resources (fonts, missing assets, slow network).
+  let windowShown = false;
+  const showWindow = () => {
+    if (windowShown) return;
+    windowShown = true;
+    clearTimeout(showWindowTimer);
     mainWindow.show();
     console.log('[Main] Window shown');
-  });
+  };
+  const showWindowTimer = setTimeout(showWindow, 2000);
+  mainWindow.once('ready-to-show', showWindow);
 
   // Add error listener for renderer process
   mainWindow.webContents.on('did-fail-load', (event, errorCode, errorDescription) => {
@@ -809,29 +822,11 @@ function setupAutoUpdater() {
       });
     }
 
-    // Show dialog asking user to restart now or later
-    // Check if window still exists before showing dialog
+    // UI (renderer) handles install prompt via "Restart to Update" button.
+    // If window is already closed, install immediately.
     if (!mainWindow || mainWindow.isDestroyed()) {
-      // Window is closed, just quit and install
-      autoUpdater.quitAndInstall();
-      return;
+      autoUpdater.quitAndInstall(false, true);
     }
-    
-    dialog.showMessageBox(mainWindow, {
-      type: 'info',
-      title: 'Update Ready',
-      message: `Version ${info.version} has been downloaded`,
-      detail: 'Would you like to restart the app now to install the update, or install it the next time you launch the app?',
-      buttons: ['Restart Now', 'Later'],
-      defaultId: 0,
-      cancelId: 1
-    }).then(({ response }) => {
-      if (response === 0) {
-        // User chose "Restart Now" - quit and install
-        autoUpdater.quitAndInstall();
-      }
-      // If "Later" (response === 1), do nothing - will install on next launch
-    });
   });
 
   // Check for updates on startup (after 3 seconds)
@@ -1028,32 +1023,8 @@ function setupUpdaterHandlers() {
 
   // Open installer (no auto-install, user runs it manually)
   ipcMain.handle('updater:install', async () => {
-    console.log('[Updater] User will install manually');
-    const { dialog } = require('electron');
-    const os = require('os');
-    const platform = os.platform();
-
-    let installInstructions;
-    if (platform === 'darwin') {
-      installInstructions = 'Open the DMG file and drag Kolbo Studio to your Applications folder. Your settings and data will be preserved.';
-    } else if (platform === 'win32') {
-      installInstructions = 'Run the installer to update to the latest version. Your settings and data will be preserved.';
-    } else {
-      installInstructions = 'Run the installer to update to the latest version. Your settings and data will be preserved.';
-    }
-
-    // Check if window still exists before showing dialog
-    if (mainWindow && !mainWindow.isDestroyed()) {
-      await dialog.showMessageBox(mainWindow, {
-        type: 'info',
-        title: 'Update Downloaded',
-        message: 'The installer has been downloaded to your Downloads folder.',
-        detail: installInstructions,
-        buttons: ['OK']
-      });
-    }
-
-    return { success: true };
+    console.log('[Updater] User triggered install — quitting and installing');
+    autoUpdater.quitAndInstall(false, true);
   });
 
   console.log('[Updater] IPC handlers registered');
@@ -3103,9 +3074,12 @@ function setupMemoryMonitoring() {
   const WARNING_THRESHOLD = 85; // Warn user at 85% (was 90)
   const CRITICAL_THRESHOLD = 92; // Critical warning at 92% (was 95)
 
-  // Absolute memory limits (in MB) - trigger cleanup regardless of percentage
-  const RENDERER_MEMORY_LIMIT_MB = 2048; // 2GB for renderer process
-  const TOTAL_MEMORY_LIMIT_MB = 4096; // 4GB total
+  // Absolute memory limits (in MB) - trigger cleanup regardless of percentage.
+  // These scale with system RAM so a rich AI web app doesn't false-alarm on capable machines.
+  // Renderer working set includes decoded images, video buffers, canvas — not just JS heap.
+  // Floor: renderer=3GB, total=6GB. On 16GB machine: renderer=6.4GB, total=9.6GB.
+  const RENDERER_MEMORY_LIMIT_MB = Math.max(3072, Math.floor(totalRAM * 1024 * 0.4));
+  const TOTAL_MEMORY_LIMIT_MB = Math.max(6144, Math.floor(totalRAM * 1024 * 0.6));
 
   let lastWarningTime = 0;
   let lastCacheCleanupTime = 0;
@@ -3332,9 +3306,6 @@ function setupSessionCSP() {
 // App ready
 app.whenReady().then(() => {
   console.log('[Main] App ready, creating window and tray');
-
-  // Show splash immediately so user sees something while the app loads
-  createSplashWindow();
 
   // Setup session CSP modification (must be before creating window)
   setupSessionCSP();

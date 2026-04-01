@@ -745,6 +745,22 @@ class TabManager {
         }
       }
 
+      // Web app pushes its current token so electron-store stays in sync.
+      // Prevents 401 errors when the desktop tries to call getMedia/getProjects
+      // with a stale token that the web app has already refreshed.
+      if (event.data && event.data.type === 'TOKEN_UPDATED' && event.data.token) {
+        const newToken = event.data.token;
+        const currentToken = window.kolboAPI && window.kolboAPI.getToken ? window.kolboAPI.getToken() : null;
+        if (newToken !== currentToken) {
+          if (window.kolboDesktop && window.kolboDesktop.updateToken) {
+            window.kolboDesktop.updateToken(newToken);
+          }
+          if (window.kolboAPI) {
+            window.kolboAPI.setToken(newToken);
+          }
+        }
+      }
+
       // Check for authentication status change messages from web app
       if (event.data && event.data.type === 'AUTH_STATUS_CHANGED') {
         const { authenticated, reason } = event.data;

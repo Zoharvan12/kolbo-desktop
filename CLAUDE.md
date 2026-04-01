@@ -1,5 +1,13 @@
 # Kolbo Studio Desktop - Project Context for Claude
 
+## Memory Hierarchy (READ FIRST)
+At the start of every session, read `C:\Users\Zohar\.claude\memory\MEMORY.md` for the global peer card, user preferences, and cross-project rules that apply to all Kolbo repos.
+
+## Full-Stack Tool Map
+Read `C:\Users\Zohar\.claude\KOLBO-STACK.md` when working on any feature — maps every tool's frontend ↔ backend files across all repos (kolbo-map, kolbo-api, kolbo-desktop, kolbo-adobe-plugin).
+
+**MANDATORY**: When you add, remove, or rename a key file in kolbo-desktop, update KOLBO-STACK.md in the same step. Do not wait to be asked.
+
 ## Project Overview
 
 Kolbo Studio is an Electron-based desktop application for video editors. It provides AI-powered creative tools and integrates with video editing software.

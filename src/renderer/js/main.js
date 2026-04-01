@@ -68,6 +68,9 @@ class KolboApp {
 
     // Cache
     MAX_DRAG_CACHE_ITEMS: 500,            // Maximum items in drag cache (LRU eviction)
+
+    // Media
+    IMAGE_URL_REGEX: /\.(webp|jpg|jpeg|png|gif|avif)(\?|$)/i,
   };
 
   constructor() {
@@ -96,6 +99,7 @@ class KolboApp {
 
     // Selection & Interaction State
     this.observer = null;
+    this.lazyImgObserver = null;
     this.selectedItems = new Set();
     this.lastSelectedItemId = null;  // For Shift+Click range selection
     this.playingVideoId = null;
@@ -256,6 +260,11 @@ class KolboApp {
       this.observer = null;
     }
 
+    if (this.lazyImgObserver) {
+      this.lazyImgObserver.disconnect();
+      this.lazyImgObserver = null;
+    }
+
     this.domCache = {};
     this.cachedWebappUrl = null;
     this.cachedApiUrl = null;
@@ -278,8 +287,12 @@ class KolboApp {
 
     if (kolboAPI.isAuthenticated()) {
       this.showLoadingOverlay();
-      this.loadProjects().then(async () => {
-        await this.loadMedia();
+      Promise.all([this.loadProjects(), this.loadMedia()]).then(() => {
+        // Re-check auth: a 401 during loadProjects/loadMedia clears the token
+        // and calls handleLogout(). Without this guard, showMediaScreen would
+        // still run (async return resolves the promise), creating the TabManager
+        // with no token and loading the iframe unauthenticated.
+        if (!kolboAPI.isAuthenticated()) return;
         this.showMediaScreen(false);
       });
     } else {
@@ -1359,6 +1372,9 @@ class KolboApp {
       }
     } catch (error) {
       console.error('Failed to load projects:', error);
+      if (error.message && error.message.includes('401')) {
+        this.handleLogout(true);
+      }
     }
   }
 
@@ -1721,6 +1737,12 @@ class KolboApp {
       }
     } catch (error) {
       console.error('Failed to load media:', error);
+
+      if (error.message && error.message.includes('401')) {
+        this.handleLogout(true); // skip confirmation dialog; also clears token via kolboAPI.logout()
+        return;
+      }
+
       if (appendToExisting) {
         if (loadingMoreEl) loadingMoreEl.classList.add('hidden');
 
@@ -1815,12 +1837,45 @@ class KolboApp {
       // Preload thumbnails for visible items only (first 30)
       this.preloadAllThumbnails(this.media.slice(0, 30));
 
+      // Start IntersectionObserver lazy loading for all thumbnail images
+      this.setupLazyImageLoading();
+
       // Preload first 20 items to cache for drag-and-drop
       this.preloadVisibleMediaToCache(this.media.slice(0, 20));
     }
 
     // Apply CSS filter - instant, no DOM changes!
     this.applyFilter();
+  }
+
+  setupLazyImageLoading() {
+    const lazyImages = document.querySelectorAll('.media-img-lazy[data-src]:not([data-loaded])');
+    if (!lazyImages.length) return;
+
+    if (this.lazyImgObserver) this.lazyImgObserver.disconnect();
+
+    this.lazyImgObserver = new IntersectionObserver((entries) => {
+      entries.forEach(entry => {
+        if (!entry.isIntersecting) return;
+        const img = entry.target;
+        if (img.dataset.loaded) return; // already loaded by cache preloader
+        img.dataset.loaded = '1';
+        this.lazyImgObserver.unobserve(img);
+
+        img.style.opacity = '0';
+        img.onload = () => { img.style.opacity = '1'; };
+        img.onerror = () => {
+          // retry once with cache-bust
+          const sep = img.dataset.src.includes('?') ? '&' : '?';
+          const retryUrl = `${img.dataset.src}${sep}_cb=${Date.now()}`;
+          img.onerror = () => { img.style.opacity = '1'; }; // give up on 2nd fail
+          img.src = retryUrl;
+        };
+        img.src = img.dataset.src;
+      });
+    }, { rootMargin: '200px' });
+
+    lazyImages.forEach(img => this.lazyImgObserver.observe(img));
   }
 
   applyFilter() {
@@ -1936,7 +1991,10 @@ class KolboApp {
 
     // Prepare thumbnail items for cache
     const thumbnailItems = items
-      .filter(item => item.thumbnail_url || item.thumbnailUrl)
+      .filter(item => {
+        const url = item.thumbnail_url || item.thumbnailUrl;
+        return url && KolboApp.CONSTANTS.IMAGE_URL_REGEX.test(url);
+      })
       .map(item => ({
         id: item.id,
         thumbnailUrl: item.thumbnail_url || item.thumbnailUrl
@@ -1991,14 +2049,12 @@ class KolboApp {
     for (const { id, result } of results) {
       if (result?.cached && result?.filePath) {
         // Update image src to use file:// protocol for cached thumbnail
-        const imgEl = document.querySelector(`[data-id="${id}"] img, [data-id="${id}"] video`);
+        const imgEl = document.querySelector(`[data-id="${id}"] img`);
         if (imgEl) {
           const cachedUrl = `file://${result.filePath.replace(/\\/g, '/')}`;
-          if (imgEl.tagName === 'IMG') {
-            imgEl.src = cachedUrl;
-          } else if (imgEl.tagName === 'VIDEO') {
-            imgEl.poster = cachedUrl;
-          }
+          imgEl.dataset.loaded = '1'; // prevent lazy observer from overriding
+          imgEl.src = cachedUrl;
+          imgEl.style.opacity = '1';
           if (this.DEBUG_MODE) {
           console.log(`[ThumbnailCache] Updated thumbnail for ${id}`);
           }
@@ -2035,7 +2091,7 @@ class KolboApp {
           </svg>
         </div>
         <div class="media-preview">
-          <img src="${item.thumbnail_url || item.url}" alt="${title}" loading="lazy" decoding="async" onerror="this.src='data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 width=%22160%22 height=%2290%22%3E%3Crect fill=%22%23333%22 width=%22160%22 height=%2290%22/%3E%3C/svg%3E'">
+          <img data-src="${item.thumbnail_url || item.url}" alt="${title}" decoding="async" class="media-img-lazy">
           <span class="type-badge type-badge-image">Image</span>
         </div>
         <div class="overlay">
@@ -2048,7 +2104,9 @@ class KolboApp {
   renderVideoItem(item, fileName, title, duration) {
     const isSelected = this.selectedItems.has(item.id);
     const isPlaying = this.playingVideoId === item.id;
-    const thumbnailUrl = item.thumbnail_url || item.url;
+    const rawThumb = item.thumbnail_url || item.thumbnailUrl || '';
+    const isImageThumb = rawThumb && KolboApp.CONSTANTS.IMAGE_URL_REGEX.test(rawThumb);
+    const thumbnailUrl = isImageThumb ? rawThumb : '';
 
     return `
       <div class="media-item media-item-video ${isSelected ? 'selected' : ''} ${isPlaying ? 'playing' : ''}" data-id="${item.id}" draggable="true" data-filename="${fileName}" data-url="${item.url}" data-type="${item.type}">
@@ -2060,16 +2118,7 @@ class KolboApp {
           </svg>
         </div>
         <div class="media-preview">
-          <video
-            id="video-${item.id}"
-            src="${item.url || item.video_url}"
-            poster="${thumbnailUrl}"
-            preload="metadata"
-            ${isPlaying ? '' : 'muted'}
-            loop
-            class="video-preview"
-            onloadedmetadata="this.currentTime=0"
-          ></video>
+          ${thumbnailUrl ? `<img data-src="${thumbnailUrl}" alt="${title}" decoding="async" class="media-img-lazy video-thumb-img">` : '<div class="video-thumb-img" style="width:100%;height:100%"></div>'}
           <button class="video-play-btn ${isPlaying ? 'playing' : ''}" data-id="${item.id}">
             <svg width="32" height="32" viewBox="0 0 24 24" fill="white">
               ${isPlaying ?
@@ -2569,10 +2618,32 @@ class KolboApp {
   }
 
   handleVideoPlayPause(videoId) {
-    const video = document.getElementById(`video-${videoId}`);
+    let video = document.getElementById(`video-${videoId}`);
     const button = document.querySelector(`.video-play-btn[data-id="${videoId}"]`);
     const mediaItem = document.querySelector(`.media-item-video[data-id="${videoId}"]`);
-    if (!video || !button) return;
+    if (!button) return;
+
+    // Lazy-inject video element on first play (replaces thumbnail img)
+    if (!video) {
+      const item = this.media.find(m => m.id === videoId);
+      if (!item) return;
+      const thumbImg = mediaItem && mediaItem.querySelector('.video-thumb-img');
+      video = document.createElement('video');
+      video.id = `video-${videoId}`;
+      video.src = item.url || item.video_url;
+      video.muted = false;
+      video.loop = true;
+      video.className = 'video-preview';
+      video.addEventListener('loadedmetadata', () => { video.currentTime = 0; });
+      if (thumbImg) {
+        thumbImg.replaceWith(video);
+      } else if (mediaItem) {
+        const preview = mediaItem.querySelector('.media-preview');
+        if (preview) preview.prepend(video);
+      }
+      // Wire progress/time listeners for this card only — avoids O(n) full-grid scan
+      if (mediaItem) this.setupSingleVideoListeners(videoId, video, mediaItem);
+    }
 
     // Pause any playing audio first and reset its UI
     if (this.playingAudioElement) {
@@ -2652,94 +2723,90 @@ class KolboApp {
   }
 
   setupVideoPlaybackListeners() {
-    const videoCards = document.querySelectorAll('.media-item-video');
-
-    videoCards.forEach(card => {
-      const videoId = card.dataset.id;
+    document.querySelectorAll('.media-item-video').forEach(card => {
       const video = card.querySelector('.video-preview');
-      const progressFill = card.querySelector('.video-progress-fill');
-      const timeDisplay = card.querySelector('.video-time-display');
-      const progressContainer = card.querySelector('.video-progress-container');
-
-      if (!video || !progressFill || !timeDisplay) return;
-
-      // Remove old listeners if they exist
-      if (video._timeUpdateHandler) {
-        video.removeEventListener('timeupdate', video._timeUpdateHandler);
-      }
-      if (video._loadedHandler) {
-        video.removeEventListener('loadedmetadata', video._loadedHandler);
-      }
-      if (video._endedHandler) {
-        video.removeEventListener('ended', video._endedHandler);
-      }
-
-      // Time update handler - update progress bar and time display
-      const timeUpdateHandler = () => {
-        if (video.duration) {
-          const progress = (video.currentTime / video.duration) * 100;
-          progressFill.style.width = `${progress}%`;
-          timeDisplay.textContent = `${this.formatVideoTime(video.currentTime)} / ${this.formatVideoTime(video.duration)}`;
-        }
-      };
-      video._timeUpdateHandler = timeUpdateHandler;
-      video.addEventListener('timeupdate', timeUpdateHandler);
-
-      // Loaded metadata handler - show duration
-      const loadedHandler = () => {
-        if (video.duration) {
-          timeDisplay.textContent = `0:00 / ${this.formatVideoTime(video.duration)}`;
-        }
-      };
-      video._loadedHandler = loadedHandler;
-      video.addEventListener('loadedmetadata', loadedHandler);
-
-      // Ended handler - reset progress
-      const endedHandler = () => {
-        progressFill.style.width = '0%';
-        timeDisplay.textContent = `0:00 / ${this.formatVideoTime(video.duration || 0)}`;
-      };
-      video._endedHandler = endedHandler;
-      video.addEventListener('ended', endedHandler);
-
-      // Drag to seek functionality
-      if (progressContainer) {
-        let isDragging = false;
-
-        const startDrag = (e) => {
-          e.stopPropagation();
-          e.preventDefault();
-          isDragging = true;
-          this.handleVideoSeek(e, videoId);
-          document.addEventListener('mousemove', onDrag);
-          document.addEventListener('mouseup', stopDrag);
-        };
-
-        const onDrag = (e) => {
-          if (isDragging) {
-            const rect = progressContainer.getBoundingClientRect();
-            const x = e.clientX - rect.left;
-            const progress = Math.max(0, Math.min(1, x / rect.width));
-            if (video.duration) {
-              video.currentTime = progress * video.duration;
-            }
-          }
-        };
-
-        const stopDrag = () => {
-          isDragging = false;
-          document.removeEventListener('mousemove', onDrag);
-          document.removeEventListener('mouseup', stopDrag);
-        };
-
-        // Remove old listener if exists
-        if (progressContainer._mousedownHandler) {
-          progressContainer.removeEventListener('mousedown', progressContainer._mousedownHandler);
-        }
-        progressContainer._mousedownHandler = startDrag;
-        progressContainer.addEventListener('mousedown', startDrag);
-      }
+      if (!video) return;
+      this.setupSingleVideoListeners(card.dataset.id, video, card);
     });
+  }
+
+  setupSingleVideoListeners(videoId, video, card) {
+    const progressFill = card.querySelector('.video-progress-fill');
+    const timeDisplay = card.querySelector('.video-time-display');
+    const progressContainer = card.querySelector('.video-progress-container');
+
+    if (!progressFill || !timeDisplay) return;
+
+    if (video._timeUpdateHandler) {
+      video.removeEventListener('timeupdate', video._timeUpdateHandler);
+    }
+    if (video._loadedHandler) {
+      video.removeEventListener('loadedmetadata', video._loadedHandler);
+    }
+    if (video._endedHandler) {
+      video.removeEventListener('ended', video._endedHandler);
+    }
+
+    const timeUpdateHandler = () => {
+      if (video.duration) {
+        const progress = (video.currentTime / video.duration) * 100;
+        progressFill.style.width = `${progress}%`;
+        timeDisplay.textContent = `${this.formatVideoTime(video.currentTime)} / ${this.formatVideoTime(video.duration)}`;
+      }
+    };
+    video._timeUpdateHandler = timeUpdateHandler;
+    video.addEventListener('timeupdate', timeUpdateHandler);
+
+    const loadedHandler = () => {
+      if (video.duration) {
+        timeDisplay.textContent = `0:00 / ${this.formatVideoTime(video.duration)}`;
+      }
+    };
+    video._loadedHandler = loadedHandler;
+    video.addEventListener('loadedmetadata', loadedHandler);
+
+    const endedHandler = () => {
+      progressFill.style.width = '0%';
+      timeDisplay.textContent = `0:00 / ${this.formatVideoTime(video.duration || 0)}`;
+    };
+    video._endedHandler = endedHandler;
+    video.addEventListener('ended', endedHandler);
+
+    if (progressContainer) {
+      let isDragging = false;
+
+      const startDrag = (e) => {
+        e.stopPropagation();
+        e.preventDefault();
+        isDragging = true;
+        this.handleVideoSeek(e, videoId);
+        document.addEventListener('mousemove', onDrag);
+        document.addEventListener('mouseup', stopDrag);
+      };
+
+      const onDrag = (e) => {
+        if (isDragging) {
+          const rect = progressContainer.getBoundingClientRect();
+          const x = e.clientX - rect.left;
+          const progress = Math.max(0, Math.min(1, x / rect.width));
+          if (video.duration) {
+            video.currentTime = progress * video.duration;
+          }
+        }
+      };
+
+      const stopDrag = () => {
+        isDragging = false;
+        document.removeEventListener('mousemove', onDrag);
+        document.removeEventListener('mouseup', stopDrag);
+      };
+
+      if (progressContainer._mousedownHandler) {
+        progressContainer.removeEventListener('mousedown', progressContainer._mousedownHandler);
+      }
+      progressContainer._mousedownHandler = startDrag;
+      progressContainer.addEventListener('mousedown', startDrag);
+    }
   }
 
   formatVideoTime(seconds) {
@@ -3901,12 +3968,13 @@ class KolboApp {
     console.log('[Updater] Update available:', info.version);
     }
 
-    // Show header update button
-    const updateBtn = document.getElementById('update-available-btn');
+    // Show header update button — auto-download is running in background
+    const updateBtn = this.getElement('update-available-btn');
+    const updateBtnLabel = this.getElement('update-btn-label');
     if (updateBtn) {
       updateBtn.classList.remove('hidden');
+      if (updateBtnLabel) updateBtnLabel.textContent = 'Downloading Update…';
       updateBtn.onclick = () => {
-        // Switch to settings view and scroll to updates section
         this.switchView('settings');
         setTimeout(() => {
           const updatesSection = document.querySelector('.settings-section:has(#update-available-card)');
@@ -3918,22 +3986,26 @@ class KolboApp {
     }
 
     // Show settings page update card
-    const updateCard = document.getElementById('update-available-card');
-    const versionText = document.getElementById('update-version-text');
-    const changelog = document.getElementById('update-changelog');
-    const statusEl = document.getElementById('update-status');
+    const updateCard = this.getElement('update-available-card');
+    const versionText = this.getElement('update-version-text');
+    const changelog = this.getElement('update-changelog');
+    const statusEl = this.getElement('update-status');
 
     if (updateCard) updateCard.classList.remove('hidden');
-    if (versionText) versionText.textContent = `Version ${info.version} is ready to download`;
+    if (versionText) versionText.textContent = `Version ${info.version} — downloading in background…`;
 
     if (changelog && info.releaseNotes) {
       changelog.innerHTML = info.releaseNotes;
     }
 
     if (statusEl) {
-      statusEl.textContent = `Update available: ${info.version}`;
+      statusEl.textContent = `Downloading update ${info.version}…`;
       statusEl.className = 'settings-sublabel available';
     }
+
+    // Show progress bar immediately since auto-download has started
+    const progressContainer = this.getElement('update-progress-container');
+    if (progressContainer) progressContainer.classList.remove('hidden');
   }
 
   showUpdateStatus(message, className = '') {
@@ -4036,12 +4108,15 @@ class KolboApp {
   }
 
   showUpdateDownloaded(info) {
-    const downloadBtn = document.getElementById('download-update-btn');
-    const installBtn = document.getElementById('install-update-btn');
-    const progressText = document.getElementById('update-progress-text');
-    const statusEl = document.getElementById('update-status');
+    const downloadBtn = this.getElement('download-update-btn');
+    const installBtn = this.getElement('install-update-btn');
+    const progressText = this.getElement('update-progress-text');
+    const statusEl = this.getElement('update-status');
+    const updateBtn = this.getElement('update-available-btn');
+    const updateBtnLabel = this.getElement('update-btn-label');
 
-    // Keep download button visible, also show install button
+    // Hide download button, show install button
+    if (downloadBtn) downloadBtn.classList.add('hidden');
     if (installBtn) installBtn.classList.remove('hidden');
 
     if (progressText) {
@@ -4049,24 +4124,24 @@ class KolboApp {
     }
 
     if (statusEl) {
-      statusEl.textContent = `Update ready to install: ${info.version}`;
+      statusEl.textContent = `Update ${info.version} ready — click to restart`;
       statusEl.className = 'settings-sublabel available';
+    }
+
+    // Nav button now triggers install directly with one click
+    if (updateBtn) {
+      if (updateBtnLabel) updateBtnLabel.textContent = 'Restart to Update';
+      updateBtn.title = `Version ${info.version} ready — click to install and relaunch`;
+      updateBtn.onclick = () => this.handleInstallUpdate();
     }
   }
 
   async handleInstallUpdate() {
-    const confirmed = confirm(
-      'The app will close and install the update.\n\n' +
-      'Your work will be saved. Continue?'
-    );
-
-    if (confirmed) {
-      if (this.DEBUG_MODE) {
+    if (this.DEBUG_MODE) {
       console.log('[Update] Installing update');
-      }
-      await window.kolboDesktop.installUpdate();
-      // App will quit and install
     }
+    await window.kolboDesktop.installUpdate();
+    // App will quit, install, and relaunch
   }
 
   async getUserDataPath() {

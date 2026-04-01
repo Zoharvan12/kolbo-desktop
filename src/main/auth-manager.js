@@ -18,10 +18,18 @@ class AuthManager {
     ipcMain.handle('auth:google-login', this.handleGoogleLogin);
     ipcMain.handle('auth:logout', this.handleLogout);
     ipcMain.handle('auth:get-token', this.getToken);
+    ipcMain.handle('auth:update-token', this.handleUpdateToken);
     ipcMain.handle('app:get-version', () => app.getVersion());
     ipcMain.handle('app:open-external', (event, url) => shell.openExternal(url));
 
     console.log('[AuthManager] IPC handlers registered');
+  }
+
+  // Store token in all keys used across desktop + plugin for compatibility.
+  static storeToken(token) {
+    store.set('token', token);
+    store.set('kolbo_token', token);
+    store.set('kolbo_access_token', token);
   }
 
   static async handleEmailLogin(event, { email, password }) {
@@ -49,10 +57,7 @@ class AuthManager {
       const token = data.token || data.data?.token;
 
       if (token) {
-        // Store token in multiple keys for compatibility with plugin
-        store.set('token', token);
-        store.set('kolbo_token', token);
-        store.set('kolbo_access_token', token);
+        AuthManager.storeToken(token);
 
         console.log('[AuthManager] Login successful, token stored');
         return { success: true, token };
@@ -100,10 +105,7 @@ class AuthManager {
             const token = data.token || data.data?.token;
 
             if (token) {
-              // Store token
-              store.set('token', token);
-              store.set('kolbo_token', token);
-              store.set('kolbo_access_token', token);
+              AuthManager.storeToken(token);
 
               console.log('[AuthManager] Google OAuth successful, token received');
               return { success: true, token };
@@ -129,6 +131,15 @@ class AuthManager {
     store.delete('token');
     store.delete('kolbo_token');
     store.delete('kolbo_access_token');
+    return { success: true };
+  }
+
+  // Called when the web app (iframe) has a fresher token than electron-store.
+  // Keeps the desktop token in sync so getMedia/getProjects calls don't 401.
+  static handleUpdateToken(event, token) {
+    if (!token || typeof token !== 'string') return { success: false };
+    AuthManager.storeToken(token);
+    console.log('[AuthManager] Token updated from web app');
     return { success: true };
   }
 

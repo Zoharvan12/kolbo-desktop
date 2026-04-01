@@ -74,6 +74,9 @@ contextBridge.exposeInMainWorld('kolboDesktop', {
   getToken: () =>
     ipcRenderer.invoke('auth:get-token'),
 
+  updateToken: (token) =>
+    ipcRenderer.invoke('auth:update-token', token),
+
   // Media API
   getMedia: (params) =>
     ipcRenderer.invoke('media:get', params),

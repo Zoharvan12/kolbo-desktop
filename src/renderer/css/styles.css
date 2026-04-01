@@ -2521,11 +2521,17 @@ body.is-mac .window-controls {
 /* Thumbnail Loading States */
 .media-preview img[src=""],
 .media-preview img:not([src]),
+.media-preview img[data-src]:not([src]),
 .media-preview video[poster=""],
 .media-preview video:not([poster]) {
   background: linear-gradient(90deg, #1a1a1a 25%, #2a2a2a 50%, #1a1a1a 75%);
   background-size: 200% 100%;
   animation: thumbnail-loading 1.5s ease-in-out infinite;
+}
+
+/* Lazy-loaded images: fade in smoothly when src is set */
+.media-img-lazy {
+  transition: opacity 0.25s ease;
 }
 
 @keyframes thumbnail-loading {
