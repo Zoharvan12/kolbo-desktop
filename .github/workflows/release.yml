@@ -314,6 +314,9 @@ jobs:
             release-artifacts/latest-mac.yml
             release-artifacts/Kolbo.Studio-Setup-latest.exe
             release-artifacts/Kolbo.Studio-latest.dmg
+            release-artifacts/Kolbo Studio-Setup-${{ needs.prepare-release.outputs.version }}.exe
+            release-artifacts/Kolbo Studio-${{ needs.prepare-release.outputs.version }}-universal.dmg
+            release-artifacts/Kolbo Studio-${{ needs.prepare-release.outputs.version }}-universal.zip
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
