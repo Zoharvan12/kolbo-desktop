@@ -3357,6 +3357,10 @@ app.whenReady().then(() => {
   // Setup Quick Tools handlers
   setupQuickToolsHandlers();
 
+  // Agent Terminal (Kolbo Code) — register early so IPC is ready before user clicks tab
+  const { setupAgentTerminalHandlers } = require('./agent-terminal-handler');
+  setupAgentTerminalHandlers();
+
   // Setup proactive memory monitoring
   setupMemoryMonitoring();
 

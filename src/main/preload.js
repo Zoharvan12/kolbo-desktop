@@ -506,6 +506,30 @@ contextBridge.exposeInMainWorld('kolboDesktop', {
   dialog: {
     showMessage: (options) =>
       ipcRenderer.invoke('dialog:show-message', options)
+  },
+
+  // Agent Terminal (Kolbo Code)
+  agent: {
+    ensureCli: () =>
+      ipcRenderer.invoke('agent-terminal:ensure-cli'),
+
+    spawn: () =>
+      ipcRenderer.invoke('agent-terminal:spawn'),
+
+    kill: () =>
+      ipcRenderer.invoke('agent-terminal:kill'),
+
+    sendInput: (data) =>
+      ipcRenderer.send('agent-terminal:input', data),
+
+    resize: (cols, rows) =>
+      ipcRenderer.send('agent-terminal:resize', { cols, rows }),
+
+    onData: (callback) =>
+      ipcRenderer.on('agent-terminal:data', (event, data) => callback(data)),
+
+    onExit: (callback) =>
+      ipcRenderer.on('agent-terminal:exit', (event, code) => callback(code)),
   }
 });
 

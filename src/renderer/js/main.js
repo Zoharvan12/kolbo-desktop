@@ -437,6 +437,10 @@ class KolboApp {
     if (fileExplorerTab) {
       fileExplorerTab.addEventListener('click', () => this.switchView('file-explorer'));
     }
+    const agentTab = document.getElementById('agent-tab');
+    if (agentTab) {
+      agentTab.addEventListener('click', () => this.switchView('agent'));
+    }
 
     // Settings Button (icon button in header-actions)
     const settingsBtn = document.getElementById('settings-btn');
@@ -671,6 +675,7 @@ class KolboApp {
     const downloaderView = document.getElementById('downloader-view');
     const quickToolsView = document.getElementById('quick-tools-view');
     const fileExplorerView = document.getElementById('file-explorer-view');
+    const agentView = document.getElementById('agent-view');
     const mediaCount = document.getElementById('media-count');
 
     // Hide all views first
@@ -688,6 +693,8 @@ class KolboApp {
     quickToolsView?.classList.remove('active');
     fileExplorerView?.classList.add('hidden');
     fileExplorerView?.classList.remove('active');
+    agentView?.classList.add('hidden');
+    agentView?.classList.remove('active');
 
     if (view === 'media') {
       mediaView?.classList.remove('hidden');
@@ -792,6 +799,37 @@ class KolboApp {
 
       if (this.DEBUG_MODE) {
         console.log('[View] File Explorer view shown');
+      }
+    } else if (view === 'agent') {
+      agentView?.classList.remove('hidden');
+      agentView?.classList.add('active');
+      if (mediaCount) mediaCount.style.display = 'none';
+
+      // Initialize agent terminal on first activation
+      if (!this._agentTerminal) {
+        const container = document.getElementById('agent-terminal-container');
+        console.log('[Agent] Checking: AgentTerminal=', !!window.AgentTerminal, 'container=', !!container);
+        if (container && window.AgentTerminal) {
+          this._agentTerminal = new window.AgentTerminal();
+          this._agentTerminal.init(container).catch(err => {
+            console.error('[Agent] init failed:', err);
+            container.innerHTML = '<div style="padding:20px;color:#ef4444;font-family:monospace;white-space:pre-wrap;">Terminal init failed:\n' + err.message + '</div>';
+          });
+        } else if (container) {
+          container.innerHTML = '<div style="padding:20px;color:#f59e0b;font-family:monospace;">AgentTerminal class not loaded. Check if xterm.js scripts are loading.</div>';
+        }
+      }
+
+      // Focus and re-fit terminal (must happen AFTER view is visible)
+      if (this._agentTerminal) {
+        setTimeout(() => {
+          this._agentTerminal._fit();
+          this._agentTerminal.focus();
+        }, 50);
+      }
+
+      if (this.DEBUG_MODE) {
+        console.log('[View] Agent view shown');
       }
     }
   }
