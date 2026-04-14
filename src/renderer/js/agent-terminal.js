@@ -11,7 +11,6 @@ class AgentTerminal {
     this.kolboReady = false;
     this.kolboReadyResolve = null;
     this.kolboReadyPromise = new Promise(resolve => { this.kolboReadyResolve = resolve; });
-    this._isMac = window.kolboDesktop?.platform === 'darwin';
   }
 
   async init(container) {
@@ -118,7 +117,7 @@ class AgentTerminal {
       if (recvCount <= 5) {
         console.log(`[AgentTerminal] Received data #${recvCount} (${data.length} bytes)`);
       }
-      this.terminal.write(this._isMac ? this._fixBidi(data) : data);
+      this.terminal.write(data);
 
       // Detect Kolbo Code ready state: wait for first substantial output with text
       if (!this.kolboReady && data.length > 0) {
@@ -214,13 +213,6 @@ class AgentTerminal {
 
       // Focus the terminal after drop
       this.terminal?.focus();
-    });
-  }
-
-  _fixBidi(data) {
-    if (!/[\u0590-\u05FF\u0600-\u06FF]/.test(data)) return data;
-    return data.replace(/([\u0590-\u05FF\u0600-\u06FF\u0750-\u077F\uFB50-\uFDFF\uFE70-\uFEFF][^\x1b\n\r]*[\u0590-\u05FF\u0600-\u06FF\u0750-\u077F\uFB50-\uFDFF\uFE70-\uFEFF]|[\u0590-\u05FF\u0600-\u06FF\u0750-\u077F\uFB50-\uFDFF\uFE70-\uFEFF])/g, (match) => {
-      return [...match].reverse().join('');
     });
   }
 
