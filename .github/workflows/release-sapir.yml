@@ -1,0 +1,219 @@
+name: Build and Release - Sapir AI Studio
+
+# Builds on every push to master, same cadence as the main Kolbo Studio release
+on:
+  push:
+    branches:
+      - master
+
+permissions:
+  contents: write
+
+jobs:
+  prepare-release:
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.get_version.outputs.version }}
+      tag_name: ${{ steps.get_version.outputs.tag_name }}
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Get version from package.json
+        id: get_version
+        run: |
+          VERSION=$(node -p "require('./package.json').version")
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "tag_name=sapir-v$VERSION" >> $GITHUB_OUTPUT
+          echo "Sapir release version: $VERSION"
+
+  build-windows:
+    needs: prepare-release
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v3
+
+      - uses: actions/setup-node@v3
+        with:
+          node-version: '18'
+
+      - name: Install dependencies
+        run: npm install
+
+      - name: Rebuild native modules for Windows
+        run: npx electron-builder install-app-deps
+
+      - name: Build Sapir Windows installer
+        env:
+          KOLBO_ENV: production
+          CI: 'true'
+        run: node scripts/build-whitelabel.js sapir --win
+
+      - name: Fix latest.yml filename format (Windows sed)
+        shell: bash
+        run: |
+          # Spaces → dots so filenames match what GitHub uploads (GitHub converts spaces to dots)
+          sed -i 's/Sapir AI Studio/Sapir.AI.Studio/g' dist-sapir/latest.yml
+          cat dist-sapir/latest.yml
+
+      - name: Copy installer with fixed "latest" filename
+        shell: bash
+        run: |
+          VERSION="${{ needs.prepare-release.outputs.version }}"
+          cp "dist-sapir/Sapir AI Studio-Setup-${VERSION}.exe" "dist-sapir/Sapir.AI.Studio-Setup-latest.exe"
+
+      - name: Upload Windows artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: sapir-windows-artifacts
+          path: |
+            dist-sapir/Sapir AI Studio-Setup-${{ needs.prepare-release.outputs.version }}.exe
+            dist-sapir/Sapir AI Studio-Setup-${{ needs.prepare-release.outputs.version }}.exe.blockmap
+            dist-sapir/latest.yml
+            dist-sapir/Sapir.AI.Studio-Setup-latest.exe
+
+  build-macos:
+    needs: prepare-release
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v3
+
+      - uses: actions/setup-node@v3
+        with:
+          node-version: '18'
+
+      - name: Install dependencies
+        run: npm install
+
+      - name: Rebuild native modules for macOS
+        run: npx electron-builder install-app-deps
+
+      - name: Generate Mac icons with rounded corners
+        run: node scripts/generate-icons.js
+
+      - name: Import Code Signing Certificate
+        env:
+          CSC_LINK: ${{ secrets.CSC_LINK }}
+          CSC_KEY_PASSWORD: ${{ secrets.CSC_KEY_PASSWORD }}
+        run: |
+          if [ -z "$CSC_LINK" ]; then
+            echo "⚠️ CSC_LINK not set, skipping certificate import"
+            exit 0
+          fi
+          KEYCHAIN_NAME="build.keychain"
+          KEYCHAIN_PASSWORD="actions"
+          echo "$CSC_LINK" | base64 --decode > certificate.p12
+          security create-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_NAME"
+          security default-keychain -s "$KEYCHAIN_NAME"
+          security unlock-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_NAME"
+          security set-keychain-settings -t 3600 -u "$KEYCHAIN_NAME"
+          security import certificate.p12 -k "$KEYCHAIN_NAME" -P "$CSC_KEY_PASSWORD" -T /usr/bin/codesign -T /usr/bin/security
+          security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k "$KEYCHAIN_PASSWORD" "$KEYCHAIN_NAME"
+          security list-keychains -d user -s "$KEYCHAIN_NAME" $(security list-keychains -d user | tr -d '"')
+          security find-identity -v -p codesigning
+          rm certificate.p12
+
+      - name: Build Sapir macOS DMG
+        env:
+          KOLBO_ENV: production
+          CI: 'true'
+          CSC_NAME: "Zohar Vanunu Productions, LLC (DPVW9Z2L9Y)"
+          CSC_LINK: ${{ secrets.CSC_LINK }}
+          CSC_KEY_PASSWORD: ${{ secrets.CSC_KEY_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_ID_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
+          APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
+        run: node scripts/build-whitelabel.js sapir --mac
+
+      - name: Fix latest-mac.yml filename format
+        run: |
+          echo "=== Original latest-mac.yml ==="
+          cat dist-sapir/latest-mac.yml
+          # Spaces → dots, remove -mac suffix from ZIP
+          sed -i '' 's/Sapir AI Studio/Sapir.AI.Studio/g' dist-sapir/latest-mac.yml
+          sed -i '' 's/-universal-mac\.zip/-universal.zip/g' dist-sapir/latest-mac.yml
+          echo "=== Fixed latest-mac.yml ==="
+          cat dist-sapir/latest-mac.yml
+
+      - name: Copy DMG with fixed "latest" filename
+        run: |
+          VERSION="${{ needs.prepare-release.outputs.version }}"
+          cp "dist-sapir/Sapir AI Studio-${VERSION}-universal.dmg" "dist-sapir/Sapir.AI.Studio-latest.dmg"
+
+      - name: Upload macOS artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: sapir-macos-artifacts
+          path: |
+            dist-sapir/Sapir AI Studio-${{ needs.prepare-release.outputs.version }}-universal.dmg
+            dist-sapir/Sapir AI Studio-${{ needs.prepare-release.outputs.version }}-universal-mac.zip
+            dist-sapir/latest-mac.yml
+            dist-sapir/Sapir.AI.Studio-latest.dmg
+
+  create-release:
+    needs: [prepare-release, build-windows, build-macos]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: sapir-windows-artifacts
+          path: ./dist-windows
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: sapir-macos-artifacts
+          path: ./dist-macos
+
+      - name: Rename Mac ZIP (remove -mac suffix)
+        run: |
+          cd ./dist-macos
+          VERSION="${{ needs.prepare-release.outputs.version }}"
+          if [ -f "Sapir AI Studio-${VERSION}-universal-mac.zip" ]; then
+            mv "Sapir AI Studio-${VERSION}-universal-mac.zip" \
+               "Sapir AI Studio-${VERSION}-universal.zip"
+            echo "✅ Renamed universal ZIP"
+          fi
+
+      - name: Consolidate all artifacts
+        run: |
+          mkdir -p ./release-artifacts
+          cp -v ./dist-windows/* ./release-artifacts/
+          cp -v ./dist-macos/* ./release-artifacts/
+          echo "=== Final release artifacts ==="
+          ls -lah ./release-artifacts/
+
+      - name: Create Sapir GitHub Release
+        uses: softprops/action-gh-release@v1
+        with:
+          repository: Zoharvan12/kolbo-desktop-sapir
+          tag_name: ${{ needs.prepare-release.outputs.tag_name }}
+          name: Sapir AI Studio v${{ needs.prepare-release.outputs.version }}
+          body: |
+            ## Sapir AI Studio v${{ needs.prepare-release.outputs.version }}
+
+            ### Downloads
+            - **Windows**: Sapir.AI.Studio-Setup-${{ needs.prepare-release.outputs.version }}.exe
+            - **macOS (Universal)**: Sapir.AI.Studio-${{ needs.prepare-release.outputs.version }}-universal.dmg
+
+            ### Installation
+            **Windows**: Download the .exe installer and run it.
+
+            **macOS**: Download the .dmg file (Universal — works on Intel and Apple Silicon). Open the DMG and drag to Applications.
+
+            ### Auto-Update
+            Existing users will be notified automatically within the app.
+
+            ---
+            🚀 Auto-generated release from master branch
+          draft: false
+          prerelease: false
+          files: |
+            release-artifacts/latest.yml
+            release-artifacts/latest-mac.yml
+            release-artifacts/Sapir.AI.Studio-Setup-latest.exe
+            release-artifacts/Sapir.AI.Studio-latest.dmg
+            release-artifacts/Sapir AI Studio-Setup-${{ needs.prepare-release.outputs.version }}.exe
+            release-artifacts/Sapir AI Studio-${{ needs.prepare-release.outputs.version }}-universal.dmg
+            release-artifacts/Sapir AI Studio-${{ needs.prepare-release.outputs.version }}-universal.zip
+        env:
+          GITHUB_TOKEN: ${{ secrets.RELEASES_PAT }}
