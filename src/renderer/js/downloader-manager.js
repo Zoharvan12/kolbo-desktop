@@ -376,14 +376,10 @@ class DownloaderManager {
         </div>
         <div class="dl-item-actions">
           <button class="dl-item-action-btn folder" title="Show in folder" style="display: none;">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"></path>
-            </svg>
+            ${Icons.get('download', 16)}
           </button>
           <button class="dl-item-action-btn cancel" title="Cancel/Remove">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <path d="M18 6L6 18M6 6l12 12"></path>
-            </svg>
+            ${Icons.get('x', 14)}
           </button>
         </div>
       </div>

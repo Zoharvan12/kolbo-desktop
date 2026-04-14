@@ -1,0 +1,311 @@
+/* RTL Support for Kolbo Studio Desktop */
+
+[dir=rtl] {
+  text-align: right;
+}
+
+[dir=ltr] {
+  text-align: left;
+}
+
+/* Header flips */
+[dir=rtl] .header {
+  flex-direction: row-reverse;
+}
+
+[dir=rtl] .header-left {
+  flex-direction: row-reverse;
+}
+
+[dir=rtl] .header-actions {
+  flex-direction: row-reverse;
+}
+
+/* Tab buttons */
+[dir=rtl] .view-tabs {
+  flex-direction: row-reverse;
+}
+
+[dir=rtl] .tab-btn {
+  flex-direction: row-reverse;
+}
+
+/* Filters */
+[dir=rtl] .filters {
+  flex-direction: row-reverse;
+}
+
+[dir=rtl] .filters-left {
+  flex-direction: row-reverse;
+}
+
+[dir=rtl] .filter-btn {
+  flex-direction: row-reverse;
+}
+
+[dir=rtl] .subcategories {
+  flex-direction: row-reverse;
+  flex-wrap: wrap;
+}
+
+[dir=rtl] .subcategory-group {
+  flex-direction: row-reverse;
+  flex-wrap: wrap;
+}
+
+[dir=rtl] .subcategory-btn {
+  direction: rtl;
+}
+
+/* Project selector */
+[dir=rtl] .project-dropdown-trigger {
+  flex-direction: row-reverse;
+}
+
+[dir=rtl] .project-search-wrapper {
+  flex-direction: row-reverse;
+}
+
+[dir=rtl] .project-sort-wrapper {
+  flex-direction: row-reverse;
+}
+
+[dir=rtl] .project-item {
+  flex-direction: row-reverse;
+  text-align: right;
+}
+
+/* Auth form */
+[dir=rtl] .auth-form {
+  text-align: right;
+}
+
+[dir=rtl] .auth-divider span::before,
+[dir=rtl] .auth-divider span::after {
+  content: '';
+}
+
+[dir=rtl] .password-field {
+  direction: ltr;
+}
+
+[dir=rtl] .password-field input {
+  direction: rtl;
+}
+
+/* Settings */
+[dir=rtl] .settings-item {
+  flex-direction: row-reverse;
+}
+
+[dir=rtl] .settings-item-info {
+  text-align: right;
+}
+
+/* Format Factory */
+[dir=rtl] .ff-toolbar {
+  flex-direction: row-reverse;
+}
+
+[dir=rtl] .ff-toolbar-left {
+  flex-direction: row-reverse;
+}
+
+[dir=rtl] .ff-toolbar-right {
+  flex-direction: row-reverse;
+}
+
+[dir=rtl] .ff-category-btn {
+  flex-direction: row-reverse;
+}
+
+[dir=rtl] .ff-table th,
+[dir=rtl] .ff-table td {
+  text-align: right;
+}
+
+[dir=rtl] .ff-table th:first-child,
+[dir=rtl] .ff-table td:first-child {
+  text-align: center;
+}
+
+/* Downloader */
+[dir=rtl] .dl-folder-section {
+  flex-direction: row-reverse;
+}
+
+[dir=rtl] .dl-folder-path-wrapper {
+  flex-direction: row-reverse;
+}
+
+[dir=rtl] .dl-url-input-wrapper {
+  direction: rtl;
+}
+
+[dir=rtl] .dl-preview-options {
+  flex-direction: row-reverse;
+}
+
+[dir=rtl] .dl-option-group {
+  flex-direction: row-reverse;
+}
+
+[dir=rtl] .dl-queue-header {
+  flex-direction: row-reverse;
+}
+
+[dir=rtl] .dl-queue-header-actions {
+  flex-direction: row-reverse;
+}
+
+/* Quick Tools */
+[dir=rtl] .qt-tool-card {
+  text-align: right;
+}
+
+[dir=rtl] .qt-output-section {
+  flex-direction: row-reverse;
+}
+
+[dir=rtl] .qt-dropzone {
+  text-align: right;
+  direction: rtl;
+}
+
+[dir=rtl] .qt-tool-selector {
+  direction: rtl;
+}
+
+/* Inputs */
+[dir=rtl] input[type="text"],
+[dir=rtl] input[type="email"],
+[dir=rtl] input[type="password"],
+[dir=rtl] select,
+[dir=rtl] textarea {
+  text-align: right;
+  direction: rtl;
+}
+
+/* Icon buttons */
+[dir=rtl] .icon-btn {
+  flex-direction: row-reverse;
+}
+
+[dir=rtl] .icon-btn span {
+  margin-left: 0;
+  margin-right: 6px;
+}
+
+/* Grid size control */
+[dir=rtl] .grid-size-control {
+  direction: rtl;
+}
+
+/* Context menu */
+[dir=rtl] .context-menu {
+  text-align: right;
+}
+
+[dir=rtl] .context-menu-item {
+  flex-direction: row-reverse;
+}
+
+/* Window controls stay on right in RTL */
+[dir=rtl] .window-controls {
+  flex-direction: row;
+}
+
+/* Scrollbar position for RTL */
+[dir=rtl] ::-webkit-scrollbar {
+  direction: rtl;
+}
+
+/* Logo flip - optional, uncomment if needed */
+/*
+[dir=rtl] .logo-icon {
+  transform: scaleX(-1);
+}
+*/
+
+/* Empty states */
+[dir=rtl] .empty-state,
+[dir=rtl] .error-state,
+[dir=rtl] .loading-state {
+  text-align: center;
+}
+
+/* Update card */
+[dir=rtl] .update-card-header {
+  flex-direction: row-reverse;
+}
+
+[dir=rtl] .update-card-actions {
+  flex-direction: row-reverse;
+}
+
+/* Language selector */
+[dir=rtl] .lang-option {
+  flex-direction: row-reverse;
+}
+
+[dir=rtl] .lang-option.lang-option-active::after {
+  margin-left: 0;
+  margin-right: auto;
+}
+
+/* Animations */
+[dir=rtl] .spinner::before {
+  animation-direction: reverse;
+}
+
+/* Tooltips */
+[dir=rtl] [data-tooltip]::after {
+  left: auto;
+  right: 50%;
+  transform: translateX(50%);
+}
+
+/* Media grid items */
+[dir=rtl] .media-item-actions {
+  left: 8px;
+  right: auto;
+}
+
+[dir=rtl] .media-item-badge {
+  right: 8px;
+  left: auto;
+}
+
+/* Table sort icons */
+[dir=rtl] .sort-icon {
+  margin-left: 0;
+  margin-right: 4px;
+}
+
+/* Modal dialogs */
+[dir=rtl] .modal-content {
+  text-align: right;
+}
+
+[dir=rtl] .modal-actions {
+  flex-direction: row-reverse;
+}
+
+/* Toast notifications */
+[dir=rtl] .toast {
+  text-align: right;
+}
+
+/* Progress bars */
+[dir=rtl] .progress-label {
+  text-align: right;
+}
+
+/* Dropdowns */
+[dir=rtl] .dropdown-content {
+  text-align: right;
+}
+
+[dir=rtl] .dropdown-item {
+  flex-direction: row-reverse;
+}

@@ -65,11 +65,7 @@ class TrimmerTool {
           <span class="qt-trimmer-type-badge ${typeBadgeClass}">${typeBadge}</span>
           <span style="flex: 1;"></span>
           <button class="qt-btn qt-btn-secondary" id="qt-trimmer-change-btn">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
-              <polyline points="17 8 12 3 7 8"/>
-              <line x1="12" y1="3" x2="12" y2="15"/>
-            </svg>
+            ${Icons.get('upload', 16)}
             Change File
           </button>
         </div>
@@ -90,20 +86,13 @@ class TrimmerTool {
         <div class="qt-action-bar">
           <div class="qt-action-bar-left">
             <button class="qt-btn qt-btn-secondary" id="qt-trimmer-reset-btn">
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <path d="M1 4v6h6M23 20v-6h-6"/>
-                <path d="M20.49 9A9 9 0 0 0 5.64 5.64L1 10m22 4l-4.64 4.36A9 9 0 0 1 3.51 15"/>
-              </svg>
+              ${Icons.get('refresh-cw', 16)}
               Reset
             </button>
           </div>
           <div class="qt-action-bar-right">
             <button class="qt-btn qt-btn-primary" id="qt-trimmer-export-btn">
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
-                <polyline points="7 10 12 15 17 10"/>
-                <line x1="12" y1="15" x2="12" y2="3"/>
-              </svg>
+              ${Icons.get('download', 16)}
               Export Trimmed ${this.isVideo ? 'Video' : 'Audio'}
             </button>
           </div>

@@ -43,6 +43,8 @@
 }
 
 .ff-btn svg {
+  width: 14px;
+  height: 14px;
   stroke: #ffffff;
   fill: none;
   flex-shrink: 0;
@@ -144,6 +146,8 @@
 }
 
 .ff-category-btn svg:first-child {
+  width: 16px;
+  height: 16px;
   stroke: rgba(255, 255, 255, 0.6);
   fill: none;
   flex-shrink: 0;
@@ -155,6 +159,8 @@
 }
 
 .ff-chevron {
+  width: 14px;
+  height: 14px;
   stroke: rgba(255, 255, 255, 0.4);
   fill: none;
   flex-shrink: 0;

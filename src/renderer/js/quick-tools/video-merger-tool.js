@@ -151,9 +151,7 @@ class VideoMergerTool {
         </div>
         <div class="qt-form-group">
           <button class="qt-btn qt-btn-secondary" id="qt-merger-add-more" style="margin-top: 24px;">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <path d="M12 5v14M5 12h14"/>
-            </svg>
+            ${Icons.get('plus', 24)}
             Add More Clips
           </button>
         </div>
@@ -178,12 +176,7 @@ class VideoMergerTool {
         </div>
         <div class="qt-action-bar-right">
           <button class="qt-btn qt-btn-primary" id="qt-merger-merge-btn" ${this.clips.length < 2 ? 'disabled' : ''}>
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <rect x="2" y="2" width="8" height="8" rx="1"></rect>
-              <rect x="14" y="2" width="8" height="8" rx="1"></rect>
-              <rect x="8" y="14" width="8" height="8" rx="1"></rect>
-              <path d="M6 10v4M18 10v4M10 6h4M10 18h4"></path>
-            </svg>
+            ${Icons.get('grid-2x2', 16)}
             Merge Videos
           </button>
         </div>
@@ -219,14 +212,7 @@ class VideoMergerTool {
     container.innerHTML = this.clips.map((clip, index) => `
       <div class="qt-merger-clip" data-index="${index}" draggable="true">
         <div class="qt-merger-drag-handle">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <circle cx="9" cy="5" r="1"></circle>
-            <circle cx="9" cy="12" r="1"></circle>
-            <circle cx="9" cy="19" r="1"></circle>
-            <circle cx="15" cy="5" r="1"></circle>
-            <circle cx="15" cy="12" r="1"></circle>
-            <circle cx="15" cy="19" r="1"></circle>
-          </svg>
+          ${Icons.get('more-vertical', 16)}
         </div>
         <div class="qt-merger-clip-thumbnail">
           ${clip.thumbnail ? `<img src="${clip.thumbnail}" alt="">` : '<span style="color: rgba(255,255,255,0.3);">No preview</span>'}
@@ -240,19 +226,13 @@ class VideoMergerTool {
         </div>
         <div class="qt-merger-clip-actions">
           <button class="qt-merger-clip-btn" data-action="move-up" data-index="${index}" title="Move up" ${index === 0 ? 'disabled' : ''}>
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <path d="M18 15l-6-6-6 6"/>
-            </svg>
+            ${Icons.get('chevron-up', 14)}
           </button>
           <button class="qt-merger-clip-btn" data-action="move-down" data-index="${index}" title="Move down" ${index === this.clips.length - 1 ? 'disabled' : ''}>
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <path d="M6 9l6 6 6-6"/>
-            </svg>
+            ${Icons.get('chevron-down', 14)}
           </button>
           <button class="qt-merger-clip-btn remove" data-action="remove" data-index="${index}" title="Remove">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <path d="M18 6L6 18M6 6l12 12"/>
-            </svg>
+            ${Icons.get('x', 14)}
           </button>
         </div>
       </div>

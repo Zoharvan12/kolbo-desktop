@@ -32,6 +32,8 @@
 }
 
 .dl-folder-label svg {
+  width: 16px;
+  height: 16px;
   stroke: #3b82f6;
 }
 
@@ -105,6 +107,8 @@
 }
 
 .dl-folder-open-btn svg {
+  width: 14px;
+  height: 14px;
   stroke: currentColor;
 }
 
@@ -124,6 +128,8 @@
 }
 
 .dl-btn svg {
+  width: 14px;
+  height: 14px;
   stroke: #ffffff;
   fill: none;
   flex-shrink: 0;

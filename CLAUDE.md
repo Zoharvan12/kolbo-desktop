@@ -149,7 +149,40 @@ spctl --assess --verbose "path/to/App.app"
 xcrun notarytool info SUBMISSION_ID --apple-id EMAIL --team-id TEAM_ID --password PASSWORD
 ```
 
+## Internationalization (i18n)
+
+### ALWAYS Use Translation Keys
+When adding any user-facing text (buttons, labels, messages, etc.), ALWAYS:
+1. Add a translation key to `src/renderer/i18n/locales/en.json`
+2. Use `window.t('key')` in JavaScript or `data-i18n="key"` in HTML
+3. NEVER hardcode visible strings
+
+### Translation Script
+When adding new strings or updating translations, use the Gemini translation script:
+
+```javascript
+// translate-locales.js - creates/updates all locale files
+import { GoogleGenerativeAI } from '@google/generative-ai';
+import fs from 'fs';
+import path from 'path';
+
+const genAI = new GoogleGenerativeAI('AIzaSyBT2ZTHodPo1waHrfUCfMfTpzSPYHDqOMs');
+const model = genAI.getGenerativeModel({ model: 'gemini-2.0-flash-lite' });
+
+// To run translations:
+node translate-locales.js
+```
+
+### Locale Files Location
+- `src/renderer/i18n/locales/en.json` - Source (English)
+- `src/renderer/i18n/locales/he.json` - Hebrew (RTL)
+- `src/renderer/i18n/locales/ar.json` - Arabic (RTL)
+- Plus: ru, es, fr, de, zh, pt, ja, ko, hi
+
+### RTL Languages
+Hebrew and Arabic automatically flip layout to RTL when selected.
+
 ## Last Updated
-- **Date**: February 5, 2026
-- **Version**: 1.1.6
-- **Status**: Signing and notarization fully working
+- **Date**: April 14, 2026
+- **Version**: 1.3.0
+- **Status**: i18n system implemented with 12 languages

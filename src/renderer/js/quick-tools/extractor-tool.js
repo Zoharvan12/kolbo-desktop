@@ -159,11 +159,7 @@ class ExtractorTool {
 
       <div class="qt-output-section">
         <div class="qt-output-label">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <path d="M9 18V5l12-2v13"></path>
-            <circle cx="6" cy="18" r="3"></circle>
-            <circle cx="18" cy="16" r="3"></circle>
-          </svg>
+          ${Icons.get('music', 16)}
           <span>Estimated size:</span>
         </div>
         <span id="qt-extractor-size" style="color: rgba(255,255,255,0.8);">${this.estimateOutputSize()}</span>
@@ -182,21 +178,13 @@ class ExtractorTool {
       <div class="qt-action-bar">
         <div class="qt-action-bar-left">
           <button class="qt-btn qt-btn-secondary" id="qt-extractor-change-btn">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
-              <polyline points="17 8 12 3 7 8"/>
-              <line x1="12" y1="3" x2="12" y2="15"/>
-            </svg>
+            ${Icons.get('upload', 16)}
             Change Video
           </button>
         </div>
         <div class="qt-action-bar-right">
           <button class="qt-btn qt-btn-primary" id="qt-extractor-extract-btn">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <path d="M9 18V5l12-2v13"></path>
-              <circle cx="6" cy="18" r="3"></circle>
-              <circle cx="18" cy="16" r="3"></circle>
-            </svg>
+            ${Icons.get('music', 16)}
             Extract Audio
           </button>
         </div>

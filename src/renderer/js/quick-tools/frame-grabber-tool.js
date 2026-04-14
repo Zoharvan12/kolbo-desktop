@@ -103,18 +103,12 @@ class FrameGrabberTool {
 
         <div class="qt-fg-step-controls">
           <button class="qt-btn qt-btn-secondary" id="qt-fg-step-back" style="padding: 8px 12px; min-width: auto;">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <polygon points="11 19 2 12 11 5 11 19"></polygon>
-              <polygon points="22 19 13 12 22 5 22 19"></polygon>
-            </svg>
+            ${Icons.get('skip-back', 16)}
             <span style="margin-left: 6px;">Prev Frame</span>
           </button>
           <button class="qt-btn qt-btn-secondary" id="qt-fg-step-forward" style="padding: 8px 12px; min-width: auto;">
             <span style="margin-right: 6px;">Next Frame</span>
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <polygon points="13 19 22 12 13 5 13 19"></polygon>
-              <polygon points="2 19 11 12 2 5 2 19"></polygon>
-            </svg>
+            ${Icons.get('skip-forward', 16)}
           </button>
         </div>
 
@@ -129,10 +123,7 @@ class FrameGrabberTool {
             </select>
           </div>
           <button class="qt-btn qt-btn-primary" id="qt-fg-capture-btn">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/>
-              <circle cx="12" cy="13" r="4"/>
-            </svg>
+            ${Icons.get('camera', 16)}
             Capture Frame (Space)
           </button>
         </div>
@@ -146,11 +137,7 @@ class FrameGrabberTool {
 
         <div class="qt-captured-frames" id="qt-fg-frames">
           <div class="qt-frames-empty">
-            <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
-              <rect width="18" height="18" x="3" y="3" rx="2"></rect>
-              <circle cx="9" cy="9" r="2"></circle>
-              <path d="m21 15-3.086-3.086a2 2 0 0 0-2.828 0L6 21"></path>
-            </svg>
+            ${Icons.get('image', 48, 1.5)}
             <span>No frames captured yet</span>
             <span>Use Arrow keys to scrub, Space to capture</span>
           </div>
@@ -174,11 +161,7 @@ class FrameGrabberTool {
           </div>
           <div class="qt-action-bar-right">
             <button class="qt-btn qt-btn-primary" id="qt-fg-export-btn" disabled>
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
-                <polyline points="7 10 12 15 17 10"/>
-                <line x1="12" y1="15" x2="12" y2="3"/>
-              </svg>
+              ${Icons.get('download', 16)}
               Export Frames
             </button>
           </div>
@@ -412,11 +395,7 @@ class FrameGrabberTool {
     if (this.capturedFrames.length === 0) {
       container.innerHTML = `
         <div class="qt-frames-empty">
-          <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
-            <rect width="18" height="18" x="3" y="3" rx="2"></rect>
-            <circle cx="9" cy="9" r="2"></circle>
-            <path d="m21 15-3.086-3.086a2 2 0 0 0-2.828 0L6 21"></path>
-          </svg>
+          ${Icons.get('image', 32, 1.5)}
           <span>No frames captured yet</span>
           <span>Use Arrow keys to scrub, Space to capture</span>
         </div>
@@ -429,9 +408,7 @@ class FrameGrabberTool {
         <img src="${frame.dataUrl}" alt="Frame ${index + 1}">
         <span class="qt-captured-frame-time">${this.manager.formatTime(frame.timestamp)}</span>
         <button class="qt-captured-frame-remove" data-index="${index}" title="Remove frame">
-          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <path d="M18 6L6 18M6 6l12 12"/>
-          </svg>
+          ${Icons.get('x', 16)}
         </button>
       </div>
     `).join('');

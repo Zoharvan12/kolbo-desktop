@@ -8,6 +8,9 @@ class AgentTerminal {
     this.fitAddon = null;
     this.initialized = false;
     this.resizeObserver = null;
+    this.kolboReady = false;
+    this.kolboReadyResolve = null;
+    this.kolboReadyPromise = new Promise(resolve => { this.kolboReadyResolve = resolve; });
   }
 
   async init(container) {
@@ -108,12 +111,32 @@ class AgentTerminal {
 
     // Receive PTY output → write to terminal
     let recvCount = 0;
+    let kolboReadyTimeout = null;
     window.kolboDesktop.agent.onData((data) => {
       recvCount++;
       if (recvCount <= 5) {
         console.log(`[AgentTerminal] Received data #${recvCount} (${data.length} bytes)`);
       }
       this.terminal.write(data);
+
+      // Detect Kolbo Code ready state: wait for first substantial output with text
+      if (!this.kolboReady && data.length > 0) {
+        // Clear any existing timeout
+        if (kolboReadyTimeout) {
+          clearTimeout(kolboReadyTimeout);
+        }
+        // Kolbo Code is ready after we receive data (CLI has started outputting)
+        // Wait a small delay to ensure initial PowerShell/Shell output settles
+        kolboReadyTimeout = setTimeout(() => {
+          if (!this.kolboReady) {
+            this.kolboReady = true;
+            console.log('[AgentTerminal] Kolbo Code ready (first output received)');
+            if (this.kolboReadyResolve) {
+              this.kolboReadyResolve();
+            }
+          }
+        }, 800);
+      }
     });
 
     // Handle PTY exit

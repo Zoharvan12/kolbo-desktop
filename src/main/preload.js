@@ -54,12 +54,25 @@ function detectEnvironment() {
 const detectedEnvironment = detectEnvironment();
 console.log('[Preload] Final detected environment:', detectedEnvironment);
 
+// Webview preload path for process-isolated tabs
+let webviewPreloadPath = '';
+try {
+  const path = require('path');
+  webviewPreloadPath = path.join(__dirname, '..', 'renderer', 'webview-preload.js');
+} catch (e) {
+  console.error('[Preload] Failed to resolve webview preload path:', e.message);
+}
+
 // Expose safe API to renderer process
 contextBridge.exposeInMainWorld('kolboDesktop', {
   // Platform info
   platform: process.platform,
   isElectron: true,
   environment: detectedEnvironment,
+  webviewPreloadPath: webviewPreloadPath,
+
+  // Signal main process that renderer UI is ready (dismiss splash)
+  signalReady: () => ipcRenderer.send('renderer-ready'),
 
   // Authentication
   login: (email, password) =>

@@ -1456,9 +1456,7 @@ class TabManager {
     tabElement.innerHTML = `
       <span class="tab-title">${this.escapeHtml(tabTitle)}</span>
       <button class="tab-close" title="Close tab (Ctrl+W)">
-        <svg width="10" height="10" viewBox="0 0 12 12">
-          <path d="M1 1l10 10M11 1L1 11" stroke="currentColor" stroke-width="1.5"/>
-        </svg>
+        ${Icons.get('x', 10)}
       </button>
     `;
 
@@ -2431,34 +2429,20 @@ class TabManager {
 
     this.screenshotContextMenu.innerHTML = `
       <button class="screenshot-context-menu-item" data-action="copy">
-        <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
-          <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
-        </svg>
+        ${Icons.get('copy', 14)}
         Copy to Clipboard
       </button>
       <button class="screenshot-context-menu-item" data-action="save-png">
-        <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"></path>
-          <polyline points="17 21 17 13 7 13 7 21"></polyline>
-          <polyline points="7 3 7 8 15 8"></polyline>
-        </svg>
+        ${Icons.get('file-text', 14)}
         Save as PNG
       </button>
       <button class="screenshot-context-menu-item" data-action="save-jpg">
-        <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"></path>
-          <polyline points="17 21 17 13 7 13 7 21"></polyline>
-          <polyline points="7 3 7 8 15 8"></polyline>
-        </svg>
+        ${Icons.get('file-text', 14)}
         Save as JPG
       </button>
       <div class="screenshot-context-menu-separator"></div>
       <button class="screenshot-context-menu-item" data-action="cancel">
-        <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <line x1="18" y1="6" x2="6" y2="18"></line>
-          <line x1="6" y1="6" x2="18" y2="18"></line>
-        </svg>
+        ${Icons.get('x', 14)}
         Cancel
       </button>
     `;
@@ -2709,15 +2693,10 @@ class TabManager {
     tabElement.id = `tab-${mergedTabId}`;
     tabElement.setAttribute('data-tab-id', mergedTabId);
     tabElement.innerHTML = `
-      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="merged-icon">
-        <rect x="3" y="3" width="7" height="18" rx="1"></rect>
-        <rect x="14" y="3" width="7" height="18" rx="1"></rect>
-      </svg>
+      ${Icons.get('columns-2', 14)}
       <span class="tab-title">${this.escapeHtml(mergedTitle)}</span>
       <button class="tab-close" title="Close tab (Ctrl+W)">
-        <svg width="10" height="10" viewBox="0 0 12 12">
-          <path d="M1 1l10 10M11 1L1 11" stroke="currentColor" stroke-width="1.5"/>
-        </svg>
+        ${Icons.get('x', 10)}
       </button>
     `;
 
@@ -2746,9 +2725,7 @@ class TabManager {
     leftRefreshBtn.className = 'split-pane-refresh-btn split-pane-refresh-left';
     leftRefreshBtn.title = 'Refresh Left Pane';
     leftRefreshBtn.innerHTML = `
-      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-        <path d="M21.5 2v6h-6M2.5 22v-6h6M2 11.5a10 10 0 0 1 18.8-4.3M22 12.5a10 10 0 0 1-18.8 4.2"/>
-      </svg>
+${Icons.get('refresh-cw', 14)}
       <span>Left</span>
     `;
     leftRefreshBtn.addEventListener('click', (e) => {
@@ -2761,9 +2738,7 @@ class TabManager {
     rightRefreshBtn.className = 'split-pane-refresh-btn split-pane-refresh-right';
     rightRefreshBtn.title = 'Refresh Right Pane';
     rightRefreshBtn.innerHTML = `
-      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-        <path d="M21.5 2v6h-6M2.5 22v-6h6M2 11.5a10 10 0 0 1 18.8-4.3M22 12.5a10 10 0 0 1-18.8 4.2"/>
-      </svg>
+${Icons.get('refresh-cw', 14)}
       <span>Right</span>
     `;
     rightRefreshBtn.addEventListener('click', (e) => {

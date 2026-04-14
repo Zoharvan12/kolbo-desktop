@@ -4,21 +4,43 @@
 const si = require('systeminformation');
 const { execSync } = require('child_process');
 const ffmpegPath = require('@ffmpeg-installer/ffmpeg').path;
+const fs = require('fs');
+const path = require('path');
 
 class GPUDetector {
   constructor() {
     this.gpuInfo = null;
     this.availableEncoders = null;
     this.detectionComplete = false;
+    // Cache file to avoid slow WMI queries on every startup
+    this._cachePath = path.join(require('electron').app.getPath('userData'), 'gpu-cache.json');
   }
 
   /**
    * Detect GPU hardware and available FFmpeg encoders
+   * Uses disk cache to skip slow systeminformation calls on repeat launches
    * @returns {Promise<Object>} GPU information and available encoders
    */
   async detect() {
     if (this.detectionComplete) {
       return this.getResult();
+    }
+
+    // Try loading from cache first (valid for 7 days)
+    try {
+      if (fs.existsSync(this._cachePath)) {
+        const cached = JSON.parse(fs.readFileSync(this._cachePath, 'utf8'));
+        const age = Date.now() - (cached._timestamp || 0);
+        if (age < 7 * 24 * 60 * 60 * 1000) {
+          console.log('[GPU Detector] Using cached GPU info (age:', Math.round(age / 3600000), 'hours)');
+          this.gpuInfo = cached.gpuInfo;
+          this.availableEncoders = cached.encoders;
+          this.detectionComplete = true;
+          return this.getResult();
+        }
+      }
+    } catch (e) {
+      // Cache corrupt or unreadable, proceed with fresh detection
     }
 
     console.log('[GPU Detector] Starting hardware detection...');
@@ -33,6 +55,19 @@ class GPUDetector {
       console.log('[GPU Detector] Available encoders:', this.availableEncoders);
 
       this.detectionComplete = true;
+
+      // Cache to disk for fast startup next time
+      try {
+        fs.writeFileSync(this._cachePath, JSON.stringify({
+          _timestamp: Date.now(),
+          gpuInfo: this.gpuInfo,
+          encoders: this.availableEncoders
+        }));
+        console.log('[GPU Detector] Cached GPU info to disk');
+      } catch (e) {
+        // Non-fatal
+      }
+
       return this.getResult();
     } catch (error) {
       console.error('[GPU Detector] Detection failed:', error.message);

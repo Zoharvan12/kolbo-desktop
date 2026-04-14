@@ -60,9 +60,7 @@ class AudioTrimmer {
 
       <div class="ff-trimmer-controls">
         <button class="ff-trimmer-btn ff-trimmer-btn-play">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
-            <path d="M8 5v14l11-7z"/>
-          </svg>
+          ${Icons.get('play', 16)}
         </button>
 
         <button class="ff-trimmer-btn ff-trimmer-btn-in" title="Set In Point (I)">
@@ -81,10 +79,7 @@ class AudioTrimmer {
         </button>
 
         <button class="ff-trimmer-btn ff-trimmer-btn-reset" title="Reset to original">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <path d="M1 4v6h6M23 20v-6h-6"/>
-            <path d="M20.49 9A9 9 0 0 0 5.64 5.64L1 10m22 4l-4.64 4.36A9 9 0 0 1 3.51 15"/>
-          </svg>
+          ${Icons.get('refresh-cw', 16)}
         </button>
       </div>
 

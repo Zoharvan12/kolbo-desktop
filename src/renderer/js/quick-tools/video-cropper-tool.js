@@ -97,15 +97,11 @@ class VideoCropperTool {
     const playControls = this.isImage ? '' : `
       <div class="qt-frame-controls" style="margin-top: 12px;">
         <button class="qt-btn qt-btn-secondary" id="qt-cropper-clear-btn" style="padding: 8px 16px;">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <path d="M18 6L6 18M6 6l12 12"/>
-          </svg>
+          ${Icons.get('x', 16)}
           Clear
         </button>
         <button class="qt-btn qt-btn-secondary" id="qt-cropper-play-btn" style="padding: 8px 16px;">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
-            <path d="M8 5v14l11-7z"/>
-          </svg>
+          ${Icons.get('play', 16)}
           Preview
         </button>
         <span style="flex: 1;"></span>
@@ -118,9 +114,7 @@ class VideoCropperTool {
     const imageResetBtn = this.isImage ? `
       <div class="qt-frame-controls" style="margin-top: 12px;">
         <button class="qt-btn qt-btn-secondary" id="qt-cropper-clear-btn" style="padding: 8px 16px;">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <path d="M18 6L6 18M6 6l12 12"/>
-          </svg>
+          ${Icons.get('x', 16)}
           Clear
         </button>
         <span style="flex: 1;"></span>
@@ -180,17 +174,11 @@ class VideoCropperTool {
 
           <div class="qt-fill-mode">
             <button class="qt-fill-btn active" data-mode="crop">
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="margin-bottom: 4px;">
-                <path d="M6.13 1L6 16a2 2 0 0 0 2 2h15"/>
-                <path d="M1 6.13L16 6a2 2 0 0 1 2 2v15"/>
-              </svg>
+              ${Icons.get('crop', 16)}
               Crop
             </button>
             <button class="qt-fill-btn" data-mode="fit">
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="margin-bottom: 4px;">
-                <rect x="3" y="3" width="18" height="18" rx="2"/>
-                <rect x="7" y="7" width="10" height="10" rx="1"/>
-              </svg>
+              ${Icons.get('crop', 16)}
               Fit (Letterbox)
             </button>
           </div>
@@ -211,11 +199,7 @@ class VideoCropperTool {
               Change ${this.isImage ? 'Image' : 'Video'}
             </button>
             <button class="qt-btn qt-btn-primary" id="qt-cropper-export-btn" style="width: 100%;">
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
-                <polyline points="7 10 12 15 17 10"/>
-                <line x1="12" y1="15" x2="12" y2="3"/>
-              </svg>
+              ${Icons.get('upload', 48, 1.5)}
               Export Cropped ${this.isImage ? 'Image' : 'Video'}
             </button>
           </div>

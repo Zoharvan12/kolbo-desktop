@@ -1,23 +1,29 @@
 // Kolbo Studio - Main Process Entry Point
 // Handles window creation, system tray, and IPC setup
 
+// ── Critical-path imports (needed before first paint) ──────────────────────
 const { app, BrowserWindow, Tray, Menu, nativeImage, screen, dialog } = require('electron');
 const path = require('path');
-const Store = require('electron-store');
-const { autoUpdater } = require('electron-updater');
-const checkDiskSpace = require('check-disk-space').default;
 
-// Import IPC handlers
-const AuthManager = require('./auth-manager');
-const FileManager = require('./file-manager');
-const DragHandler = require('./drag-handler');
-const ContextMenuHandler = require('./context-menu-handler');
-const FFmpegHandler = require('./ffmpeg-handler');
-const YtdlpHandler = require('./ytdlp-handler');
-const FileExplorerHandler = require('./file-explorer-handler');
+// ── Deferred imports — loaded lazily after splash is visible ───────────────
+let Store, store, autoUpdater, checkDiskSpace;
+let AuthManager, FileManager, DragHandler, ContextMenuHandler;
+let FFmpegHandler, YtdlpHandler, FileExplorerHandler;
 
-// Persistent settings store
-const store = new Store();
+function loadDeferredModules() {
+  Store = require('electron-store');
+  store = new Store();
+  autoUpdater = require('electron-updater').autoUpdater;
+  checkDiskSpace = require('check-disk-space').default;
+
+  AuthManager = require('./auth-manager');
+  FileManager = require('./file-manager');
+  DragHandler = require('./drag-handler');
+  ContextMenuHandler = require('./context-menu-handler');
+  FFmpegHandler = require('./ffmpeg-handler');
+  YtdlpHandler = require('./ytdlp-handler');
+  FileExplorerHandler = require('./file-explorer-handler');
+}
 
 let mainWindow = null;
 let splashWindow = null;
@@ -108,36 +114,32 @@ function createSplashWindow() {
     frame: false,
     resizable: false,
     movable: false,
-    show: true,
-    skipTaskbar: true,
-    alwaysOnTop: true,
+    show: false,           // Show only after content is painted (avoids white flash)
+    skipTaskbar: false,    // Show in taskbar so user sees the app immediately
+    alwaysOnTop: false,
     backgroundColor: '#000000',
+    title: 'Kolbo Studio',
     webPreferences: {
       nodeIntegration: false,
       contextIsolation: true,
     }
   });
 
+  // Show as soon as the splash HTML is painted (near-instant — it's tiny inline HTML)
+  splashWindow.once('ready-to-show', () => {
+    if (splashWindow && !splashWindow.isDestroyed()) {
+      splashWindow.show();
+    }
+  });
   splashWindow.loadFile(path.join(__dirname, '..', 'renderer', 'splash.html'));
 }
 
 function closeSplash() {
   if (!splashWindow || splashWindow.isDestroyed()) return;
 
-  // Fade out over ~300ms then close
-  let opacity = 1.0;
-  const fade = setInterval(() => {
-    opacity -= 0.1;
-    if (opacity <= 0) {
-      clearInterval(fade);
-      if (splashWindow && !splashWindow.isDestroyed()) {
-        splashWindow.close();
-        splashWindow = null;
-      }
-    } else {
-      splashWindow.setOpacity(opacity);
-    }
-  }, 30);
+  // Close immediately — the main window is ready, no need for a slow fade
+  splashWindow.close();
+  splashWindow = null;
 }
 
 function createWindow() {
@@ -161,7 +163,7 @@ function createWindow() {
     minWidth: 350,
     minHeight: 500,
     title: 'Kolbo Studio',
-    backgroundColor: '#1e1e1e',
+    backgroundColor: '#000000',     // Match splash screen — no white flash during swap
     frame: false,                   // Remove default frame for custom title bar
     titleBarStyle: 'hidden',        // Hide default title bar
     webPreferences: {
@@ -195,19 +197,23 @@ function createWindow() {
       console.error('[Main] Failed to load HTML file:', err);
     });
 
-  // Show window when Chromium signals first paint is ready.
-  // Fallback: force-show after 2s in case ready-to-show is delayed by
-  // external resources (fonts, missing assets, slow network).
+  // Show window only when the renderer signals its UI is ready.
+  // This keeps the splash visible until the actual login/app screen is painted,
+  // instead of flashing white while scripts are still executing.
   let windowShown = false;
   const showWindow = () => {
     if (windowShown) return;
     windowShown = true;
     clearTimeout(showWindowTimer);
     mainWindow.show();
+    closeSplash();
     console.log('[Main] Window shown');
   };
-  const showWindowTimer = setTimeout(showWindow, 2000);
-  mainWindow.once('ready-to-show', showWindow);
+  // Fallback: force-show after 8s in case renderer signal never arrives
+  const showWindowTimer = setTimeout(showWindow, 8000);
+  // Listen for the renderer's "I'm ready" signal
+  const { ipcMain } = require('electron');
+  ipcMain.once('renderer-ready', showWindow);
 
   // Add error listener for renderer process
   mainWindow.webContents.on('did-fail-load', (event, errorCode, errorDescription) => {
@@ -3226,22 +3232,29 @@ async function cleanupSessionCache(aggressive = false) {
     const { session } = require('electron');
     const defaultSession = session.defaultSession;
 
+    function safeLog(...args) {
+      try { console.log(...args); } catch (e) {}
+    }
+
     if (aggressive) {
       // Clear all cache (HTTP cache, code cache, etc.)
-      console.log('[Memory Monitor] 🧹 Aggressive cache cleanup...');
+      safeLog('[Memory Monitor] 🧹 Aggressive cache cleanup...');
       await defaultSession.clearCache();
       await defaultSession.clearCodeCaches({});
-      console.log('[Memory Monitor] ✅ Cache cleared');
+      safeLog('[Memory Monitor] ✅ Cache cleared');
     } else {
       // Just clear storage data that's not essential
-      console.log('[Memory Monitor] 🧹 Light cache cleanup (storage data)...');
+      safeLog('[Memory Monitor] 🧹 Light cache cleanup (storage data)...');
       await defaultSession.clearStorageData({
         storages: ['shadercache', 'serviceworkers', 'cachestorage'],
         quotas: ['temporary']
       });
     }
   } catch (error) {
-    console.error('[Memory Monitor] Error cleaning cache:', error);
+    // Silently ignore cache cleanup errors (e.g., EPIPE when stdout is broken)
+    if (error.code !== 'EPIPE') {
+      try { console.error('[Memory Monitor] Error cleaning cache:', error); } catch (e) {}
+    }
   }
 }
 
@@ -3305,92 +3318,99 @@ function setupSessionCSP() {
 
 // App ready
 app.whenReady().then(() => {
-  console.log('[Main] App ready, creating window and tray');
+  console.log('[Main] App ready, showing splash');
 
-  // Setup session CSP modification (must be before creating window)
-  setupSessionCSP();
+  // ── Phase 1: Show splash immediately ─────────────────────────────────────
+  // Create splash and YIELD the event loop so Chromium can paint it.
+  // Everything else runs after the splash is confirmed visible.
+  createSplashWindow();
 
-  // Run first-time setup (enables auto-launch on first install)
-  setupFirstTimeDefaults();
+  // Wait for splash to actually paint before doing heavy work
+  function onSplashVisible() {
+    console.log('[Main] Splash visible, loading app...');
 
-  createWindow();
-  createTray();
-  createApplicationMenu();
+    // ── Phase 2: Load modules + create main window ───────────────────────
+    loadDeferredModules();
+    console.log('[Main] Deferred modules loaded');
 
-  // Setup IPC handlers
-  AuthManager.setupHandlers();
-  FileManager.setupHandlers();
-  DragHandler.setupHandlers();
-  setupWindowHandlers();
-  setupPremiereImportHandler();
-  setupMediaCacheHandlers();
+    setupSessionCSP();
+    setupFirstTimeDefaults();
 
-  // Setup context menu handler
-  const contextMenuHandler = new ContextMenuHandler(mainWindow, store);
-  contextMenuHandler.setupHandlers(require('electron').ipcMain);
+    createWindow();
 
-  console.log('[Main] IPC handlers registered');
+    // ── Phase 3: Non-critical setup (yield between batches) ──────────────
+    // Register IPC handlers that the renderer needs before it can work
+    AuthManager.setupHandlers();
+    FileManager.setupHandlers();
+    DragHandler.setupHandlers();
+    setupWindowHandlers();
+    setupPremiereImportHandler();
+    setupMediaCacheHandlers();
 
-  // Setup download handler for webapp downloads
-  setupDownloadHandler();
+    const contextMenuHandler = new ContextMenuHandler(mainWindow, store);
+    contextMenuHandler.setupHandlers(require('electron').ipcMain);
+    console.log('[Main] IPC handlers registered');
 
-  // Setup permission handlers (CRITICAL for Mac file uploads)
-  setupPermissionHandlers();
+    setupDownloadHandler();
+    setupPermissionHandlers();
+    setupScreenshotHandlers();
+    setupQuickToolsHandlers();
 
-  // Setup screenshot handlers
-  setupScreenshotHandlers();
+    // FFmpeg, Downloader, FileExplorer — IPC handlers must be registered
+    // BEFORE the renderer loads, otherwise deferred scripts get "No handler" errors
+    setupFFmpegHandlers();
+    setupDownloaderHandlers();
+    const fileExplorerHandler = FileExplorerHandler.setupHandlers(mainWindow);
+    if (ffmpegHandler) {
+      fileExplorerHandler.setFFmpegHandler(ffmpegHandler);
+    }
 
-  // Setup auto-updater (only in production)
-  // TEMPORARY: Enable in development for testing
-  const ENABLE_UPDATER_IN_DEV = true; // Set to false after testing
+    const { setupAgentTerminalHandlers, warmUpAgentTerminal } = require('./agent-terminal-handler');
+    setupAgentTerminalHandlers();
+    // Pre-warm agent terminal in background (load node-pty + find CLI binary)
+    warmUpAgentTerminal();
 
-  if (process.env.NODE_ENV !== 'development' || ENABLE_UPDATER_IN_DEV) {
-    setupAutoUpdater();
-    setupUpdaterHandlers();
-    console.log('[Main] Auto-updater enabled');
-  } else {
-    // In development, still setup handlers but don't check for updates
-    setupUpdaterHandlers();
-    console.log('[Main] Auto-updater disabled (development mode)');
-  }
-
-  // Setup Quick Tools handlers
-  setupQuickToolsHandlers();
-
-  // Agent Terminal (Kolbo Code) — register early so IPC is ready before user clicks tab
-  const { setupAgentTerminalHandlers } = require('./agent-terminal-handler');
-  setupAgentTerminalHandlers();
-
-  // Setup proactive memory monitoring
-  setupMemoryMonitoring();
-
-  // Deferred post-show init: runs after the window is visible to the user.
-  // Keeps these off the critical startup path since none are needed before first paint.
-  mainWindow.once('ready-to-show', () => {
-    setImmediate(() => {
-      // FFmpeg + GPU detection (async, can take 200-500ms)
-      setupFFmpegHandlers();
-
-      // yt-dlp binary validation / version check (async, hits GitHub API)
-      setupDownloaderHandlers();
-
-      // File Explorer — depends on ffmpegHandler being set
-      const fileExplorerHandler = FileExplorerHandler.setupHandlers(mainWindow);
-      if (ffmpegHandler) {
-        fileExplorerHandler.setFFmpegHandler(ffmpegHandler);
-      }
-
-      // GPU cache cleanup — was synchronous rmSync on the critical path (100-500ms)
-      const gpuCachePath = path.join(app.getPath('userData'), 'GPUCache');
-      try {
-        if (fs.existsSync(gpuCachePath)) {
-          fs.rmSync(gpuCachePath, { recursive: true, force: true });
+    // ── Phase 4: Post-show cleanup (after main window content is loaded) ──
+    mainWindow.webContents.once('did-finish-load', () => {
+      setImmediate(() => {
+        // GPU cache cleanup
+        const fs = require('fs');
+        const gpuCachePath = path.join(app.getPath('userData'), 'GPUCache');
+        try {
+          if (fs.existsSync(gpuCachePath)) {
+            fs.rmSync(gpuCachePath, { recursive: true, force: true });
+          }
+        } catch (e) {
+          // Non-fatal — GPU cache lock by another process is expected on Windows
         }
-      } catch (e) {
-        // Non-fatal — GPU cache lock by another process is expected on Windows
+      });
+    });
+
+    // Tray, menu, updater, memory monitor — none block the renderer
+    setImmediate(() => {
+      createTray();
+      createApplicationMenu();
+      setupMemoryMonitoring();
+
+      const ENABLE_UPDATER_IN_DEV = true;
+      if (process.env.NODE_ENV !== 'development' || ENABLE_UPDATER_IN_DEV) {
+        setupAutoUpdater();
+        setupUpdaterHandlers();
+        console.log('[Main] Auto-updater enabled');
+      } else {
+        setupUpdaterHandlers();
+        console.log('[Main] Auto-updater disabled (development mode)');
       }
     });
-  });
+  }
+
+  // If splash is ready, it's already shown via ready-to-show handler.
+  // Use did-finish-load as the signal that its content is painted.
+  if (splashWindow && !splashWindow.isDestroyed()) {
+    splashWindow.webContents.once('did-finish-load', onSplashVisible);
+  } else {
+    onSplashVisible();
+  }
 });
 
 // Window all closed

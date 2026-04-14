@@ -11,9 +11,13 @@ const { execSync } = require('child_process');
 const CLI_NPM_PACKAGE = '@kolbo/kolbo-code';
 let ptyProcess = null;
 
+// Pre-warm cache: populated by warmUp(), consumed by ensureCli()/getPty()
+let _warmCliResult = null;  // { path, status, version } from ensureCli()
+let _warmPty = null;        // node-pty module, pre-loaded
+
 function setupAgentTerminalHandlers() {
-  // Lazy-load node-pty
-  let pty = null;
+  // Lazy-load node-pty (uses pre-warmed module if available)
+  let pty = _warmPty || null;
   function getPty() {
     if (!pty) {
       try {
@@ -60,9 +64,10 @@ function setupAgentTerminalHandlers() {
         ]
       : [
           ...(npmPrefix ? [path.join(npmPrefix, 'bin', 'kolbo')] : []),
+          '/opt/homebrew/bin/kolbo',       // Homebrew on Apple Silicon
+          '/usr/local/bin/kolbo',          // Homebrew on Intel / manual installs
           path.join(homeDir, 'bin', 'kolbo'),
           path.join(homeDir, '.kolbo', 'bin', 'kolbo'),
-          '/usr/local/bin/kolbo',
         ];
 
     for (const p of candidates) {
@@ -134,7 +139,8 @@ function setupAgentTerminalHandlers() {
   // Ensure CLI is installed and up-to-date
   // Returns: { path, status: 'ready'|'updated'|'installed'|'failed', version }
   function ensureCli() {
-    let cliPath = findKolboCli();
+    // Use pre-warmed result if available (skips expensive findKolboCli + npm prefix lookup)
+    let cliPath = (_warmCliResult && _warmCliResult.path) || findKolboCli();
 
     if (cliPath) {
       const installed = getInstalledVersion(cliPath);
@@ -275,4 +281,89 @@ function setupAgentTerminalHandlers() {
   console.log('[AgentTerminal] IPC handlers registered');
 }
 
-module.exports = { setupAgentTerminalHandlers };
+/**
+ * Pre-warm the agent terminal in the background:
+ * - Load node-pty native module
+ * - Find/install the kolbo CLI binary
+ * This runs on app startup so the agent tab opens instantly.
+ */
+function warmUpAgentTerminal() {
+  // Run in a setImmediate chain so it doesn't block the event loop
+  setImmediate(() => {
+    console.log('[AgentTerminal] Background warm-up: loading node-pty...');
+    try {
+      _warmPty = require('node-pty');
+      console.log('[AgentTerminal] Background warm-up: node-pty loaded');
+    } catch (err) {
+      console.warn('[AgentTerminal] Background warm-up: node-pty failed:', err.message);
+    }
+
+    setImmediate(() => {
+      console.log('[AgentTerminal] Background warm-up: ensuring CLI...');
+      try {
+        // Re-implement ensureCli logic here since it's inside setupHandlers scope
+        // We just need to find the binary and check versions
+        const homeDir = os.homedir();
+        const binaryName = process.platform === 'win32' ? 'kolbo.exe' : 'kolbo';
+        const resourcesDir = process.resourcesPath || path.join(__dirname, '..', '..', 'resources');
+        const resourcePath = path.join(resourcesDir, binaryName);
+
+        let cliPath = null;
+
+        if (fs.existsSync(resourcePath)) {
+          cliPath = resourcePath;
+        } else {
+          // Check common install locations
+          let npmPrefix = '';
+          try {
+            npmPrefix = execSync('npm config get prefix', { encoding: 'utf-8', timeout: 5000 }).trim();
+          } catch (_) {}
+
+          const candidates = process.platform === 'win32'
+            ? [
+                ...(npmPrefix ? [path.join(npmPrefix, 'kolbo.cmd'), path.join(npmPrefix, 'kolbo')] : []),
+                path.join(homeDir, '.npm-global', 'kolbo.cmd'),
+                path.join(homeDir, 'AppData', 'Roaming', 'npm', 'kolbo.cmd'),
+                path.join(homeDir, 'AppData', 'Roaming', 'npm', 'kolbo'),
+                path.join(homeDir, 'bin', 'kolbo.exe'),
+                path.join(homeDir, 'bin', 'kolbo'),
+                path.join(homeDir, '.kolbo', 'bin', 'kolbo.exe'),
+              ]
+            : [
+                ...(npmPrefix ? [path.join(npmPrefix, 'bin', 'kolbo')] : []),
+                '/opt/homebrew/bin/kolbo',       // Homebrew on Apple Silicon
+                '/usr/local/bin/kolbo',          // Homebrew on Intel / manual installs
+                path.join(homeDir, 'bin', 'kolbo'),
+                path.join(homeDir, '.kolbo', 'bin', 'kolbo'),
+              ];
+
+          for (const p of candidates) {
+            if (fs.existsSync(p)) {
+              cliPath = p;
+              break;
+            }
+          }
+
+          if (!cliPath) {
+            try {
+              const cmd = process.platform === 'win32' ? 'cmd /c where kolbo 2>nul' : 'which kolbo';
+              const result = execSync(cmd, { encoding: 'utf-8', timeout: 5000 }).trim().split('\n')[0].trim();
+              if (result && fs.existsSync(result)) cliPath = result;
+            } catch (_) {}
+          }
+        }
+
+        if (cliPath) {
+          _warmCliResult = { path: cliPath, status: 'ready', version: null };
+          console.log('[AgentTerminal] Background warm-up: CLI found at', cliPath);
+        } else {
+          console.log('[AgentTerminal] Background warm-up: CLI not found (will install on first use)');
+        }
+      } catch (err) {
+        console.warn('[AgentTerminal] Background warm-up: CLI check failed:', err.message);
+      }
+    });
+  });
+}
+
+module.exports = { setupAgentTerminalHandlers, warmUpAgentTerminal };

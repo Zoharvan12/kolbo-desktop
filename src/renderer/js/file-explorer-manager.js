@@ -174,16 +174,11 @@ class FileExplorerManager {
         <!-- Search Bar (Prominent, Top Center) -->
         <div class="fe-search-bar">
           <div class="fe-search-container-large">
-            <svg class="fe-search-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <circle cx="11" cy="11" r="8"/>
-              <path d="M21 21l-4.35-4.35"/>
-            </svg>
+            ${Icons.get('search', 14)}
             <input type="text" class="fe-search-input-large" id="fe-search-input" placeholder="Search files in current folder..." />
             <span class="fe-search-count hidden" id="fe-search-count"></span>
             <button class="fe-search-clear-btn hidden" id="fe-search-clear" title="Clear search">
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <path d="M18 6L6 18M6 6l12 12"/>
-              </svg>
+              ${Icons.get('x', 14)}
             </button>
           </div>
         </div>
@@ -195,53 +190,29 @@ class FileExplorerManager {
           </div>
           <div class="fe-toolbar-actions">
             <button class="fe-toolbar-btn" id="fe-btn-up" title="Go Up (Backspace)">
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <path d="M17 11l-5-5-5 5M12 6v12"/>
-              </svg>
+              ${Icons.get('arrow-up', 14)}
             </button>
             <button class="fe-toolbar-btn" id="fe-btn-refresh" title="Refresh (F5)">
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <path d="M21.5 2v6h-6M2.5 22v-6h6M2 11.5a10 10 0 0 1 18.8-4.3M22 12.5a10 10 0 0 1-18.8 4.2"/>
-              </svg>
+              ${Icons.get('refresh-cw', 14)}
             </button>
             <button class="fe-toolbar-btn" id="fe-btn-folder" title="Open Folder...">
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/>
-                <line x1="12" y1="11" x2="12" y2="17"/>
-                <line x1="9" y1="14" x2="15" y2="14"/>
-              </svg>
+              ${Icons.get('plus', 14)}
             </button>
             <div class="fe-toolbar-divider"></div>
             <div class="fe-view-toggle">
               <button class="fe-toolbar-btn fe-view-btn ${this.viewMode === 'list' ? 'active' : ''}" id="fe-btn-list" title="List View">
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                  <line x1="8" y1="6" x2="21" y2="6"/>
-                  <line x1="8" y1="12" x2="21" y2="12"/>
-                  <line x1="8" y1="18" x2="21" y2="18"/>
-                  <line x1="3" y1="6" x2="3.01" y2="6"/>
-                  <line x1="3" y1="12" x2="3.01" y2="12"/>
-                  <line x1="3" y1="18" x2="3.01" y2="18"/>
-                </svg>
+                ${Icons.get('list', 14)}
               </button>
               <button class="fe-toolbar-btn fe-view-btn ${this.viewMode === 'grid' ? 'active' : ''}" id="fe-btn-grid" title="Grid View">
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                  <rect x="3" y="3" width="7" height="7"/>
-                  <rect x="14" y="3" width="7" height="7"/>
-                  <rect x="14" y="14" width="7" height="7"/>
-                  <rect x="3" y="14" width="7" height="7"/>
-                </svg>
+                ${Icons.get('grid-2x2', 14)}
               </button>
             </div>
             <div class="fe-icon-size-control">
-              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <rect x="3" y="3" width="18" height="18" rx="2"/>
-              </svg>
+              ${Icons.get('square', 14)}
               <div class="fe-slider-container" style="--slider-progress: ${sliderProgress}%">
                 <input type="range" min="1" max="4" value="${this.iconSize}" class="fe-icon-slider" id="fe-icon-slider" title="Icon Size">
               </div>
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <rect x="3" y="3" width="18" height="18" rx="2"/>
-              </svg>
+              ${Icons.get('check-square', 14)}
             </div>
             <div class="fe-toolbar-divider"></div>
             <select class="fe-sort-select" id="fe-sort-select">
@@ -271,9 +242,7 @@ class FileExplorerManager {
               <div class="fe-col-icon-spacer"></div>
               <div class="fe-file-header-col fe-col-name sorted" data-sort="name">
                 Name
-                <svg class="sort-icon" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                  <path d="M12 5v14M5 12l7 7 7-7"/>
-                </svg>
+                ${Icons.get('arrow-down', 14)}
               </div>
               <div class="fe-file-header-col fe-col-folder" data-sort="folder">Folder</div>
               <div class="fe-file-header-col fe-col-type" data-sort="type">Type</div>
@@ -299,12 +268,8 @@ class FileExplorerManager {
             </div>
             <div class="fe-preview-drag-overlay" id="fe-preview-drag-overlay">
               <div class="fe-drag-status-icon">
-                <svg class="fe-drag-ready-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                  <path d="M12 5v14M5 12l7-7 7 7"/>
-                </svg>
-                <svg class="fe-drag-export-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                  <circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/>
-                </svg>
+                ${Icons.get('arrow-up', 12)}
+                ${Icons.get('clock', 12)}
               </div>
               <span class="fe-drag-status-text">Drag to app</span>
             </div>
@@ -353,40 +318,32 @@ class FileExplorerManager {
           <div class="fe-preview-controls-section">
             <button class="fe-preview-io-btn in-btn" id="fe-btn-in" title="Set In Point (I)">IN</button>
             <button class="fe-preview-ctrl-btn" id="fe-btn-prev" title="Previous Frame">
-              <svg viewBox="0 0 24 24" fill="currentColor"><path d="M6 6h2v12H6zm3.5 6l8.5 6V6z"/></svg>
+              ${Icons.get('play', 24)}
             </button>
             <button class="fe-preview-ctrl-btn play-btn" id="fe-btn-play" title="Play/Pause (Space)">
-              <svg viewBox="0 0 24 24" fill="currentColor" id="fe-play-icon"><path d="M8 5v14l11-7z"/></svg>
+              ${Icons.get('play', 16)}
             </button>
             <button class="fe-preview-ctrl-btn" id="fe-btn-next" title="Next Frame">
-              <svg viewBox="0 0 24 24" fill="currentColor"><path d="M6 18l8.5-6L6 6v12zM16 6v12h2V6h-2z"/></svg>
+              ${Icons.get('skip-forward', 16)}
             </button>
             <button class="fe-preview-io-btn out-btn" id="fe-btn-out" title="Set Out Point (O)">OUT</button>
             <div class="fe-preview-divider"></div>
             <!-- Audio controls (speed & volume) -->
             <div class="fe-audio-controls hidden" id="fe-audio-controls">
               <div class="fe-audio-control" title="Playback Speed">
-                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                  <circle cx="12" cy="12" r="10"/>
-                  <path d="M12 6v6l4 2"/>
-                </svg>
+                ${Icons.get('clock', 14)}
                 <input type="range" min="0.5" max="2" step="0.1" value="1" class="fe-audio-slider" id="fe-speed-slider" />
                 <span class="fe-audio-value" id="fe-speed-value">1.0x</span>
               </div>
               <div class="fe-audio-control" title="Volume">
-                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                  <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/>
-                  <path d="M15.54 8.46a5 5 0 0 1 0 7.07"/>
-                </svg>
+                ${Icons.get('volume-2', 14)}
                 <input type="range" min="0" max="4" step="0.1" value="1" class="fe-audio-slider" id="fe-volume-slider" />
                 <span class="fe-audio-value" id="fe-volume-value">100%</span>
               </div>
             </div>
             <div class="fe-preview-divider"></div>
             <button class="fe-preview-close" id="fe-preview-close" title="Close Preview">
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <path d="M18 6L6 18M6 6l12 12"/>
-              </svg>
+              ${Icons.get('x', 14)}
             </button>
           </div>
         </div>
@@ -396,10 +353,7 @@ class FileExplorerManager {
           <div class="fe-selection-info" id="fe-selection-info">0 items selected</div>
           <div class="fe-selection-actions">
             <button class="fe-preview-btn" id="fe-btn-drag">
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
-                <path d="M14 2v6h6"/>
-              </svg>
+              ${Icons.get('file', 16)}
               Drag to App
             </button>
             <button class="fe-preview-btn secondary" id="fe-btn-clear">Clear Selection</button>
@@ -658,9 +612,7 @@ class FileExplorerManager {
     // Helper to render collapse toggle icon
     const collapseIcon = (isCollapsed) => `
       <span class="fe-section-toggle ${isCollapsed ? 'collapsed' : ''}">
-        <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-          <path d="M6 9l6 6 6-6"/>
-        </svg>
+        ${Icons.get('chevron-down', 14)}
       </span>`;
 
     // My Folders section - Custom folders FIRST
@@ -671,9 +623,7 @@ class FileExplorerManager {
           ${collapseIcon(isCollapsed)}
           <span class="fe-section-label">My Folders</span>
           <button class="fe-add-folder-btn" id="fe-add-folder-btn" title="Add Folder">
-            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <path d="M12 5v14M5 12h14"/>
-            </svg>
+            ${Icons.get('plus', 14)}
           </button>
         </div>
         <div class="fe-section-content${isCollapsed ? ' hidden' : ''}">`;
@@ -695,9 +645,7 @@ class FileExplorerManager {
           <span class="fe-section-label">Quick Access</span>
           ${this.customFolders.length === 0 ? `
           <button class="fe-add-folder-btn" id="fe-add-folder-btn" title="Add Folder">
-            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <path d="M12 5v14M5 12h14"/>
-            </svg>
+            ${Icons.get('plus', 14)}
           </button>` : ''}
         </div>
         <div class="fe-section-content${isCollapsed ? ' hidden' : ''}">`;
@@ -745,10 +693,7 @@ class FileExplorerManager {
 
     let iconHtml;
     if (iconType === 'drive') {
-      iconHtml = `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-        <rect x="2" y="4" width="20" height="16" rx="2"/>
-        <path d="M6 8h.01M2 12h20"/>
-      </svg>`;
+      iconHtml = Icons.get('monitor', 14);
     } else {
       iconHtml = this.getLocationIcon(iconType);
     }
@@ -757,9 +702,7 @@ class FileExplorerManager {
     const toggleHtml = isEmpty
       ? `<span class="fe-tree-toggle-placeholder"></span>`
       : `<span class="fe-tree-toggle${isExpanded ? ' expanded' : ''}" data-toggle-path="${this.escapeHtml(folderPath)}">
-            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <path d="M9 18l6-6-6-6"/>
-            </svg>
+            ${Icons.get('chevron-right', 12)}
           </span>`;
 
     let html = `
@@ -771,10 +714,7 @@ class FileExplorerManager {
           <span class="fe-tree-name">${this.escapeHtml(name)}</span>
           ${isCustom ? `
             <span class="fe-edit-folder" data-edit-path="${this.escapeHtml(folderPath)}" title="Edit Folder">
-              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>
-                <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>
-              </svg>
+              ${Icons.get('edit', 14)}
             </span>
             <span class="fe-remove-folder" data-remove-path="${this.escapeHtml(folderPath)}" title="Remove from Quick Access">×</span>
           ` : ''}
@@ -1055,9 +995,7 @@ class FileExplorerManager {
       // Unix root
       currentPath = '/';
       html += `<button class="fe-breadcrumb-item" data-path="/">
-        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-          <path d="m3 9 9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/>
-        </svg>
+        ${Icons.get('home', 16)}
       </button>`;
     }
 
@@ -1195,9 +1133,7 @@ class FileExplorerManager {
 
       this.fileListEl.innerHTML = `
         <div class="fe-empty-state">
-          <svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
-            <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/>
-          </svg>
+          ${Icons.get('folder', 16)}
           <h3>${title}</h3>
           <p>${message}</p>
         </div>`;
@@ -1256,9 +1192,7 @@ class FileExplorerManager {
     return `
       <div class="fe-file-item folder" data-path="${this.escapeHtml(folder.path)}">
         <div class="fe-file-icon folder">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/>
-          </svg>
+          ${Icons.get('folder', 16)}
         </div>
         <div class="fe-file-name">${this.escapeHtml(folder.name)}</div>
         <div class="fe-file-type">Folder</div>
@@ -2745,9 +2679,7 @@ class FileExplorerManager {
     const dragBtn = this.container.querySelector('#fe-btn-drag-selection');
     const originalHtml = dragBtn.innerHTML;
     dragBtn.innerHTML = `
-      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="fe-spin">
-        <path d="M21 12a9 9 0 11-6.219-8.56"/>
-      </svg>
+      ${Icons.get('loader', 24)}
       Preparing...
     `;
     dragBtn.disabled = true;
@@ -3090,11 +3022,7 @@ class FileExplorerManager {
   showError(message) {
     this.fileListEl.innerHTML = `
       <div class="fe-empty-state">
-        <svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
-          <circle cx="12" cy="12" r="10"/>
-          <line x1="12" y1="8" x2="12" y2="12"/>
-          <line x1="12" y1="16" x2="12.01" y2="16"/>
-        </svg>
+        ${Icons.get('info', 48, 1.5)}
         <h3>Error</h3>
         <p>${this.escapeHtml(message)}</p>
       </div>`;
@@ -3136,27 +3064,13 @@ class FileExplorerManager {
   getFileTypeIcon(type) {
     switch (type) {
       case 'video':
-        return `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-          <path d="m22 8-6 4 6 4V8Z"/>
-          <rect width="14" height="12" x="2" y="6" rx="2" ry="2"/>
-        </svg>`;
+        return Icons.get('film', 16);
       case 'audio':
-        return `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-          <path d="M9 18V5l12-2v13"/>
-          <circle cx="6" cy="18" r="3"/>
-          <circle cx="18" cy="16" r="3"/>
-        </svg>`;
+        return Icons.get('music', 16);
       case 'image':
-        return `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-          <rect width="18" height="18" x="3" y="3" rx="2" ry="2"/>
-          <circle cx="9" cy="9" r="2"/>
-          <path d="m21 15-3.086-3.086a2 2 0 0 0-2.828 0L6 21"/>
-        </svg>`;
+        return Icons.get('image', 16);
       default:
-        return `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-          <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
-          <path d="M14 2v6h6"/>
-        </svg>`;
+        return Icons.get('file', 16);
     }
   }
 
@@ -3166,43 +3080,19 @@ class FileExplorerManager {
   getLocationIcon(type) {
     switch (type) {
       case 'home':
-        return `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-          <path d="m3 9 9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/>
-          <polyline points="9 22 9 12 15 12 15 22"/>
-        </svg>`;
+        return Icons.get('home', 16);
       case 'desktop':
-        return `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-          <rect x="2" y="3" width="20" height="14" rx="2" ry="2"/>
-          <line x1="8" y1="21" x2="16" y2="21"/>
-          <line x1="12" y1="17" x2="12" y2="21"/>
-        </svg>`;
+        return Icons.get('monitor', 16);
       case 'download':
-        return `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-          <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
-          <polyline points="7 10 12 15 17 10"/>
-          <line x1="12" y1="15" x2="12" y2="3"/>
-        </svg>`;
+        return Icons.get('download', 16);
       case 'video':
-        return `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-          <path d="m22 8-6 4 6 4V8Z"/>
-          <rect width="14" height="12" x="2" y="6" rx="2" ry="2"/>
-        </svg>`;
+        return Icons.get('film', 16);
       case 'audio':
-        return `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-          <path d="M9 18V5l12-2v13"/>
-          <circle cx="6" cy="18" r="3"/>
-          <circle cx="18" cy="16" r="3"/>
-        </svg>`;
+        return Icons.get('music', 16);
       case 'image':
-        return `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-          <rect width="18" height="18" x="3" y="3" rx="2" ry="2"/>
-          <circle cx="9" cy="9" r="2"/>
-          <path d="m21 15-3.086-3.086a2 2 0 0 0-2.828 0L6 21"/>
-        </svg>`;
+        return Icons.get('image', 16);
       default:
-        return `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-          <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/>
-        </svg>`;
+        return Icons.get('folder', 16);
     }
   }
 
@@ -3361,9 +3251,7 @@ class FileExplorerManager {
         <div class="fe-folder-dialog-header">
           <h3>${isNew ? 'Add Folder' : 'Edit Folder'}</h3>
           <button class="fe-folder-dialog-close" id="fe-dialog-close">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <path d="M18 6L6 18M6 6l12 12"/>
-            </svg>
+            ${Icons.get('x', 14)}
           </button>
         </div>
         <div class="fe-folder-dialog-body">
@@ -3379,7 +3267,7 @@ class FileExplorerManager {
                         data-color="${c.value || ''}"
                         style="${c.value ? `background: ${c.value}` : 'background: rgba(255,255,255,0.1)'}"
                         title="${c.name}">
-                  ${folder.color === c.value ? '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path d="M20 6L9 17l-5-5"/></svg>' : ''}
+                  ${folder.color === c.value ? Icons.get('check', 16) : ''}
                 </button>
               `).join('')}
             </div>
@@ -3414,7 +3302,7 @@ class FileExplorerManager {
           b.innerHTML = '';
         });
         btn.classList.add('selected');
-        btn.innerHTML = '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path d="M20 6L9 17l-5-5"/></svg>';
+        btn.innerHTML = Icons.get('check', 16);
         selectedColor = btn.dataset.color || null;
       });
     });

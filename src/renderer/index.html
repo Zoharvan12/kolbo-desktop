@@ -4,30 +4,25 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Kolbo Studio</title>
-  <!-- Google Fonts - Poppins -->
+  <!-- Google Fonts - Poppins (async — not needed for first paint) -->
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&display=swap" rel="stylesheet">
-  <!-- CSS Variables (Design System) -->
+  <link rel="preload" href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&display=swap" as="style" onload="this.onload=null;this.rel='stylesheet'">
+  <!-- Critical CSS (render-blocking — needed for first paint) -->
   <link rel="stylesheet" href="css/variables.css?v=7">
-  <!-- Main Styles -->
   <link rel="stylesheet" href="css/styles.css?v=7">
-  <!-- Custom Context Menu Styles -->
-  <link rel="stylesheet" href="css/context-menu.css?v=6">
-  <!-- Format Factory Styles -->
-  <link rel="stylesheet" href="css/format-factory.css?v=1">
-  <!-- Downloader Styles -->
-  <link rel="stylesheet" href="css/downloader.css?v=1">
-  <!-- Trimmer Styles -->
-  <link rel="stylesheet" href="css/trimmer.css?v=1">
-  <!-- Quick Tools Styles -->
-  <link rel="stylesheet" href="css/quick-tools.css?v=1">
-  <!-- File Explorer Styles -->
-  <link rel="stylesheet" href="css/file-explorer.css?v=23">
-  <!-- Agent Terminal Styles -->
-  <link rel="stylesheet" href="css/agent.css?v=1">
-  <!-- xterm.js CSS -->
-  <link rel="stylesheet" href="vendor/xterm/xterm.css">
+  <!-- Deferred CSS (loaded async — not visible on first paint) -->
+  <link rel="stylesheet" href="css/context-menu.css?v=6" media="print" onload="this.media='all'">
+  <link rel="stylesheet" href="css/format-factory.css?v=1" media="print" onload="this.media='all'">
+  <link rel="stylesheet" href="css/downloader.css?v=1" media="print" onload="this.media='all'">
+  <link rel="stylesheet" href="css/trimmer.css?v=1" media="print" onload="this.media='all'">
+  <link rel="stylesheet" href="css/quick-tools.css?v=1" media="print" onload="this.media='all'">
+  <link rel="stylesheet" href="css/file-explorer.css?v=23" media="print" onload="this.media='all'">
+  <link rel="stylesheet" href="css/agent.css?v=1" media="print" onload="this.media='all'">
+  <link rel="stylesheet" href="vendor/xterm/xterm.css" media="print" onload="this.media='all'">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/lipis/flag-icons@7.2.3/css/flag-icons.min.css" media="print" onload="this.media='all'">
+  <link rel="stylesheet" href="css/language-selector.css?v=1" media="print" onload="this.media='all'">
+  <link rel="stylesheet" href="css/rtl.css?v=1" media="print" onload="this.media='all'">
 </head>
 <body>
   <div id="app">
@@ -64,8 +59,8 @@
 
           <!-- Welcome Text -->
           <div class="auth-welcome">
-            <h2>Welcome Back</h2>
-            <p>Sign in to access your media library</p>
+            <h2 data-i18n="auth.welcomeBack">Welcome Back</h2>
+            <p data-i18n="auth.signInSubtitle">Sign in to access your media library</p>
           </div>
 
           <!-- Google Auth Button -->
@@ -76,39 +71,36 @@
               <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" fill="#FBBC05" />
               <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335" />
             </svg>
-            Continue with Google
+            <span data-i18n="auth.continueWithGoogle">Continue with Google</span>
           </button>
 
           <!-- Divider -->
           <div class="auth-divider">
-            <span>or continue with email</span>
+            <span data-i18n="auth.orContinueWithEmail">or continue with email</span>
           </div>
 
           <!-- Email/Password Form -->
           <div class="auth-form">
-            <input type="email" id="email" placeholder="Email" autocomplete="email">
+            <input type="email" id="email" data-i18n-placeholder="auth.emailPlaceholder" placeholder="Email" autocomplete="email">
             <div class="password-field">
-              <input type="password" id="password" placeholder="Password" autocomplete="current-password">
-              <button type="button" id="toggle-password" class="toggle-password" aria-label="Toggle password visibility">
-                <svg class="eye-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                  <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path>
-                  <circle cx="12" cy="12" r="3"></circle>
-                </svg>
+              <input type="password" id="password" data-i18n-placeholder="auth.passwordPlaceholder" placeholder="Password" autocomplete="current-password">
+              <button type="button" id="toggle-password" class="toggle-password" data-i18n-aria="auth.togglePasswordVisibility" aria-label="Toggle password visibility">
+                <i data-lucide="eye"></i>
               </button>
             </div>
-            <button id="login-btn" class="auth-btn">Sign In</button>
+            <button id="login-btn" class="auth-btn" data-i18n="auth.signIn">Sign In</button>
             <p id="login-error" class="error-message"></p>
           </div>
 
           <!-- Footer -->
           <div class="auth-footer">
-            <p>By signing in, you agree to our <a href="https://kolbo.ai/terms-of-service" target="_blank">Terms of Service</a> and <a href="https://kolbo.ai/privacy-policy" target="_blank">Privacy Policy</a></p>
+            <p><span data-i18n="auth.termsPrefix">By signing in, you agree to our</span> <a href="https://kolbo.ai/terms-of-service" target="_blank" data-i18n="auth.termsOfService">Terms of Service</a> <span data-i18n="auth.termsAnd">and</span> <a href="https://kolbo.ai/privacy-policy" target="_blank" data-i18n="auth.privacyPolicy">Privacy Policy</a></p>
           </div>
         </div>
 
         <!-- Copyright -->
         <div class="auth-copyright">
-          © 2025 Kolbo.AI
+          <span data-i18n="auth.copyright">© 2025 Kolbo.AI</span>
         </div>
       </div>
     </div>
@@ -121,7 +113,7 @@
           <path d="M230.46,247.18l.71-.07c18.22-1.57,40.46,5.25,54.11,17.39,7.12,6.33,13.67,12.77,20.47,19.47l33.35,33.18,20.89,20.64c5.43,5.34,12.95,12.32,17.02,18.53,6.45,9.85,10.79,22.69,11.77,34.4,1.59,19.48-4.58,38.81-17.16,53.77-12.15,14.11-29.34,22.9-47.89,24.47-20.18,1.26-40.14-3.82-55.82-16.78-5.28-4.38-10.61-9.88-15.53-14.76l-24.18-23.99-29.91-29.52c-18.52-18.33-32.12-30.07-34.93-57.93-1.96-18.77,3.66-37.55,15.62-52.15,13.28-16.18,30.92-24.52,51.49-26.64Z"/>
         </svg>
         <div class="spinner-large"></div>
-        <p class="loading-text">Loading your media...</p>
+        <p class="loading-text" data-i18n="loading.yourMedia">Loading your media...</p>
       </div>
     </div>
 
@@ -137,95 +129,70 @@
                 <path d="M66.58.17c.92-.08,1.85-.13,2.77-.15,31.93-.72,58.76,17.64,69.26,47.85,4.38,12.59,3.67,24.74,3.71,37.81l.17,35.22c20.47-12.42,41.02-24.71,61.64-36.87l52.28-31.06c26.66-15.74,49.05-33.69,81.84-25.36,16.47,4.08,30.6,14.65,39.18,29.29,8.95,15.13,11.55,33.18,7.26,50.22-3.09,12.25-9.76,23.3-19.16,31.73-7.98,7.23-19.59,13.47-29.03,18.93l-29.54,17.11-116.52,67.76c-27.02,14.92-43.25,35.29-47.26,66.69-1.09,8.52-.71,19.49-.72,28.26v43.96c.04,23.37.04,40.52-15.36,59.79-40.68,50.89-119.72,26.02-126.46-37.91-.88-8.36-.57-16.61-.56-24.98l.03-36.6v-121.05s0-104.63,0-104.63l-.02-31.62c0-7.35-.24-15.44.7-22.64,1.61-12.74,6.71-24.78,14.75-34.79C29.14,10.22,45.35,2.35,66.58.17Z"/>
                 <path d="M230.46,247.18l.71-.07c18.22-1.57,40.46,5.25,54.11,17.39,7.12,6.33,13.67,12.77,20.47,19.47l33.35,33.18,20.89,20.64c5.43,5.34,12.95,12.32,17.02,18.53,6.45,9.85,10.79,22.69,11.77,34.4,1.59,19.48-4.58,38.81-17.16,53.77-12.15,14.11-29.34,22.9-47.89,24.47-20.18,1.26-40.14-3.82-55.82-16.78-5.28-4.38-10.61-9.88-15.53-14.76l-24.18-23.99-29.91-29.52c-18.52-18.33-32.12-30.07-34.93-57.93-1.96-18.77,3.66-37.55,15.62-52.15,13.28-16.18,30.92-24.52,51.49-26.64Z"/>
               </svg>
-              Kolbo.AI
+              <span data-i18n="tabs.kolboAI">Kolbo.AI</span>
             </button>
             <button id="agent-tab" class="tab-btn" data-view="agent">
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                <polyline points="4 17 10 11 4 5"></polyline>
-                <line x1="12" y1="19" x2="20" y2="19"></line>
-              </svg>
-              Kolbo Code
+              <i data-lucide="code"></i>
+              <span data-i18n="tabs.kolboCode">Kolbo Code</span>
             </button>
             <button id="media-tab" class="tab-btn" data-view="media">
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
-                <path d="M4 4h16v2H4V4zm0 6h16v2H4v-2zm0 6h16v2H4v-2z"/>
-              </svg>
-              My Media
+              <i data-lucide="menu"></i>
+              <span data-i18n="tabs.myMedia">My Media</span>
             </button>
             <button id="file-explorer-tab" class="tab-btn" data-view="file-explorer">
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <path d="M4 4h7l2 2h7a1 1 0 0 1 1 1v2"/>
-                <path d="M4 8v10a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-6"/>
-                <path d="M16 12l4-4m0 0l-4-4m4 4H9"/>
-              </svg>
-              File Bridge
+              <i data-lucide="folder"></i>
+              <span data-i18n="tabs.fileBridge">File Bridge</span>
             </button>
             <button id="format-factory-tab" class="tab-btn" data-view="format-factory">
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <path d="M21.21 15.89A10 10 0 1 1 8 2.83"></path>
-                <path d="M22 12A10 10 0 0 0 12 2v10z"></path>
-              </svg>
-              Format Factory
+              <i data-lucide="shuffle"></i>
+              <span data-i18n="tabs.formatFactory">Format Factory</span>
             </button>
             <button id="downloader-tab" class="tab-btn" data-view="downloader">
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
-                <polyline points="7 10 12 15 17 10"/>
-                <line x1="12" y1="15" x2="12" y2="3"/>
-              </svg>
-              Downloader
+              <i data-lucide="download"></i>
+              <span data-i18n="tabs.downloader">Downloader</span>
             </button>
             <button id="quick-tools-tab" class="tab-btn" data-view="quick-tools">
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/>
-              </svg>
-              Quick Tools
+              <i data-lucide="wand-2"></i>
+              <span data-i18n="tabs.quickTools">Quick Tools</span>
             </button>
           </div>
-          <span id="media-count" class="media-count">0 items</span>
+          <span id="media-count" class="media-count" data-i18n="media.noItems">0 items</span>
         </div>
         <div class="header-actions">
-          <button id="refresh-btn" class="icon-btn" title="Refresh">
-            <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
-              <path d="M13.65 2.35C12.2 0.9 10.21 0 8 0 3.58 0 0 3.58 0 8s3.58 8 8 8c3.73 0 6.84-2.55 7.73-6h-2.08c-.82 2.33-3.04 4-5.65 4-3.31 0-6-2.69-6-6s2.69-6 6-6c1.66 0 3.14.69 4.22 1.78L9 7h7V0l-2.35 2.35z"/>
-            </svg>
+          <button id="refresh-btn" class="icon-btn" data-i18n-title="header.refresh" title="Refresh">
+            <i data-lucide="refresh-cw"></i>
           </button>
           <!-- Update Available Button (hidden by default) -->
           <button id="update-available-btn" class="update-available-btn hidden" title="Update Available">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
-              <polyline points="7 10 12 15 17 10"/>
-              <line x1="12" y1="15" x2="12" y2="3"/>
-            </svg>
+            <i data-lucide="download"></i>
             <span class="update-badge">1</span>
-            <span id="update-btn-label">Update Available</span>
+            <span id="update-btn-label" data-i18n="header.updateAvailable">Update Available</span>
           </button>
-          <button id="settings-btn" class="settings-btn" title="Settings">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/>
-              <circle cx="12" cy="12" r="3"/>
-            </svg>
-            <span>Settings</span>
+          <!-- Language Selector in Header -->
+          <button id="lang-toggle-btn" class="header-lang-btn" title="Change language">
+            <span class="fi fi-us" id="current-lang-flag"></span>
           </button>
-          <button id="logout-btn" class="icon-btn logout-btn" title="Logout">
-            <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
-              <path d="M12 10V8H7V6h5V4l3 3-3 3zm-1-1v4H6v3l-6-3V0h11v5h-1V1H2l4 2v9h4V9h1z"/>
-            </svg>
-            <span>Log Out</span>
+          <button id="settings-btn" class="settings-btn" data-i18n-title="header.settings" title="Settings">
+            <i data-lucide="settings"></i>
+            <span data-i18n="header.settings">Settings</span>
+          </button>
+          <button id="logout-btn" class="icon-btn logout-btn" data-i18n-title="header.logout" title="Logout">
+            <i data-lucide="log-out"></i>
+            <span data-i18n="header.logoutBtn">Log Out</span>
           </button>
           <!-- Window Controls -->
           <div class="window-controls">
-            <button id="minimize-btn" class="window-btn" title="Minimize">
+            <button id="minimize-btn" class="window-btn" data-i18n-title="header.minimize" title="Minimize">
               <svg width="12" height="12" viewBox="0 0 12 12">
                 <path d="M0 6h12" stroke="currentColor" stroke-width="1"/>
               </svg>
             </button>
-            <button id="maximize-btn" class="window-btn" title="Maximize">
+            <button id="maximize-btn" class="window-btn" data-i18n-title="header.maximize" title="Maximize">
               <svg width="12" height="12" viewBox="0 0 12 12">
                 <rect x="1" y="1" width="10" height="10" stroke="currentColor" stroke-width="1" fill="none"/>
               </svg>
             </button>
-            <button id="close-btn" class="window-btn close-btn" title="Close">
+            <button id="close-btn" class="window-btn close-btn" data-i18n-title="header.close" title="Close">
               <svg width="12" height="12" viewBox="0 0 12 12">
                 <path d="M1 1l10 10M11 1L1 11" stroke="currentColor" stroke-width="1"/>
               </svg>
@@ -240,53 +207,36 @@
       <div class="project-selector">
         <div class="project-dropdown-wrapper">
           <button id="project-dropdown-trigger" class="project-dropdown-trigger">
-            <svg class="project-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"></path>
-            </svg>
-            <span id="project-selected-name" class="project-selected-name">All Projects</span>
-            <svg class="project-chevron" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <path d="m6 9 6 6 6-6"></path>
-            </svg>
+            <i data-lucide="folder" class="project-icon"></i>
+            <span id="project-selected-name" class="project-selected-name" data-i18n="media.allProjects">All Projects</span>
+            <i data-lucide="chevron-down" class="project-chevron"></i>
           </button>
 
           <!-- Custom Dropdown Content -->
           <div id="project-dropdown-content" class="project-dropdown-content hidden">
             <!-- Search Input -->
             <div class="project-search-wrapper">
-              <svg class="project-search-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <circle cx="11" cy="11" r="8"></circle>
-                <path d="m21 21-4.35-4.35"></path>
-              </svg>
-              <input type="text" id="project-search-input" class="project-search-input" placeholder="Search projects...">
+              <i data-lucide="search" class="project-search-icon"></i>
+              <input type="text" id="project-search-input" class="project-search-input" data-i18n-placeholder="media.searchProjects" placeholder="Search projects...">
             </div>
 
             <!-- Sort Options -->
             <div class="project-sort-wrapper">
-              <button id="project-sort-date" class="project-sort-btn active" data-sort="createdAt">
-                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                  <circle cx="12" cy="12" r="10"></circle>
-                  <polyline points="12 6 12 12 16 14"></polyline>
-                </svg>
-                Date
-              </button>
-              <button id="project-sort-name" class="project-sort-btn" data-sort="name">
-                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                  <path d="M3 6h18M3 12h12M3 18h6"></path>
-                </svg>
-                Name
-              </button>
+                <button id="project-sort-date" class="project-sort-btn active" data-sort="createdAt">
+                  <i data-lucide="clock"></i>
+                  <span data-i18n="media.sortByDate">Date</span>
+                </button>
+                <button id="project-sort-name" class="project-sort-btn" data-sort="name">
+                  <i data-lucide="list"></i>
+                  <span data-i18n="media.sortByName">Name</span>
+                </button>
             </div>
 
             <!-- Project List -->
             <div id="project-list" class="project-list">
               <div class="project-item active" data-value="all">
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                  <rect x="3" y="3" width="7" height="7"></rect>
-                  <rect x="14" y="3" width="7" height="7"></rect>
-                  <rect x="14" y="14" width="7" height="7"></rect>
-                  <rect x="3" y="14" width="7" height="7"></rect>
-                </svg>
-                <span>All Projects</span>
+                <i data-lucide="grid-2x2"></i>
+                <span data-i18n="media.allProjects">All Projects</span>
               </div>
               <!-- Projects will be populated here -->
             </div>
@@ -298,61 +248,33 @@
       <div class="filters">
         <div class="filters-left">
           <button class="filter-btn active" data-type="all">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <rect x="3" y="3" width="7" height="7" rx="1"></rect>
-              <rect x="14" y="3" width="7" height="7" rx="1"></rect>
-              <rect x="14" y="14" width="7" height="7" rx="1"></rect>
-              <rect x="3" y="14" width="7" height="7" rx="1"></rect>
-            </svg>
-            All
+            <i data-lucide="grid-2x2"></i>
+            <span data-i18n="media.filters.all">All</span>
           </button>
           <button class="filter-btn" data-type="video">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <path d="m22 8-6 4 6 4V8Z"></path>
-              <rect width="14" height="12" x="2" y="6" rx="2" ry="2"></rect>
-            </svg>
-            Videos
+            <i data-lucide="film"></i>
+            <span data-i18n="media.filters.videos">Videos</span>
           </button>
           <button class="filter-btn" data-type="image">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <rect width="18" height="18" x="3" y="3" rx="2" ry="2"></rect>
-              <circle cx="9" cy="9" r="2"></circle>
-              <path d="m21 15-3.086-3.086a2 2 0 0 0-2.828 0L6 21"></path>
-            </svg>
-            Images
+            <i data-lucide="image"></i>
+            <span data-i18n="media.filters.images">Images</span>
           </button>
           <button class="filter-btn" data-type="audio">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <path d="M9 18V5l12-2v13"></path>
-              <circle cx="6" cy="18" r="3"></circle>
-              <circle cx="18" cy="16" r="3"></circle>
-            </svg>
-            Audio
+            <i data-lucide="music"></i>
+            <span data-i18n="media.filters.audio">Audio</span>
           </button>
           <button class="filter-btn" data-type="favorites">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"></polygon>
-            </svg>
-            Favorites
+            <i data-lucide="heart"></i>
+            <span data-i18n="media.filters.favorites">Favorites</span>
           </button>
         </div>
         <div class="filters-right">
           <div class="grid-size-control">
-            <svg class="grid-icon-left" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <path d="M12 3v18"></path>
-              <path d="M3 12h18"></path>
-              <rect x="3" y="3" width="18" height="18" rx="2"></rect>
-            </svg>
+            <i data-lucide="maximize-2" class="grid-icon-left"></i>
             <div class="slider-container">
               <input type="range" min="1" max="8" value="4" class="grid-size-slider" id="grid-size-slider">
             </div>
-            <svg class="grid-icon-right" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <rect width="18" height="18" x="3" y="3" rx="2"></rect>
-              <path d="M3 9h18"></path>
-              <path d="M3 15h18"></path>
-              <path d="M9 3v18"></path>
-              <path d="M15 3v18"></path>
-            </svg>
+            <i data-lucide="layout-grid" class="grid-icon-right"></i>
             <span class="grid-size-value" id="grid-size-value">4</span>
           </div>
         </div>
@@ -361,29 +283,29 @@
       <!-- Subcategories -->
       <div id="subcategories" class="subcategories hidden">
         <div id="image-subcategories" class="subcategory-group hidden">
-          <button class="subcategory-btn active" data-subcategory="all">All</button>
-          <button class="subcategory-btn" data-subcategory="ai">AI Generated</button>
-          <button class="subcategory-btn" data-subcategory="training-lab">Training Lab</button>
-          <button class="subcategory-btn" data-subcategory="edited">Edited</button>
-          <button class="subcategory-btn" data-subcategory="uploaded">Uploaded</button>
-          <button class="subcategory-btn" data-subcategory="favorites">Favorites</button>
+          <button class="subcategory-btn active" data-subcategory="all" data-i18n="media.subcategories.all">All</button>
+          <button class="subcategory-btn" data-subcategory="ai" data-i18n="media.subcategories.aiGenerated">AI Generated</button>
+          <button class="subcategory-btn" data-subcategory="training-lab" data-i18n="media.subcategories.trainingLab">Training Lab</button>
+          <button class="subcategory-btn" data-subcategory="edited" data-i18n="media.subcategories.edited">Edited</button>
+          <button class="subcategory-btn" data-subcategory="uploaded" data-i18n="media.subcategories.uploaded">Uploaded</button>
+          <button class="subcategory-btn" data-subcategory="favorites" data-i18n="media.subcategories.favorites">Favorites</button>
         </div>
         <div id="video-subcategories" class="subcategory-group hidden">
-          <button class="subcategory-btn active" data-subcategory="all">All</button>
-          <button class="subcategory-btn" data-subcategory="text-to-video">Text to Video</button>
-          <button class="subcategory-btn" data-subcategory="image-to-video">Image to Video</button>
-          <button class="subcategory-btn" data-subcategory="lipsync-videos">Lipsync</button>
-          <button class="subcategory-btn" data-subcategory="video-to-video">Video to Video</button>
-          <button class="subcategory-btn" data-subcategory="uploaded">Uploaded</button>
-          <button class="subcategory-btn" data-subcategory="favorites">Favorites</button>
+          <button class="subcategory-btn active" data-subcategory="all" data-i18n="media.subcategories.all">All</button>
+          <button class="subcategory-btn" data-subcategory="text-to-video" data-i18n="media.subcategories.textToVideo">Text to Video</button>
+          <button class="subcategory-btn" data-subcategory="image-to-video" data-i18n="media.subcategories.imageToVideo">Image to Video</button>
+          <button class="subcategory-btn" data-subcategory="lipsync-videos" data-i18n="media.subcategories.lipsync">Lipsync</button>
+          <button class="subcategory-btn" data-subcategory="video-to-video" data-i18n="media.subcategories.videoToVideo">Video to Video</button>
+          <button class="subcategory-btn" data-subcategory="uploaded" data-i18n="media.subcategories.uploaded">Uploaded</button>
+          <button class="subcategory-btn" data-subcategory="favorites" data-i18n="media.subcategories.favorites">Favorites</button>
         </div>
         <div id="audio-subcategories" class="subcategory-group hidden">
-          <button class="subcategory-btn active" data-subcategory="all">All</button>
-          <button class="subcategory-btn" data-subcategory="text-to-speech">Text to Speech</button>
-          <button class="subcategory-btn" data-subcategory="music">Music</button>
-          <button class="subcategory-btn" data-subcategory="text-to-sound">Text to Sound</button>
-          <button class="subcategory-btn" data-subcategory="uploaded">Uploaded</button>
-          <button class="subcategory-btn" data-subcategory="favorites">Favorites</button>
+          <button class="subcategory-btn active" data-subcategory="all" data-i18n="media.subcategories.all">All</button>
+          <button class="subcategory-btn" data-subcategory="text-to-speech" data-i18n="media.subcategories.textToSpeech">Text to Speech</button>
+          <button class="subcategory-btn" data-subcategory="music" data-i18n="media.subcategories.music">Music</button>
+          <button class="subcategory-btn" data-subcategory="text-to-sound" data-i18n="media.subcategories.textToSound">Text to Sound</button>
+          <button class="subcategory-btn" data-subcategory="uploaded" data-i18n="media.subcategories.uploaded">Uploaded</button>
+          <button class="subcategory-btn" data-subcategory="favorites" data-i18n="media.subcategories.favorites">Favorites</button>
         </div>
       </div>
 
@@ -395,33 +317,25 @@
 
         <div id="loading" class="loading-state hidden">
           <div class="spinner"></div>
-          <p>Loading media...</p>
+          <p data-i18n="loading.media">Loading media...</p>
         </div>
 
         <div id="empty-state" class="empty-state hidden">
-          <svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
-            <rect x="3" y="3" width="18" height="18" rx="2"/>
-            <circle cx="8.5" cy="8.5" r="1.5"/>
-            <path d="M21 15l-5-5L5 21"/>
-          </svg>
-          <h3>No media found</h3>
-          <p>Your Kolbo.AI generated media will appear here</p>
+          <i data-lucide="image" style="width:64px;height:64px;"></i>
+          <h3 data-i18n="media.noMedia">No media found</h3>
+          <p data-i18n="media.noMediaSubtitle">Your Kolbo.AI generated media will appear here</p>
         </div>
 
         <div id="error-state" class="error-state hidden">
-          <svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
-            <circle cx="12" cy="12" r="10"/>
-            <line x1="12" y1="8" x2="12" y2="12"/>
-            <line x1="12" y1="16" x2="12.01" y2="16"/>
-          </svg>
-          <h3>Failed to load media</h3>
-          <p id="error-message">Please try again</p>
-          <button id="retry-btn" class="primary-btn">Retry</button>
+          <i data-lucide="alert-circle" style="width:64px;height:64px;"></i>
+          <h3 data-i18n="media.failedToLoad">Failed to load media</h3>
+          <p id="error-message" data-i18n="media.pleaseRetry">Please try again</p>
+          <button id="retry-btn" class="primary-btn" data-i18n="media.retry">Retry</button>
         </div>
 
         <div id="loading-more" class="loading-state hidden" style="padding: 20px 0;">
           <div class="spinner"></div>
-          <p>Loading more...</p>
+          <p data-i18n="loading.more">Loading more...</p>
         </div>
 
         <div id="load-more-trigger" style="height: 1px; visibility: hidden;"></div>
@@ -434,74 +348,45 @@
         <div id="tab-bar" class="tab-bar">
           <!-- Navigation Controls -->
           <div class="webapp-nav-controls">
-            <button id="webapp-back-btn" class="webapp-nav-btn" title="Go Back">
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <path d="M19 12H5M12 19l-7-7 7-7"/>
-              </svg>
+            <button id="webapp-back-btn" class="webapp-nav-btn" data-i18n-title="webapp.back" title="Go Back">
+              <i data-lucide="arrow-left"></i>
             </button>
-            <button id="webapp-forward-btn" class="webapp-nav-btn" title="Go Forward">
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <path d="M5 12h14M12 5l7 7-7 7"/>
-              </svg>
+            <button id="webapp-forward-btn" class="webapp-nav-btn" data-i18n-title="webapp.forward" title="Go Forward">
+              <i data-lucide="arrow-right"></i>
             </button>
-            <button id="webapp-refresh-btn" class="webapp-nav-btn" title="Refresh Page">
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <path d="M21.5 2v6h-6M2.5 22v-6h6M2 11.5a10 10 0 0 1 18.8-4.3M22 12.5a10 10 0 0 1-18.8 4.2"/>
-              </svg>
+            <button id="webapp-refresh-btn" class="webapp-nav-btn" data-i18n-title="webapp.refreshPage" title="Refresh Page">
+              <i data-lucide="refresh-cw"></i>
             </button>
-            <button id="webapp-zoom-out-btn" class="webapp-nav-btn" title="Zoom Out (Ctrl+-)">
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <circle cx="11" cy="11" r="8"/>
-                <path d="M21 21l-4.35-4.35M8 11h6"/>
-              </svg>
+            <button id="webapp-zoom-out-btn" class="webapp-nav-btn" data-i18n-title="webapp.zoomOut" title="Zoom Out (Ctrl+-)">
+              <i data-lucide="zoom-out"></i>
             </button>
-            <button id="webapp-zoom-in-btn" class="webapp-nav-btn" title="Zoom In (Ctrl++)">
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <circle cx="11" cy="11" r="8"/>
-                <path d="M21 21l-4.35-4.35M11 8v6M8 11h6"/>
-              </svg>
+            <button id="webapp-zoom-in-btn" class="webapp-nav-btn" data-i18n-title="webapp.zoomIn" title="Zoom In (Ctrl++)">
+              <i data-lucide="zoom-in"></i>
             </button>
-            <button id="webapp-screenshot-btn" class="webapp-nav-btn" title="Take Screenshot (Ctrl+Shift+5)">
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/>
-                <circle cx="12" cy="13" r="4"/>
-              </svg>
+            <button id="webapp-screenshot-btn" class="webapp-nav-btn" data-i18n-title="webapp.takeScreenshot" title="Take Screenshot (Ctrl+Shift+5)">
+              <i data-lucide="camera"></i>
             </button>
           </div>
           <div id="tab-list" class="tab-list">
             <!-- Tabs will be inserted here dynamically -->
-            <button id="new-tab-btn" class="new-tab-btn" title="New Tab (Ctrl+T)">
-              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <path d="M12 5v14M5 12h14"/>
-              </svg>
-              <span>New Tab</span>
+            <button id="new-tab-btn" class="new-tab-btn" data-i18n-title="tabs.newTab" title="New Tab (Ctrl+T)">
+              <i data-lucide="plus"></i>
+              <span data-i18n="tabs.newTab">New Tab</span>
             </button>
-            <button id="split-view-btn" class="split-view-btn" title="Split View (Ctrl+Shift+S)">
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <rect x="3" y="3" width="7" height="18" rx="1"></rect>
-                <rect x="14" y="3" width="7" height="18" rx="1"></rect>
-              </svg>
-              <span>Split View</span>
+            <button id="split-view-btn" class="split-view-btn" data-i18n-title="tabs.splitView" title="Split View (Ctrl+Shift+S)">
+              <i data-lucide="columns-2"></i>
+              <span data-i18n="tabs.splitView">Split View</span>
             </button>
             <!-- Split Layout Preset Buttons (hidden by default, shown when split view is active) -->
             <div id="split-presets" class="split-presets hidden">
-              <button class="split-preset-btn active" data-ratio="0.5" title="Equal Split (50/50)">
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                  <rect x="3" y="3" width="7" height="18" rx="1"></rect>
-                  <rect x="14" y="3" width="7" height="18" rx="1"></rect>
-                </svg>
+              <button class="split-preset-btn active" data-ratio="0.5" data-i18n-title="webapp.splitPresets.equal" title="Equal Split (50/50)">
+                <i data-lucide="columns-2"></i>
               </button>
-              <button class="split-preset-btn" data-ratio="0.25" title="Small Left (25/75)">
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                  <rect x="3" y="3" width="4" height="18" rx="1"></rect>
-                  <rect x="10" y="3" width="11" height="18" rx="1"></rect>
-                </svg>
+              <button class="split-preset-btn" data-ratio="0.25" data-i18n-title="webapp.splitPresets.smallLeft" title="Small Left (25/75)">
+                <i data-lucide="panel-left"></i>
               </button>
-              <button class="split-preset-btn" data-ratio="0.7" title="Large Left (70/30)">
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                  <rect x="3" y="3" width="11" height="18" rx="1"></rect>
-                  <rect x="17" y="3" width="4" height="18" rx="1"></rect>
-                </svg>
+              <button class="split-preset-btn" data-ratio="0.7" data-i18n-title="webapp.splitPresets.largeLeft" title="Large Left (70/30)">
+                <i data-lucide="panel-left"></i>
               </button>
             </div>
           </div>
@@ -511,7 +396,7 @@
         <div id="iframe-container" class="iframe-container">
           <div id="webapp-loading" class="loading-state">
             <div class="spinner"></div>
-            <p>Loading Kolbo Web App...</p>
+            <p data-i18n="loading.webApp">Loading Kolbo Web App...</p>
           </div>
           <!-- Iframes will be inserted here dynamically -->
         </div>
@@ -520,57 +405,49 @@
       <!-- Settings View -->
       <div id="settings-view" class="view-content hidden">
         <div class="settings-container">
-          <h1 class="settings-title">Settings</h1>
+          <h1 class="settings-title" data-i18n="settings.title">Settings</h1>
 
           <!-- Cache Management Section -->
           <div class="settings-section">
             <div class="settings-section-header">
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"></path>
-              </svg>
-              <h2>Cache Management</h2>
+              <i data-lucide="hard-drive"></i>
+              <h2 data-i18n="settings.cacheManagement.title">Cache Management</h2>
             </div>
-            <p class="settings-description">
+            <p class="settings-description" data-i18n="settings.cacheManagement.description">
               Downloaded media files are cached locally for quick access and drag-and-drop into video editors.
             </p>
 
             <div class="settings-item">
               <div class="settings-item-info">
-                <label class="settings-label">Cache Size</label>
-                <p class="settings-sublabel">Current storage used by cached files</p>
+                <label class="settings-label" data-i18n="settings.cacheManagement.cacheSize">Cache Size</label>
+                <p class="settings-sublabel" data-i18n="settings.cacheManagement.currentStorage">Current storage used by cached files</p>
               </div>
               <div class="settings-value">
-                <span id="cache-size-display" class="cache-size-value">Loading...</span>
+                <span id="cache-size-display" class="cache-size-value" data-i18n="settings.cacheManagement.loading">Loading...</span>
               </div>
             </div>
 
             <div class="settings-item">
               <div class="settings-item-info">
-                <label class="settings-label">Cache Location</label>
-                <p class="settings-sublabel" id="cache-location-path">Loading...</p>
+                <label class="settings-label" data-i18n="settings.cacheManagement.cacheLocation">Cache Location</label>
+                <p class="settings-sublabel" id="cache-location-path" data-i18n="settings.cacheManagement.loading">Loading...</p>
               </div>
               <button id="reveal-cache-btn" class="secondary-btn">
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                  <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path>
-                  <polyline points="9 22 9 12 15 12 15 22"></polyline>
-                </svg>
-                Show in Folder
+                <i data-lucide="home"></i>
+                <span data-i18n="settings.cacheManagement.showInFolder">Show in Folder</span>
               </button>
             </div>
 
             <div class="settings-item">
               <div class="settings-item-info">
-                <label class="settings-label">Clear Cache</label>
-                <p class="settings-sublabel">
+                <label class="settings-label" data-i18n="settings.cacheManagement.clearCache">Clear Cache</label>
+                <p class="settings-sublabel" data-i18n="settings.cacheManagement.clearCacheWarning">
                   ⚠️ Warning: Video editing projects using cached files will show "Media Offline"
                 </p>
               </div>
               <button id="clear-cache-btn" class="danger-btn">
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                  <polyline points="3 6 5 6 21 6"></polyline>
-                  <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
-                </svg>
-                Clear All Cache
+                <i data-lucide="trash-2"></i>
+                <span data-i18n="settings.cacheManagement.clearAllCache">Clear All Cache</span>
               </button>
             </div>
           </div>
@@ -578,20 +455,17 @@
           <!-- General Settings Section -->
           <div class="settings-section">
             <div class="settings-section-header">
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <circle cx="12" cy="12" r="3"></circle>
-                <path d="M12 1v6m0 6v6M5.64 5.64l4.24 4.24m4.24 4.24l4.24 4.24M1 12h6m6 0h6M5.64 18.36l4.24-4.24m4.24-4.24l4.24-4.24"></path>
-              </svg>
-              <h2>General</h2>
+              <i data-lucide="settings"></i>
+              <h2 data-i18n="settings.general.title">General</h2>
             </div>
-            <p class="settings-description">
+            <p class="settings-description" data-i18n="settings.general.description">
               General app preferences and behavior.
             </p>
 
             <div class="settings-item">
               <div class="settings-item-info">
-                <label class="settings-label">Launch on Startup</label>
-                <p class="settings-sublabel">Automatically start Kolbo Studio when your computer boots</p>
+                <label class="settings-label" data-i18n="settings.general.launchOnStartup">Launch on Startup</label>
+                <p class="settings-sublabel" data-i18n="settings.general.launchOnStartupDesc">Automatically start Kolbo Studio when your computer boots</p>
               </div>
               <label class="toggle-switch">
                 <input type="checkbox" id="auto-launch-toggle">
@@ -601,58 +475,52 @@
 
             <div class="settings-item">
               <div class="settings-item-info">
-                <label class="settings-label">Download Folder</label>
-                <p class="settings-sublabel" id="download-folder-path">Not set</p>
+                <label class="settings-label" data-i18n="settings.general.downloadFolder">Download Folder</label>
+                <p class="settings-sublabel" id="download-folder-path" data-i18n="settings.cacheManagement.notSet">Not set</p>
               </div>
               <button id="change-download-folder-btn" class="secondary-btn">
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="margin-right: 6px;">
-                  <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"></path>
-                </svg>
-                Change Folder
+                <i data-lucide="folder" style="margin-right: 6px;"></i>
+                <span data-i18n="settings.general.changeFolder">Change Folder</span>
               </button>
             </div>
+
           </div>
 
           <!-- Format Factory Section -->
           <div class="settings-section">
             <div class="settings-section-header">
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <path d="M21.21 15.89A10 10 0 1 1 8 2.83"></path>
-                <path d="M22 12A10 10 0 0 0 12 2v10z"></path>
-              </svg>
-              <h2>Format Factory</h2>
+              <i data-lucide="shuffle"></i>
+              <h2 data-i18n="settings.formatFactory.title">Format Factory</h2>
             </div>
-            <p class="settings-description">
+            <p class="settings-description" data-i18n="settings.formatFactory.description">
               Configure how converted media files are saved and where they are stored.
             </p>
 
             <div class="settings-item">
               <div class="settings-item-info">
-                <label class="settings-label">Output Location</label>
-                <p class="settings-sublabel">Choose where converted files should be saved</p>
+                <label class="settings-label" data-i18n="settings.formatFactory.outputLocation">Output Location</label>
+                <p class="settings-sublabel" data-i18n="settings.formatFactory.chooseWhere">Choose where converted files should be saved</p>
               </div>
               <div style="display: flex; gap: 12px; align-items: center;">
                 <label style="display: flex; align-items: center; gap: 8px; cursor: pointer;">
                   <input type="radio" name="ff-output-mode" id="ff-mode-source" value="source" checked style="cursor: pointer;">
-                  <span style="color: rgba(255, 255, 255, 0.9);">Same as source</span>
+                  <span style="color: rgba(255, 255, 255, 0.9);" data-i18n="settings.formatFactory.sameAsSource">Same as source</span>
                 </label>
                 <label style="display: flex; align-items: center; gap: 8px; cursor: pointer;">
                   <input type="radio" name="ff-output-mode" id="ff-mode-custom" value="custom" style="cursor: pointer;">
-                  <span style="color: rgba(255, 255, 255, 0.9);">Custom folder</span>
+                  <span style="color: rgba(255, 255, 255, 0.9);" data-i18n="settings.formatFactory.customFolder">Custom folder</span>
                 </label>
               </div>
             </div>
 
             <div class="settings-item" id="ff-custom-folder-setting">
               <div class="settings-item-info">
-                <label class="settings-label">Custom Output Folder</label>
-                <p class="settings-sublabel" id="ff-output-folder-path">Not set</p>
+                <label class="settings-label" data-i18n="settings.formatFactory.customOutputFolder">Custom Output Folder</label>
+                <p class="settings-sublabel" id="ff-output-folder-path" data-i18n="settings.cacheManagement.notSet">Not set</p>
               </div>
               <button id="ff-change-output-folder-btn" class="secondary-btn">
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="margin-right: 6px;">
-                  <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"></path>
-                </svg>
-                Change Folder
+                <i data-lucide="folder" style="margin-right: 6px;"></i>
+                <span data-i18n="settings.general.changeFolder">Change Folder</span>
               </button>
             </div>
           </div>
@@ -660,44 +528,38 @@
           <!-- Updates Section -->
           <div class="settings-section">
             <div class="settings-section-header">
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <path d="M21.5 2v6h-6M2.5 22v-6h6M2 11.5a10 10 0 0 1 18.8-4.3M22 12.5a10 10 0 0 1-18.8 4.2"/>
-              </svg>
-              <h2>Updates</h2>
+              <i data-lucide="refresh-cw"></i>
+              <h2 data-i18n="settings.updates.title">Updates</h2>
             </div>
-            <p class="settings-description">
+            <p class="settings-description" data-i18n="settings.updates.description">
               Keep Kolbo Studio up to date with the latest features and improvements.
             </p>
 
             <div class="settings-item">
               <div class="settings-item-info">
-                <label class="settings-label">Current Version</label>
-                <p class="settings-sublabel" id="current-version">Loading...</p>
+                <label class="settings-label" data-i18n="settings.updates.currentVersion">Current Version</label>
+                <p class="settings-sublabel" id="current-version" data-i18n="settings.cacheManagement.loading">Loading...</p>
               </div>
             </div>
 
             <div class="settings-item">
               <div class="settings-item-info">
-                <label class="settings-label">Check for Updates</label>
-                <p class="settings-sublabel" id="update-status">Checking for updates...</p>
+                <label class="settings-label" data-i18n="settings.updates.checkForUpdates">Check for Updates</label>
+                <p class="settings-sublabel" id="update-status" data-i18n="settings.updates.checkingForUpdates">Checking for updates...</p>
               </div>
               <button id="check-updates-btn" class="secondary-btn">
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                  <path d="M21.5 2v6h-6M2.5 22v-6h6M2 11.5a10 10 0 0 1 18.8-4.3M22 12.5a10 10 0 0 1-18.8 4.2"/>
-                </svg>
-                Check Now
+                <i data-lucide="refresh-cw"></i>
+                <span data-i18n="settings.updates.checkNow">Check Now</span>
               </button>
             </div>
 
             <!-- Update Available Card (hidden by default) -->
             <div id="update-available-card" class="update-card hidden">
               <div class="update-card-header">
-                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                  <path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/>
-                </svg>
+                <i data-lucide="package"></i>
                 <div>
-                  <h3>Update Available!</h3>
-                  <p id="update-version-text">Version 1.0.5 is ready to install</p>
+                  <h3 data-i18n="settings.updates.updateAvailable">Update Available!</h3>
+                  <p id="update-version-text" data-i18n="settings.updates.versionReady">Version 1.0.5 is ready to install</p>
                 </div>
               </div>
               <div class="update-card-body">
@@ -706,22 +568,16 @@
                   <div class="update-progress-bar">
                     <div id="update-progress-fill" class="update-progress-fill"></div>
                   </div>
-                  <p id="update-progress-text" class="update-progress-text">Downloading... 0%</p>
+                  <p id="update-progress-text" class="update-progress-text" data-i18n="settings.updates.downloading">Downloading...</p>
                 </div>
                 <div class="update-card-actions">
                   <button id="download-update-btn" class="primary-btn">
-                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                      <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
-                      <polyline points="7 10 12 15 17 10"/>
-                      <line x1="12" y1="15" x2="12" y2="3"/>
-                    </svg>
-                    Download Update
+                    <i data-lucide="download"></i>
+                    <span data-i18n="settings.updates.downloadUpdate">Download Update</span>
                   </button>
                   <button id="install-update-btn" class="primary-btn hidden">
-                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                      <path d="M21.5 2v6h-6M2.5 22v-6h6M2 11.5a10 10 0 0 1 18.8-4.3M22 12.5a10 10 0 0 1-18.8 4.2"/>
-                    </svg>
-                    Restart & Install
+                    <i data-lucide="refresh-cw"></i>
+                    <span data-i18n="settings.updates.restartInstall">Restart & Install</span>
                   </button>
                 </div>
               </div>
@@ -731,53 +587,38 @@
           <!-- Account Section -->
           <div class="settings-section">
             <div class="settings-section-header">
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path>
-                <circle cx="12" cy="7" r="4"></circle>
-              </svg>
-              <h2>Account</h2>
+              <i data-lucide="user"></i>
+              <h2 data-i18n="settings.account.title">Account</h2>
             </div>
             <div class="settings-item">
               <div class="settings-item-info">
-                <label class="settings-label">Current Plan</label>
-                <p class="settings-sublabel" id="current-plan">Loading...</p>
+                <label class="settings-label" data-i18n="settings.account.currentPlan">Current Plan</label>
+                <p class="settings-sublabel" id="current-plan" data-i18n="settings.cacheManagement.loading">Loading...</p>
               </div>
             </div>
 
             <div class="settings-item">
               <div class="settings-item-info">
-                <label class="settings-label">Available Credits</label>
+                <label class="settings-label" data-i18n="settings.account.availableCredits">Available Credits</label>
                 <p class="settings-sublabel" id="available-credits" style="display: flex; align-items: center; gap: 6px;">
-                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="flex-shrink: 0;">
-                    <circle cx="12" cy="12" r="10"></circle>
-                    <path d="M12 6v12"></path>
-                    <path d="M15.5 9.5a3.5 3.5 0 1 0-7 0"></path>
-                    <path d="M8.5 14.5a3.5 3.5 0 1 0 7 0"></path>
-                  </svg>
-                  <span id="credits-text">Loading...</span>
+                  <i data-lucide="dollar-sign" style="flex-shrink: 0;"></i>
+                  <span id="credits-text" data-i18n="settings.cacheManagement.loading">Loading...</span>
                 </p>
               </div>
               <button id="purchase-credits-btn" class="secondary-btn">
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                  <circle cx="12" cy="12" r="10"></circle>
-                  <line x1="12" y1="8" x2="12" y2="16"></line>
-                  <line x1="8" y1="12" x2="16" y2="12"></line>
-                </svg>
-                Purchase Credits
+                <i data-lucide="plus"></i>
+                <span data-i18n="settings.account.purchaseCredits">Purchase Credits</span>
               </button>
             </div>
 
             <div class="settings-item">
               <div class="settings-item-info">
-                <label class="settings-label">Billing & Usage</label>
-                <p class="settings-sublabel">Manage subscription, billing, and view usage history</p>
+                <label class="settings-label" data-i18n="settings.account.billingUsage">Billing & Usage</label>
+                <p class="settings-sublabel" data-i18n="settings.account.billingDesc">Manage subscription, billing, and view usage history</p>
               </div>
               <button class="secondary-btn" id="billing-btn">
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                  <rect x="2" y="5" width="20" height="14" rx="2"></rect>
-                  <line x1="2" y1="10" x2="22" y2="10"></line>
-                </svg>
-                View Billing
+                <i data-lucide="credit-card"></i>
+                <span data-i18n="settings.account.viewBilling">View Billing</span>
               </button>
             </div>
           </div>
@@ -785,35 +626,31 @@
           <!-- About Section -->
           <div class="settings-section">
             <div class="settings-section-header">
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <circle cx="12" cy="12" r="10"></circle>
-                <line x1="12" y1="16" x2="12" y2="12"></line>
-                <line x1="12" y1="8" x2="12.01" y2="8"></line>
-              </svg>
-              <h2>About</h2>
+              <i data-lucide="help-circle"></i>
+              <h2 data-i18n="settings.about.title">About</h2>
             </div>
             <div class="settings-item">
               <div class="settings-item-info">
-                <label class="settings-label">Kolbo Studio</label>
-                <p class="settings-sublabel" id="app-version">Version Loading...</p>
+                <label class="settings-label" data-i18n="settings.about.kolboStudio">Kolbo Studio</label>
+                <p class="settings-sublabel" id="app-version" data-i18n="settings.cacheManagement.loading">Version Loading...</p>
               </div>
             </div>
             <div class="settings-item">
               <div class="settings-item-info">
-                <label class="settings-label">Discord Community</label>
-                <p class="settings-sublabel">Get help from our community</p>
+                <label class="settings-label" data-i18n="settings.about.discordCommunity">Discord Community</label>
+                <p class="settings-sublabel" data-i18n="settings.about.discordDesc">Get help from our community</p>
               </div>
               <button class="secondary-btn" onclick="window.kolboDesktop.openExternal('https://discord.com/invite/v9YwBHzt9m')">
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
                   <path d="M20.317 4.37a19.791 19.791 0 0 0-4.885-1.515a.074.074 0 0 0-.079.037c-.21.375-.444.864-.608 1.25a18.27 18.27 0 0 0-5.487 0a12.64 12.64 0 0 0-.617-1.25a.077.077 0 0 0-.079-.037A19.736 19.736 0 0 0 3.677 4.37a.07.07 0 0 0-.032.027C.533 9.046-.32 13.58.099 18.057a.082.082 0 0 0 .031.057a19.9 19.9 0 0 0 5.993 3.03a.078.078 0 0 0 .084-.028a14.09 14.09 0 0 0 1.226-1.994a.076.076 0 0 0-.041-.106a13.107 13.107 0 0 1-1.872-.892a.077.077 0 0 1-.008-.128a10.2 10.2 0 0 0 .372-.292a.074.074 0 0 1 .077-.01c3.928 1.793 8.18 1.793 12.062 0a.074.074 0 0 1 .078.01c.12.098.246.198.373.292a.077.077 0 0 1-.006.127a12.299 12.299 0 0 1-1.873.892a.077.077 0 0 0-.041.107c.36.698.772 1.362 1.225 1.993a.076.076 0 0 0 .084.028a19.839 19.839 0 0 0 6.002-3.03a.077.077 0 0 0 .032-.054c.5-5.177-.838-9.674-3.549-13.66a.061.061 0 0 0-.031-.03zM8.02 15.33c-1.183 0-2.157-1.085-2.157-2.419c0-1.333.956-2.419 2.157-2.419c1.21 0 2.176 1.096 2.157 2.42c0 1.333-.956 2.418-2.157 2.418zm7.975 0c-1.183 0-2.157-1.085-2.157-2.419c0-1.333.955-2.419 2.157-2.419c1.21 0 2.176 1.096 2.157 2.42c0 1.333-.946 2.418-2.157 2.418z"/>
                 </svg>
-                Join Discord
+                <span data-i18n="settings.about.joinDiscord">Join Discord</span>
               </button>
             </div>
             <div class="settings-item">
               <div class="settings-item-info">
-                <label class="settings-label">Email Support</label>
-                <p class="settings-sublabel" style="font-family: monospace; font-size: 13px; color: rgba(255, 255, 255, 0.9); user-select: all;">support@kolbo.ai</p>
+                <label class="settings-label" data-i18n="settings.about.emailSupport">Email Support</label>
+                <p class="settings-sublabel" style="font-family: monospace; font-size: 13px; color: rgba(255, 255, 255, 0.9); user-select: all;" data-i18n="settings.about.supportEmail">support@kolbo.ai</p>
               </div>
             </div>
           </div>
@@ -830,56 +667,38 @@
               <div style="display: flex; align-items: center; gap: 16px;">
                 <label style="display: flex; align-items: center; gap: 8px; cursor: pointer; color: rgba(255, 255, 255, 0.9); font-size: 13px;">
                   <input type="checkbox" id="ff-use-custom-folder" style="cursor: pointer; width: 16px; height: 16px;">
-                  <span>Save to custom folder</span>
+                  <span data-i18n="settings.formatFactory.saveToCustomFolder">Save to custom folder</span>
                 </label>
-                <button class="ff-btn" id="ff-output-folder-btn" data-action="output-folder" title="Choose where to save converted files" disabled>
-                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                    <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"></path>
-                  </svg>
-                  Choose Output Folder
+                <button class="ff-btn" id="ff-output-folder-btn" data-action="output-folder" data-i18n-title="formatFactory.chooseOutputFolder" title="Choose where to save converted files" disabled>
+                  <i data-lucide="folder"></i>
+                  <span data-i18n="formatFactory.chooseOutputFolder">Choose Output Folder</span>
                 </button>
               </div>
             </div>
             <div class="ff-toolbar-right">
-              <button class="ff-btn" id="ff-add-files-btn" data-action="add-files" title="Add Files" disabled>
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                  <path d="M12 5v14M5 12h14"></path>
-                </svg>
-                Add Files
+              <button class="ff-btn" id="ff-add-files-btn" data-action="add-files" data-i18n-title="formatFactory.addFiles" title="Add Files" disabled>
+                <i data-lucide="plus"></i>
+                <span data-i18n="formatFactory.addFiles">Add Files</span>
               </button>
-              <button class="ff-btn" id="ff-remove-btn" data-action="remove" title="Remove" disabled>
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                  <path d="M18 6L6 18M6 6l12 12"></path>
-                </svg>
-                Remove
+              <button class="ff-btn" id="ff-remove-btn" data-action="remove" data-i18n-title="formatFactory.remove" title="Remove" disabled>
+                <i data-lucide="x"></i>
+                <span data-i18n="formatFactory.remove">Remove</span>
               </button>
-              <button class="ff-btn" id="ff-clear-btn" data-action="clear" title="Clear List" disabled>
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                  <polyline points="3 6 5 6 21 6"></polyline>
-                  <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
-                </svg>
-                Clear List
+              <button class="ff-btn" id="ff-clear-btn" data-action="clear" data-i18n-title="formatFactory.clearList" title="Clear List" disabled>
+                <i data-lucide="trash-2"></i>
+                <span data-i18n="formatFactory.clearList">Clear List</span>
               </button>
-              <button class="ff-btn ff-btn-reset" id="ff-reset-btn" data-action="reset" title="Reset Completed" disabled>
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                  <path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"></path>
-                  <path d="M21 3v5h-5"></path>
-                  <path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16"></path>
-                  <path d="M3 21v-5h5"></path>
-                </svg>
-                Reset
+              <button class="ff-btn ff-btn-reset" id="ff-reset-btn" data-action="reset" data-i18n-title="formatFactory.reset" title="Reset Completed" disabled>
+                <i data-lucide="refresh-cw"></i>
+                <span data-i18n="formatFactory.reset">Reset</span>
               </button>
-              <button class="ff-btn ff-btn-stop" id="ff-stop-btn" data-action="stop" title="Stop" disabled>
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
-                  <rect x="6" y="6" width="12" height="12"></rect>
-                </svg>
-                Stop
+              <button class="ff-btn ff-btn-stop" id="ff-stop-btn" data-action="stop" data-i18n-title="formatFactory.stop" title="Stop" disabled>
+                <i data-lucide="square"></i>
+                <span data-i18n="formatFactory.stop">Stop</span>
               </button>
-              <button class="ff-btn ff-btn-start" id="ff-start-btn" data-action="start" title="Start" disabled>
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
-                  <polygon points="5 3 19 12 5 21 5 3"></polygon>
-                </svg>
-                Start
+              <button class="ff-btn ff-btn-start" id="ff-start-btn" data-action="start" data-i18n-title="formatFactory.start" title="Start" disabled>
+                <i data-lucide="play"></i>
+                <span data-i18n="formatFactory.start">Start</span>
               </button>
             </div>
           </div>
@@ -891,15 +710,10 @@
             <div class="ff-sidebar">
               <!-- Video Category -->
               <div class="ff-category-section">
-                <button class="ff-category-btn active" data-category="video">
-                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                    <path d="m22 8-6 4 6 4V8Z"></path>
-                    <rect width="14" height="12" x="2" y="6" rx="2"></rect>
-                  </svg>
-                  <span class="ff-category-label">Video</span>
-                  <svg class="ff-chevron" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                    <path d="m6 9 6 6 6-6"></path>
-                  </svg>
+              <button class="ff-category-btn active" data-category="video">
+                  <i data-lucide="play"></i>
+                  <span class="ff-category-label" data-i18n="formatFactory.video">Video</span>
+                  <i data-lucide="chevron-down" class="ff-chevron"></i>
                 </button>
                 <div class="ff-format-list active">
                   <button class="ff-format-tile" data-format="mp4" data-type="video">
@@ -928,15 +742,9 @@
               <!-- Audio Category -->
               <div class="ff-category-section">
                 <button class="ff-category-btn" data-category="audio">
-                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                    <path d="M9 18V5l12-2v13"></path>
-                    <circle cx="6" cy="18" r="3"></circle>
-                    <circle cx="18" cy="16" r="3"></circle>
-                  </svg>
-                  <span class="ff-category-label">Audio</span>
-                  <svg class="ff-chevron" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                    <path d="m6 9 6 6 6-6"></path>
-                  </svg>
+                  <i data-lucide="music"></i>
+                  <span class="ff-category-label" data-i18n="formatFactory.audio">Audio</span>
+                  <i data-lucide="chevron-down" class="ff-chevron"></i>
                 </button>
                 <div class="ff-format-list">
                   <button class="ff-format-tile" data-format="mp3" data-type="audio">
@@ -961,15 +769,9 @@
               <!-- Picture Category -->
               <div class="ff-category-section">
                 <button class="ff-category-btn" data-category="picture">
-                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                    <rect width="18" height="18" x="3" y="3" rx="2"></rect>
-                    <circle cx="9" cy="9" r="2"></circle>
-                    <path d="m21 15-3.086-3.086a2 2 0 0 0-2.828 0L6 21"></path>
-                  </svg>
-                  <span class="ff-category-label">Picture</span>
-                  <svg class="ff-chevron" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                    <path d="m6 9 6 6 6-6"></path>
-                  </svg>
+                  <i data-lucide="image"></i>
+                  <span class="ff-category-label" data-i18n="formatFactory.picture">Picture</span>
+                  <i data-lucide="chevron-down" class="ff-chevron"></i>
                 </button>
                 <div class="ff-format-list">
                   <button class="ff-format-tile" data-format="jpg" data-type="image">
@@ -998,9 +800,9 @@
                 <thead>
                   <tr>
                     <th style="width: 40px;"><input type="checkbox" id="ff-select-all"></th>
-                    <th style="width: 80px;">Type</th>
-                    <th>Source File</th>
-                    <th style="width: 300px;">Output Format / Progress</th>
+                    <th style="width: 80px;" data-i18n="formatFactory.type">Type</th>
+                    <th data-i18n="formatFactory.sourceFile">Source File</th>
+                    <th style="width: 300px;" data-i18n="formatFactory.outputFormat">Output Format / Progress</th>
                   </tr>
                 </thead>
                 <tbody id="ff-table-body">
@@ -1008,20 +810,14 @@
                   <tr class="ff-empty-state">
                     <td colspan="4">
                       <div class="ff-drag-drop-zone">
-                        <svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
-                          <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
-                          <polyline points="17 8 12 3 7 8"></polyline>
-                          <line x1="12" y1="3" x2="12" y2="15"></line>
-                        </svg>
-                        <p class="ff-drag-message">Drag & Drop files here</p>
-                        <p class="ff-drag-hint">or</p>
+                        <i data-lucide="upload" style="width:64px;height:64px;"></i>
+                        <p class="ff-drag-message" data-i18n="formatFactory.dragDrop">Drag & Drop files here</p>
+                        <p class="ff-drag-hint" data-i18n="formatFactory.or">or</p>
                         <button class="ff-btn-add-files">
-                          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                            <path d="M12 5v14m-7-7h14"></path>
-                          </svg>
-                          Add Files
+                          <i data-lucide="plus"></i>
+                          <span data-i18n="formatFactory.addFiles">Add Files</span>
                         </button>
-                        <p class="ff-file-types">Supported: Video, Audio, Images</p>
+                        <p class="ff-file-types" data-i18n="formatFactory.supportedFormats">Supported: Video, Audio, Images</p>
                       </div>
                     </td>
                   </tr>
@@ -1043,23 +839,17 @@
             <!-- Download Folder Section - Prominent at top -->
             <div class="dl-folder-section">
               <div class="dl-folder-label">
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                  <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"></path>
-                </svg>
-                <span>Download to:</span>
+                <i data-lucide="folder"></i>
+                <span data-i18n="downloader.downloadTo">Download to:</span>
               </div>
               <div class="dl-folder-path-wrapper">
                 <span class="dl-folder-path" id="dl-folder-path" title="Click to change">C:\Users\Downloads</span>
-                <button class="dl-folder-change-btn" id="dl-output-folder-btn" title="Change download folder">
-                  Change
+                <button class="dl-folder-change-btn" id="dl-output-folder-btn" data-i18n-title="downloader.change" title="Change download folder">
+                  <span data-i18n="downloader.change">Change</span>
                 </button>
-                <button class="dl-folder-open-btn" id="dl-open-folder-btn" title="Open folder in explorer">
-                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                    <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path>
-                    <polyline points="15 3 21 3 21 9"></polyline>
-                    <line x1="10" y1="14" x2="21" y2="3"></line>
-                  </svg>
-                  Open
+                <button class="dl-folder-open-btn" id="dl-open-folder-btn" data-i18n-title="downloader.open" title="Open folder in explorer">
+                  <i data-lucide="external-link"></i>
+                  <span data-i18n="downloader.open">Open</span>
                 </button>
               </div>
             </div>
@@ -1067,27 +857,21 @@
             <!-- URL Input Section -->
             <div class="dl-url-section">
               <div class="dl-url-input-wrapper">
-                <svg class="dl-url-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                  <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"></path>
-                  <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"></path>
-                </svg>
-                <input type="text" id="dl-url-input" class="dl-url-input" placeholder="Paste URL here (YouTube, Instagram, Twitter, TikTok, Facebook, LinkedIn...)" autocomplete="off" spellcheck="false">
+                <i data-lucide="link" class="dl-url-icon"></i>
+                <input type="text" id="dl-url-input" class="dl-url-input" data-i18n-placeholder="downloader.pasteUrl" placeholder="Paste URL here (YouTube, Instagram, Twitter, TikTok, Facebook, LinkedIn...)" autocomplete="off" spellcheck="false">
                 <button class="dl-btn dl-btn-fetch" id="dl-fetch-btn">
-                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                    <circle cx="11" cy="11" r="8"></circle>
-                    <path d="m21 21-4.35-4.35"></path>
-                  </svg>
-                  Fetch Info
+                  <i data-lucide="search"></i>
+                  <span data-i18n="downloader.fetchInfo">Fetch Info</span>
                 </button>
               </div>
-              <p class="dl-supported-sites">Supports: YouTube, Instagram, Twitter/X, TikTok, Facebook, LinkedIn, Vimeo, Twitch, and 1000+ more sites</p>
+              <p class="dl-supported-sites" data-i18n="downloader.supportedSites">Supports: YouTube, Instagram, Twitter/X, TikTok, Facebook, LinkedIn, Vimeo, Twitch, and 1000+ more sites</p>
             </div>
 
             <!-- Preview Card (hidden by default) -->
             <div id="dl-preview-card" class="dl-preview-card hidden">
               <div class="dl-preview-loading hidden" id="dl-preview-loading">
                 <div class="dl-spinner"></div>
-                <span>Fetching media info...</span>
+                <span data-i18n="downloader.fetchingMedia">Fetching media info...</span>
               </div>
               <div class="dl-preview-content" id="dl-preview-content">
                 <div class="dl-preview-thumbnail">
@@ -1099,38 +883,34 @@
                     <span class="dl-platform-icon"></span>
                     <span class="dl-platform-name"></span>
                   </div>
-                  <h3 class="dl-preview-title" id="dl-preview-title">Video Title</h3>
-                  <p class="dl-preview-uploader" id="dl-preview-uploader">Uploader</p>
+                  <h3 class="dl-preview-title" id="dl-preview-title" data-i18n="downloader.videoTitle">Video Title</h3>
+                  <p class="dl-preview-uploader" id="dl-preview-uploader" data-i18n="downloader.uploader">Uploader</p>
                   <div class="dl-preview-options">
                     <div class="dl-option-group">
-                      <label for="dl-format-select">Format:</label>
+                      <label for="dl-format-select" data-i18n="downloader.format">Format:</label>
                       <select id="dl-format-select" class="dl-select">
-                        <option value="mp4">MP4 (Video)</option>
-                        <option value="mp3">MP3 (Audio only)</option>
+                        <option value="mp4" data-i18n="downloader.formatMp4">MP4 (Video)</option>
+                        <option value="mp3" data-i18n="downloader.formatMp3">MP3 (Audio only)</option>
                       </select>
                     </div>
                     <div class="dl-option-group">
-                      <label for="dl-quality-select">Quality:</label>
+                      <label for="dl-quality-select" data-i18n="downloader.quality">Quality:</label>
                       <select id="dl-quality-select" class="dl-select">
-                        <option value="best">Best Available</option>
-                        <option value="2160">4K (2160p)</option>
-                        <option value="1080" selected>1080p</option>
-                        <option value="720">720p</option>
-                        <option value="480">480p</option>
+                        <option value="best" data-i18n="downloader.qualityBest">Best Available</option>
+                        <option value="2160" data-i18n="downloader.quality4k">4K (2160p)</option>
+                        <option value="1080" selected data-i18n="downloader.quality1080">1080p</option>
+                        <option value="720" data-i18n="downloader.quality720">720p</option>
+                        <option value="480" data-i18n="downloader.quality480">480p</option>
                       </select>
                     </div>
                     <button class="dl-btn dl-btn-add" id="dl-add-queue-btn">
-                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                        <path d="M12 5v14M5 12h14"></path>
-                      </svg>
-                      Add to Queue
+                      <i data-lucide="plus"></i>
+                      <span data-i18n="downloader.addToQueue">Add to Queue</span>
                     </button>
                   </div>
                 </div>
-                <button class="dl-preview-close" id="dl-preview-close" title="Close preview">
-                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                    <path d="M18 6L6 18M6 6l12 12"></path>
-                  </svg>
+                <button class="dl-preview-close" id="dl-preview-close" data-i18n-title="downloader.closePreview" title="Close preview">
+                  <i data-lucide="x"></i>
                 </button>
               </div>
             </div>
@@ -1139,43 +919,30 @@
             <div class="dl-queue-section">
               <div class="dl-queue-header">
                 <div class="dl-queue-header-left">
-                  <h3>Download Queue</h3>
+                  <h3 data-i18n="downloader.downloadQueue">Download Queue</h3>
                   <span class="dl-queue-count" id="dl-queue-count">0 items</span>
                 </div>
                 <div class="dl-queue-header-actions">
-                  <button class="dl-btn dl-btn-secondary" id="dl-clear-btn" title="Clear completed downloads">
-                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                      <polyline points="3 6 5 6 21 6"></polyline>
-                      <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
-                    </svg>
-                    Clear
+                  <button class="dl-btn dl-btn-secondary" id="dl-clear-btn" data-i18n-title="downloader.clear" title="Clear completed downloads">
+                    <i data-lucide="trash-2"></i>
+                    <span data-i18n="downloader.clear">Clear</span>
                   </button>
-                  <button class="dl-btn dl-btn-stop" id="dl-stop-all-btn" title="Stop all downloads" disabled>
-                    <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
-                      <rect x="6" y="6" width="12" height="12"></rect>
-                    </svg>
-                    Stop
+                  <button class="dl-btn dl-btn-stop" id="dl-stop-all-btn" data-i18n-title="downloader.stopDownload" title="Stop all downloads" disabled>
+                    <i data-lucide="square"></i>
+                    <span data-i18n="downloader.stopDownload">Stop</span>
                   </button>
-                  <button class="dl-btn dl-btn-start-main" id="dl-start-all-btn" title="Start downloading all queued items" disabled>
-                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                      <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
-                      <polyline points="7 10 12 15 17 10"/>
-                      <line x1="12" y1="15" x2="12" y2="3"/>
-                    </svg>
-                    Start Download
+                  <button class="dl-btn dl-btn-start-main" id="dl-start-all-btn" data-i18n-title="downloader.startDownload" title="Start downloading all queued items" disabled>
+                    <i data-lucide="download"></i>
+                    <span data-i18n="downloader.startDownload">Start Download</span>
                   </button>
                 </div>
               </div>
               <div class="dl-queue-list" id="dl-queue-list">
                 <!-- Empty state -->
                 <div class="dl-empty-state" id="dl-empty-state">
-                  <svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
-                    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
-                    <polyline points="7 10 12 15 17 10"/>
-                    <line x1="12" y1="15" x2="12" y2="3"/>
-                  </svg>
-                  <p class="dl-empty-title">No downloads yet</p>
-                  <p class="dl-empty-hint">Paste a URL above and click "Fetch Info" to start</p>
+                  <i data-lucide="upload" style="width:64px;height:64px;"></i>
+                  <p class="dl-empty-title" data-i18n="downloader.noDownloads">No downloads yet</p>
+                  <p class="dl-empty-hint" data-i18n="downloader.noDownloadsHint">Paste a URL above and click "Fetch Info" to start</p>
                 </div>
                 <!-- Queue items will be inserted here -->
               </div>
@@ -1183,12 +950,8 @@
 
             <!-- Legal Disclaimer -->
             <div class="dl-disclaimer">
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <circle cx="12" cy="12" r="10"></circle>
-                <line x1="12" y1="8" x2="12" y2="12"></line>
-                <line x1="12" y1="16" x2="12.01" y2="16"></line>
-              </svg>
-              <span>Only download content you own or have permission to download. Respect copyright laws.</span>
+              <i data-lucide="info"></i>
+              <span data-i18n="downloader.disclaimer">Only download content you own or have permission to download. Respect copyright laws.</span>
             </div>
           </div>
 
@@ -1203,28 +966,28 @@
           <div class="qt-tool-selector">
             <div class="qt-tool-card active" data-tool="trimmer">
               <span class="qt-tool-icon">✂️</span>
-              <span class="qt-tool-name">Trimmer</span>
-              <span class="qt-tool-desc">Cut video or audio</span>
+              <span class="qt-tool-name" data-i18n="quickTools.trimmer.name">Trimmer</span>
+              <span class="qt-tool-desc" data-i18n="quickTools.trimmer.desc">Cut video or audio</span>
             </div>
             <div class="qt-tool-card" data-tool="extractor">
               <span class="qt-tool-icon">🎵</span>
-              <span class="qt-tool-name">Audio Extractor</span>
-              <span class="qt-tool-desc">Extract audio</span>
+              <span class="qt-tool-name" data-i18n="quickTools.extractor.name">Audio Extractor</span>
+              <span class="qt-tool-desc" data-i18n="quickTools.extractor.desc">Extract audio</span>
             </div>
             <div class="qt-tool-card" data-tool="frame-grabber">
               <span class="qt-tool-icon">🖼️</span>
-              <span class="qt-tool-name">Frame Grabber</span>
-              <span class="qt-tool-desc">Grab frames</span>
+              <span class="qt-tool-name" data-i18n="quickTools.frameGrabber.name">Frame Grabber</span>
+              <span class="qt-tool-desc" data-i18n="quickTools.frameGrabber.desc">Grab frames</span>
             </div>
             <div class="qt-tool-card" data-tool="merger">
               <span class="qt-tool-icon">🎬</span>
-              <span class="qt-tool-name">Video Merger</span>
-              <span class="qt-tool-desc">Combine clips</span>
+              <span class="qt-tool-name" data-i18n="quickTools.merger.name">Video Merger</span>
+              <span class="qt-tool-desc" data-i18n="quickTools.merger.desc">Combine clips</span>
             </div>
             <div class="qt-tool-card" data-tool="cropper">
               <span class="qt-tool-icon">📐</span>
-              <span class="qt-tool-name">Media Cropper</span>
-              <span class="qt-tool-desc">Crop video & images</span>
+              <span class="qt-tool-name" data-i18n="quickTools.cropper.name">Media Cropper</span>
+              <span class="qt-tool-desc" data-i18n="quickTools.cropper.desc">Crop video & images</span>
             </div>
           </div>
 
@@ -1235,24 +998,18 @@
             <div id="qt-trimmer-content" class="qt-tool-content active" data-tool="trimmer">
               <div class="qt-output-section">
                 <div class="qt-output-label">
-                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                    <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"></path>
-                  </svg>
-                  <span>Save to:</span>
+                  <i data-lucide="folder"></i>
+                  <span data-i18n="quickTools.trimmer.saveTo">Save to:</span>
                 </div>
-                <span class="qt-output-path" id="qt-trimmer-output-path">Same as source</span>
-                <button class="qt-output-btn" id="qt-trimmer-output-btn">Change</button>
+                <span class="qt-output-path" id="qt-trimmer-output-path" data-i18n="quickTools.trimmer.sameAsSource">Same as source</span>
+                <button class="qt-output-btn" id="qt-trimmer-output-btn" data-i18n="quickTools.trimmer.change">Change</button>
               </div>
               <div class="qt-dropzone" id="qt-trimmer-dropzone">
-                <svg class="qt-dropzone-icon" width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
-                  <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
-                  <polyline points="17 8 12 3 7 8"></polyline>
-                  <line x1="12" y1="3" x2="12" y2="15"></line>
-                </svg>
-                <p class="qt-dropzone-text">Drop video or audio file here</p>
-                <p class="qt-dropzone-hint">or</p>
-                <button class="qt-dropzone-btn" id="qt-trimmer-browse-btn">Browse Files</button>
-                <p class="qt-dropzone-hint">Supports: MP4, MOV, MKV, WEBM, MP3, WAV, FLAC</p>
+                <i data-lucide="upload" class="qt-dropzone-icon" style="width:64px;height:64px;"></i>
+                <p class="qt-dropzone-text" data-i18n="quickTools.trimmer.dropzone">Drop video or audio file here</p>
+                <p class="qt-dropzone-hint" data-i18n="quickTools.trimmer.or">or</p>
+                <button class="qt-dropzone-btn" id="qt-trimmer-browse-btn" data-i18n="quickTools.trimmer.browseFiles">Browse Files</button>
+                <p class="qt-dropzone-hint" data-i18n="quickTools.trimmer.supported">Supports: MP4, MOV, MKV, WEBM, MP3, WAV, FLAC</p>
               </div>
               <div id="qt-trimmer-workspace" class="hidden">
                 <!-- Trimmer component will be rendered here -->
@@ -1263,23 +1020,18 @@
             <div id="qt-extractor-content" class="qt-tool-content" data-tool="extractor">
               <div class="qt-output-section">
                 <div class="qt-output-label">
-                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                    <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"></path>
-                  </svg>
-                  <span>Save to:</span>
+                  <i data-lucide="folder"></i>
+                  <span data-i18n="quickTools.extractor.saveTo">Save to:</span>
                 </div>
-                <span class="qt-output-path" id="qt-extractor-output-path">Same as source</span>
-                <button class="qt-output-btn" id="qt-extractor-output-btn">Change</button>
+                <span class="qt-output-path" id="qt-extractor-output-path" data-i18n="quickTools.extractor.sameAsSource">Same as source</span>
+                <button class="qt-output-btn" id="qt-extractor-output-btn" data-i18n="quickTools.extractor.change">Change</button>
               </div>
               <div class="qt-dropzone" id="qt-extractor-dropzone">
-                <svg class="qt-dropzone-icon" width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
-                  <path d="m22 8-6 4 6 4V8Z"></path>
-                  <rect width="14" height="12" x="2" y="6" rx="2"></rect>
-                </svg>
-                <p class="qt-dropzone-text">Drop video file here</p>
-                <p class="qt-dropzone-hint">or</p>
-                <button class="qt-dropzone-btn" id="qt-extractor-browse-btn">Browse Files</button>
-                <p class="qt-dropzone-hint">Extract audio track from any video file</p>
+                <i data-lucide="play" class="qt-dropzone-icon" style="width:64px;height:64px;"></i>
+                <p class="qt-dropzone-text" data-i18n="quickTools.extractor.dropzone">Drop video file here</p>
+                <p class="qt-dropzone-hint" data-i18n="quickTools.extractor.or">or</p>
+                <button class="qt-dropzone-btn" id="qt-extractor-browse-btn" data-i18n="quickTools.extractor.browseFiles">Browse Files</button>
+                <p class="qt-dropzone-hint" data-i18n="quickTools.extractor.hint">Extract audio track from any video file</p>
               </div>
               <div id="qt-extractor-workspace" class="hidden">
                 <!-- Extractor UI will be rendered here -->
@@ -1290,24 +1042,18 @@
             <div id="qt-frame-grabber-content" class="qt-tool-content" data-tool="frame-grabber">
               <div class="qt-output-section">
                 <div class="qt-output-label">
-                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                    <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"></path>
-                  </svg>
-                  <span>Save to:</span>
+                  <i data-lucide="folder"></i>
+                  <span data-i18n="quickTools.frameGrabber.saveTo">Save to:</span>
                 </div>
-                <span class="qt-output-path" id="qt-frame-grabber-output-path">Same as source</span>
-                <button class="qt-output-btn" id="qt-frame-grabber-output-btn">Change</button>
+                <span class="qt-output-path" id="qt-frame-grabber-output-path" data-i18n="quickTools.frameGrabber.sameAsSource">Same as source</span>
+                <button class="qt-output-btn" id="qt-frame-grabber-output-btn" data-i18n="quickTools.frameGrabber.change">Change</button>
               </div>
               <div class="qt-dropzone" id="qt-frame-grabber-dropzone">
-                <svg class="qt-dropzone-icon" width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
-                  <rect width="18" height="18" x="3" y="3" rx="2"></rect>
-                  <circle cx="9" cy="9" r="2"></circle>
-                  <path d="m21 15-3.086-3.086a2 2 0 0 0-2.828 0L6 21"></path>
-                </svg>
-                <p class="qt-dropzone-text">Drop video file here</p>
-                <p class="qt-dropzone-hint">or</p>
-                <button class="qt-dropzone-btn" id="qt-frame-grabber-browse-btn">Browse Files</button>
-                <p class="qt-dropzone-hint">Scrub through video and capture frames</p>
+                <i data-lucide="image" class="qt-dropzone-icon" style="width:64px;height:64px;"></i>
+                <p class="qt-dropzone-text" data-i18n="quickTools.frameGrabber.dropzone">Drop video file here</p>
+                <p class="qt-dropzone-hint" data-i18n="quickTools.frameGrabber.or">or</p>
+                <button class="qt-dropzone-btn" id="qt-frame-grabber-browse-btn" data-i18n="quickTools.frameGrabber.browseFiles">Browse Files</button>
+                <p class="qt-dropzone-hint" data-i18n="quickTools.frameGrabber.hint">Scrub through video and capture frames</p>
               </div>
               <div id="qt-frame-grabber-workspace" class="hidden">
                 <!-- Frame grabber UI will be rendered here -->
@@ -1318,25 +1064,18 @@
             <div id="qt-merger-content" class="qt-tool-content" data-tool="merger">
               <div class="qt-output-section">
                 <div class="qt-output-label">
-                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                    <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"></path>
-                  </svg>
-                  <span>Save to:</span>
+                  <i data-lucide="folder"></i>
+                  <span data-i18n="quickTools.merger.saveTo">Save to:</span>
                 </div>
-                <span class="qt-output-path" id="qt-merger-output-path">Same as first file</span>
-                <button class="qt-output-btn" id="qt-merger-output-btn">Change</button>
+                <span class="qt-output-path" id="qt-merger-output-path" data-i18n="quickTools.merger.sameAsFirst">Same as first file</span>
+                <button class="qt-output-btn" id="qt-merger-output-btn" data-i18n="quickTools.merger.change">Change</button>
               </div>
               <div class="qt-dropzone" id="qt-merger-dropzone">
-                <svg class="qt-dropzone-icon" width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
-                  <rect x="2" y="2" width="8" height="8" rx="1"></rect>
-                  <rect x="14" y="2" width="8" height="8" rx="1"></rect>
-                  <rect x="8" y="14" width="8" height="8" rx="1"></rect>
-                  <path d="M6 10v4M18 10v4M10 6h4M10 18h4"></path>
-                </svg>
-                <p class="qt-dropzone-text">Drop multiple video files here</p>
-                <p class="qt-dropzone-hint">or</p>
-                <button class="qt-dropzone-btn" id="qt-merger-browse-btn">Browse Files</button>
-                <p class="qt-dropzone-hint">Combine multiple clips into one video</p>
+                <i data-lucide="merge" class="qt-dropzone-icon" style="width:64px;height:64px;"></i>
+                <p class="qt-dropzone-text" data-i18n="quickTools.merger.dropzone">Drop multiple video files here</p>
+                <p class="qt-dropzone-hint" data-i18n="quickTools.merger.or">or</p>
+                <button class="qt-dropzone-btn" id="qt-merger-browse-btn" data-i18n="quickTools.merger.browseFiles">Browse Files</button>
+                <p class="qt-dropzone-hint" data-i18n="quickTools.merger.hint">Combine multiple clips into one video</p>
               </div>
               <div id="qt-merger-workspace" class="hidden">
                 <!-- Merger UI will be rendered here -->
@@ -1347,23 +1086,18 @@
             <div id="qt-cropper-content" class="qt-tool-content" data-tool="cropper">
               <div class="qt-output-section">
                 <div class="qt-output-label">
-                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                    <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"></path>
-                  </svg>
-                  <span>Save to:</span>
+                  <i data-lucide="folder"></i>
+                  <span data-i18n="quickTools.cropper.saveTo">Save to:</span>
                 </div>
-                <span class="qt-output-path" id="qt-cropper-output-path">Same as source</span>
-                <button class="qt-output-btn" id="qt-cropper-output-btn">Change</button>
+                <span class="qt-output-path" id="qt-cropper-output-path" data-i18n="quickTools.cropper.sameAsSource">Same as source</span>
+                <button class="qt-output-btn" id="qt-cropper-output-btn" data-i18n="quickTools.cropper.change">Change</button>
               </div>
               <div class="qt-dropzone" id="qt-cropper-dropzone">
-                <svg class="qt-dropzone-icon" width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
-                  <path d="M6.13 1L6 16a2 2 0 0 0 2 2h15"></path>
-                  <path d="M1 6.13L16 6a2 2 0 0 1 2 2v15"></path>
-                </svg>
-                <p class="qt-dropzone-text">Drop video or image file here</p>
-                <p class="qt-dropzone-hint">or</p>
-                <button class="qt-dropzone-btn" id="qt-cropper-browse-btn">Browse Files</button>
-                <p class="qt-dropzone-hint">Crop & resize for TikTok, Reels, YouTube, etc.</p>
+                <i data-lucide="crop" class="qt-dropzone-icon" style="width:64px;height:64px;"></i>
+                <p class="qt-dropzone-text" data-i18n="quickTools.cropper.dropzone">Drop video or image file here</p>
+                <p class="qt-dropzone-hint" data-i18n="quickTools.cropper.or">or</p>
+                <button class="qt-dropzone-btn" id="qt-cropper-browse-btn" data-i18n="quickTools.cropper.browseFiles">Browse Files</button>
+                <p class="qt-dropzone-hint" data-i18n="quickTools.cropper.hint">Crop & resize for TikTok, Reels...</p>
               </div>
               <div id="qt-cropper-workspace" class="hidden">
                 <!-- Cropper UI will be rendered here -->
@@ -1378,7 +1112,7 @@
       <div id="file-explorer-view" class="view-content hidden" style="background: #1e1e1e;">
         <div id="file-explorer-loading" style="display: flex; align-items: center; justify-content: center; height: 100%; color: #888;">
           <div style="text-align: center;">
-            <p style="font-size: 16px; margin-bottom: 10px;">Loading File Bridge...</p>
+            <p style="font-size: 16px; margin-bottom: 10px;" data-i18n="tabs.loadingFileBridge">Loading File Bridge...</p>
             <p style="font-size: 12px;">If this message persists, check the console for errors.</p>
           </div>
         </div>
@@ -1388,7 +1122,19 @@
 
         <!-- Agent Terminal View -->
         <div id="agent-view" class="view-content hidden" style="position:absolute;top:48px;left:0;right:0;bottom:0;">
-          <div id="agent-terminal-container" style="position:absolute;top:0;left:0;right:0;bottom:0;background:#0a0a0a;padding:4px;"></div>
+          <!-- Loading overlay — shown while terminal initializes -->
+          <div id="agent-loading" class="agent-loading">
+            <div class="agent-loading-content">
+              <div class="agent-loading-icon">
+                <img src="images/kolbo-code-icon.png" alt="Kolbo Code" />
+              </div>
+              <div class="agent-loading-title">Kolbo Code</div>
+              <div class="agent-loading-subtitle">Starting terminal...</div>
+              <div class="agent-loading-dots"><span></span><span></span><span></span></div>
+            </div>
+          </div>
+          <!-- Terminal container — hidden until ready -->
+          <div id="agent-terminal-container" style="position:absolute;top:0;left:0;right:0;bottom:0;background:#0a0a0a;padding:4px;opacity:0;transition:opacity 0.3s ease;"></div>
         </div>
 
   </div>
@@ -1427,36 +1173,31 @@
     <div class="batch-menu-content">
       <div class="batch-count-badge">
         <span class="badge-number" id="floating-batch-count">0</span>
-        <span class="badge-text">selected</span>
+        <span class="badge-text" data-i18n="batch.selected">selected</span>
       </div>
       <div id="batch-caching-status" class="batch-caching-status hidden">
         <div class="batch-caching-spinner"></div>
-        <span id="batch-caching-text">Preparing files...</span>
+        <span id="batch-caching-text" data-i18n="batch.preparingFiles">Preparing files...</span>
       </div>
       <div class="batch-actions">
-        <button class="batch-action-btn batch-btn-premiere" id="floating-batch-import-premiere-btn" title="Import to Premiere Pro">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
-            <path d="M13.5 3H7a2 2 0 00-2 2v14a2 2 0 002 2h10a2 2 0 002-2V8.5L13.5 3zM7 5h6v4h4v10H7V5zm3 8v-2h2.5c.83 0 1.5.67 1.5 1.5S13.33 14 12.5 14H10z"/>
-          </svg>
-          <span>Import to Premiere</span>
+        <button class="batch-action-btn batch-btn-premiere" id="floating-batch-import-premiere-btn" data-i18n-title="batch.importToPremiere" title="Import to Premiere Pro">
+          <i data-lucide="file-text"></i>
+          <span data-i18n="batch.importToPremiere">Import to Premiere</span>
         </button>
-        <button class="batch-action-btn batch-btn-download" id="floating-batch-download-btn" title="Download Selected">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
-            <polyline points="7 10 12 15 17 10"/>
-            <line x1="12" y1="15" x2="12" y2="3"/>
-          </svg>
-          <span>Download</span>
+        <button class="batch-action-btn batch-btn-download" id="floating-batch-download-btn" data-i18n-title="batch.download" title="Download Selected">
+          <i data-lucide="download"></i>
+          <span data-i18n="batch.download">Download</span>
         </button>
-        <button class="batch-action-btn batch-btn-clear" id="floating-batch-clear-btn" title="Clear Selection">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <path d="M18 6L6 18M6 6l12 12"/>
-          </svg>
-          <span>Clear</span>
+        <button class="batch-action-btn batch-btn-clear" id="floating-batch-clear-btn" data-i18n-title="batch.clear" title="Clear Selection">
+          <i data-lucide="x"></i>
+          <span data-i18n="batch.clear">Clear</span>
         </button>
       </div>
     </div>
   </div>
+
+  <!-- Language Selector Dropdown -->
+  <div id="lang-dropdown" class="lang-dropdown hidden"></div>
 
   <!-- Queue Item Template -->
   <template id="queue-item-template">
@@ -1476,25 +1217,17 @@
         <div class="progress-bar">
           <div class="progress-fill"></div>
         </div>
-        <span class="progress-text">Pending</span>
+        <span class="progress-text" data-i18n="formatFactory.pending">Pending</span>
       </div>
       <div class="queue-item-actions">
         <button class="queue-action-btn settings-btn" title="Settings">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <circle cx="12" cy="12" r="3"></circle>
-            <path d="M12 1v6m0 6v6M5.64 5.64l4.24 4.24m4.24 4.24l4.24 4.24M1 12h6m6 0h6M5.64 18.36l4.24-4.24m4.24-4.24l4.24-4.24"></path>
-          </svg>
+          <i data-lucide="settings"></i>
         </button>
         <button class="queue-action-btn pause-btn" title="Pause" style="display:none;">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <rect x="6" y="4" width="4" height="16"></rect>
-            <rect x="14" y="4" width="4" height="16"></rect>
-          </svg>
+          <i data-lucide="pause"></i>
         </button>
         <button class="queue-action-btn cancel-btn" title="Cancel">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <path d="M18 6L6 18M6 6l12 12"></path>
-          </svg>
+          <i data-lucide="x"></i>
         </button>
       </div>
     </div>
@@ -1502,20 +1235,14 @@
 
   <!-- Toast Notification -->
   <div id="toast-notification" class="toast-notification">
-    <svg class="toast-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-      <path d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
-    </svg>
+    <i data-lucide="info" class="toast-icon"></i>
     <span class="toast-message">Notification message</span>
   </div>
 
   <!-- Download Notification Banner -->
   <div id="download-notification" class="download-notification hidden">
     <div class="download-info">
-      <svg class="download-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
-        <polyline points="7 10 12 15 17 10"></polyline>
-        <line x1="12" y1="15" x2="12" y2="3"></line>
-      </svg>
+      <i data-lucide="download" class="download-icon"></i>
       <div class="download-text">
         <div class="download-filename">file.jpg</div>
         <div class="download-folder">Downloaded successfully</div>
@@ -1529,39 +1256,69 @@
     </div>
   </div>
 
-  <!-- Electron Scripts -->
-  <script src="build-env.js?v=5"></script> <!-- Load build environment first -->
-  <script src="../config.js?v=5"></script> <!-- Load config second -->
+  <!-- ── Critical scripts (needed for first paint) ── -->
+  <script src="build-env.js?v=5"></script>
+  <script src="../config.js?v=5"></script>
   <script src="js/electron-bridge.js?v=5"></script>
   <script src="js/api.js?v=5"></script>
-  <script src="js/custom-context-menu.js?v=5"></script> <!-- Custom context menu component -->
+  <script src="vendor/lucide/lucide.min.js"></script>
+  <script src="js/icons.js?v=1"></script>
+  <script src="i18n/i18n.js?v=1"></script>
+  <script src="js/language-selector-init.js?v=1"></script>
+  <script src="js/custom-context-menu.js?v=5"></script>
   <script src="js/context-menu-manager.js?v=5"></script>
   <script src="js/tab-manager.js?v=5"></script>
-  <!-- Trimmer Components (load BEFORE format-factory-manager) -->
-  <script src="js/trimmer/video-trimmer.js?v=1"></script>
-  <script src="js/trimmer/audio-trimmer.js?v=1"></script>
-  <script src="js/trimmer/trimmer-modal.js?v=1"></script>
-  <script src="js/format-factory-manager.js?v=1"></script> <!-- Format Factory manager -->
-  <script src="js/downloader-manager.js?v=1"></script> <!-- Downloader manager -->
-  <!-- Quick Tools Components -->
-  <script src="js/quick-tools/trimmer-tool.js?v=1"></script>
-  <script src="js/quick-tools/extractor-tool.js?v=1"></script>
-  <script src="js/quick-tools/frame-grabber-tool.js?v=1"></script>
-  <script src="js/quick-tools/video-merger-tool.js?v=1"></script>
-  <script src="js/quick-tools/video-cropper-tool.js?v=1"></script>
-  <script src="js/quick-tools-manager.js?v=1"></script> <!-- Quick Tools manager -->
-  <script src="js/file-explorer-manager.js?v=36"></script> <!-- File Bridge manager -->
-  <!-- xterm.js terminal emulator -->
-  <!-- Ensure 'self' is defined for xterm UMD modules -->
-  <script>if(typeof self==='undefined'){window.self=window;}</script>
-  <script src="vendor/xterm/xterm.js"></script>
-  <script>console.log('[xterm] loaded, Terminal:', typeof Terminal);</script>
-  <script src="vendor/xterm/xterm-addon-fit.js"></script>
-  <script>console.log('[xterm] FitAddon:', typeof FitAddon);</script>
-  <script src="vendor/xterm/xterm-addon-webgl.js"></script>
-  <script>console.log('[xterm] WebglAddon:', typeof WebglAddon);</script>
-  <!-- Agent Terminal -->
-  <script src="js/agent-terminal.js"></script>
   <script src="js/main.js?v=8"></script>
+
+  <!-- ── Deferred scripts (loaded after first paint via idle callback) ── -->
+  <script>
+  (function loadDeferredScripts() {
+    var scripts = [
+      'js/trimmer/video-trimmer.js?v=1',
+      'js/trimmer/audio-trimmer.js?v=1',
+      'js/trimmer/trimmer-modal.js?v=1',
+      'js/format-factory-manager.js?v=1',
+      'js/downloader-manager.js?v=1',
+      'js/quick-tools/trimmer-tool.js?v=1',
+      'js/quick-tools/extractor-tool.js?v=1',
+      'js/quick-tools/frame-grabber-tool.js?v=1',
+      'js/quick-tools/video-merger-tool.js?v=1',
+      'js/quick-tools/video-cropper-tool.js?v=1',
+      'js/quick-tools-manager.js?v=1',
+      'js/file-explorer-manager.js?v=36',
+    ];
+    var xtermScripts = [
+      'vendor/xterm/xterm.js',
+      'vendor/xterm/xterm-addon-fit.js',
+      'vendor/xterm/xterm-addon-webgl.js',
+      'js/agent-terminal.js',
+    ];
+
+    // Load scripts sequentially to preserve dependency order
+    function loadNext(list, idx, cb) {
+      if (idx >= list.length) { if (cb) cb(); return; }
+      var s = document.createElement('script');
+      s.src = list[idx];
+      s.onload = function() { loadNext(list, idx + 1, cb); };
+      s.onerror = function() { console.warn('[Deferred] Failed to load:', list[idx]); loadNext(list, idx + 1, cb); };
+      document.body.appendChild(s);
+    }
+
+    function start() {
+      // Ensure 'self' is defined for xterm UMD modules
+      if (typeof self === 'undefined') window.self = window;
+      // Load tool scripts and xterm scripts in parallel
+      loadNext(scripts, 0);
+      loadNext(xtermScripts, 0);
+    }
+
+    // Use requestIdleCallback so we don't block first paint
+    if (window.requestIdleCallback) {
+      requestIdleCallback(start, { timeout: 200 });
+    } else {
+      setTimeout(start, 50);
+    }
+  })();
+  </script>
 </body>
 </html>

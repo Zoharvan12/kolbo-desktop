@@ -137,17 +137,13 @@ class FormatFactoryManager {
       if (this.outputMode === 'custom' && this.outputFolder) {
         const folderName = this.outputFolder.split(/[/\\]/).pop() || 'Custom Folder';
         outputFolderBtn.innerHTML = `
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"></path>
-          </svg>
+          ${Icons.get('folder', 16)}
           ${folderName}
         `;
         outputFolderBtn.title = this.outputFolder; // Show full path on hover
       } else {
         outputFolderBtn.innerHTML = `
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"></path>
-          </svg>
+          ${Icons.get('folder', 16)}
           Choose Output Folder
         `;
         outputFolderBtn.title = 'Choose where to save converted files';
@@ -651,13 +647,7 @@ class FormatFactoryManager {
       trimBtn = document.createElement('button');
       trimBtn.id = 'ff-modal-trim';
       trimBtn.innerHTML = `
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="margin-right: 6px;">
-          <circle cx="6" cy="6" r="3"/>
-          <circle cx="6" cy="18" r="3"/>
-          <line x1="20" y1="4" x2="8.12" y2="15.88"/>
-          <line x1="14.47" y1="14.48" x2="20" y2="20"/>
-          <line x1="8.12" y1="8.12" x2="12" y2="12"/>
-        </svg>
+${Icons.get('sliders', 20)}
         Trim
       `;
       trimBtn.style.cssText = `
@@ -1716,17 +1706,11 @@ class FormatFactoryManager {
         <tr class="ff-empty-state">
           <td colspan="4">
             <div class="ff-drag-drop-zone">
-              <svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
-                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
-                <polyline points="17 8 12 3 7 8"></polyline>
-                <line x1="12" y1="3" x2="12" y2="15"></line>
-              </svg>
+${Icons.get('upload', 48, 1.5)}
               <p class="ff-drag-message">Drag & Drop files here</p>
               <p class="ff-drag-hint">or</p>
               <button class="ff-btn-add-files">
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                  <path d="M12 5v14m-7-7h14"></path>
-                </svg>
+${Icons.get('plus', 16)}
                 Add Files
               </button>
               <p class="ff-file-types">Supported: Video, Audio, Images</p>
@@ -1801,14 +1785,10 @@ class FormatFactoryManager {
         actionsCell.innerHTML = `
           <div style="display: flex; gap: 8px; justify-content: flex-end;">
             <button class="ff-btn ff-btn-success" data-action="open-folder" data-job-id="${job.id}" data-output-path="${job.outputPath || ''}" title="Open Output Folder">
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"></path>
-              </svg>
+              ${Icons.get('folder', 14)}
             </button>
             <button class="ff-btn" data-action="remove" data-job-id="${job.id}" title="Remove">
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <path d="M3 6h18m-2 0v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6m3 0V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"></path>
-              </svg>
+              ${Icons.get('trash-2', 14)}
             </button>
           </div>
         `;
@@ -1821,25 +1801,14 @@ class FormatFactoryManager {
           <div style="display: flex; gap: 8px; justify-content: flex-end;">
             ${canTrim ? `
             <button class="ff-btn" data-action="trim" data-job-id="${job.id}" title="${job.hasTrim ? 'Edit Trim' : 'Trim Media'}"${trimIndicator} ${job.status === 'processing' ? 'disabled' : ''}>
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                <circle cx="6" cy="6" r="3"/>
-                <circle cx="6" cy="18" r="3"/>
-                <line x1="20" y1="4" x2="8.12" y2="15.88"/>
-                <line x1="14.47" y1="14.48" x2="20" y2="20"/>
-                <line x1="8.12" y1="8.12" x2="12" y2="12"/>
-              </svg>
+              ${Icons.get('sliders', 16)}
             </button>
             ` : ''}
             <button class="ff-btn" data-action="settings" data-job-id="${job.id}" title="Change Format" ${job.status === 'processing' ? 'disabled' : ''}>
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/>
-                <circle cx="12" cy="12" r="3"/>
-              </svg>
+              ${Icons.get('settings', 16)}
             </button>
             <button class="ff-btn" data-action="remove" data-job-id="${job.id}" title="Remove" ${job.status === 'processing' ? 'disabled' : ''}>
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <path d="M3 6h18m-2 0v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6m3 0V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"></path>
-              </svg>
+              ${Icons.get('trash-2', 16)}
             </button>
           </div>
         `;
@@ -2555,13 +2524,7 @@ class FormatFactoryManager {
           trimBtn.style.borderColor = '#8b5cf6';
           trimBtn.style.color = '#a78bfa';
           trimBtn.innerHTML = `
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="margin-right: 6px;">
-              <circle cx="6" cy="6" r="3"/>
-              <circle cx="6" cy="18" r="3"/>
-              <line x1="20" y1="4" x2="8.12" y2="15.88"/>
-              <line x1="14.47" y1="14.48" x2="20" y2="20"/>
-              <line x1="8.12" y1="8.12" x2="12" y2="12"/>
-            </svg>
+            ${Icons.get('sliders', 16)}
             Trim (${trimPoints.start.toFixed(1)}s - ${trimPoints.end.toFixed(1)}s)
           `;
         }

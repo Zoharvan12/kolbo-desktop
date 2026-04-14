@@ -75,16 +75,11 @@ class TrimmerModal {
       <div class="ff-trimmer-modal-content">
         <div class="ff-trimmer-modal-header">
           <h3 class="ff-trimmer-modal-title">
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <path d="M20 4 L12 8 L20 12 M20 12 L12 16 L20 20"/>
-              <path d="M4 4 L12 8 L4 12 M4 12 L12 16 L4 20"/>
-            </svg>
+            ${Icons.get('split', 16)}
             Trim ${this.fileType === 'video' ? 'Video' : 'Audio'}
           </h3>
           <button class="ff-trimmer-modal-close" title="Close">
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <path d="M18 6L6 18M6 6l12 12"/>
-            </svg>
+            ${Icons.get('x', 16)}
           </button>
         </div>
 
@@ -104,10 +99,7 @@ class TrimmerModal {
             Skip Trim
           </button>
           <button class="ff-trimmer-modal-btn ff-trimmer-modal-btn-apply">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <path d="M20 4 L12 8 L20 12 M20 12 L12 16 L20 20"/>
-              <path d="M4 4 L12 8 L4 12 M4 12 L12 16 L4 20"/>
-            </svg>
+            ${Icons.get('split', 16)}
             Apply Trim
           </button>
         </div>
@@ -241,10 +233,7 @@ class TrimmerModal {
   showError(message) {
     this.trimmerContainer.innerHTML = `
       <div class="ff-trimmer-error">
-        <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-          <circle cx="12" cy="12" r="10"/>
-          <path d="M12 8v4m0 4h.01"/>
-        </svg>
+        ${Icons.get('info', 16)}
         <p>${message}</p>
       </div>
     `;

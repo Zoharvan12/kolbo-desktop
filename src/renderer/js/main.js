@@ -29,6 +29,69 @@ function getWebappEnvironment() {
 }
 
 /**
+ * showDialog — styled replacement for native confirm() and alert()
+ * Returns a Promise that resolves to true (confirm) or false (cancel).
+ * For alert-style dialogs, pass only confirmLabel with no cancelLabel.
+ *
+ * @param {Object} opts
+ * @param {string} opts.title
+ * @param {string} opts.message
+ * @param {string} [opts.icon='warning'] - 'warning' | 'danger' | 'info' | 'success'
+ * @param {string} [opts.confirmLabel='OK']
+ * @param {string} [opts.cancelLabel] - omit for alert-style (no cancel button)
+ * @param {string} [opts.confirmStyle='confirm'] - CSS class: 'confirm' | 'danger' | 'success'
+ * @returns {Promise<boolean>}
+ */
+function showDialog({ title, message, icon = 'warning', confirmLabel = 'OK', cancelLabel, confirmStyle = 'confirm' } = {}) {
+  return new Promise((resolve) => {
+    const iconSvgs = {
+      warning: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>',
+      danger: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg>',
+      info: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>',
+      success: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>',
+    };
+
+    const overlay = document.createElement('div');
+    overlay.className = 'kolbo-dialog-overlay';
+    overlay.innerHTML = `
+      <div class="kolbo-dialog">
+        <div class="kolbo-dialog-icon ${icon}">${iconSvgs[icon] || iconSvgs.warning}</div>
+        <div class="kolbo-dialog-title">${title || ''}</div>
+        <div class="kolbo-dialog-message">${message || ''}</div>
+        <div class="kolbo-dialog-actions">
+          ${cancelLabel ? `<button class="kolbo-dialog-btn cancel">${cancelLabel}</button>` : ''}
+          <button class="kolbo-dialog-btn ${confirmStyle}">${confirmLabel}</button>
+        </div>
+      </div>
+    `;
+
+    document.body.appendChild(overlay);
+    requestAnimationFrame(() => overlay.classList.add('visible'));
+
+    function close(result) {
+      overlay.classList.remove('visible');
+      setTimeout(() => overlay.remove(), 150);
+      resolve(result);
+    }
+
+    overlay.querySelector(`.kolbo-dialog-btn.${confirmStyle}`).addEventListener('click', () => close(true));
+    const cancelBtn = overlay.querySelector('.kolbo-dialog-btn.cancel');
+    if (cancelBtn) cancelBtn.addEventListener('click', () => close(false));
+
+    // Close on overlay click (outside dialog)
+    overlay.addEventListener('click', (e) => {
+      if (e.target === overlay) close(false);
+    });
+
+    // Close on Escape
+    const onKey = (e) => {
+      if (e.key === 'Escape') { document.removeEventListener('keydown', onKey); close(false); }
+    };
+    document.addEventListener('keydown', onKey);
+  });
+}
+
+/**
  * KolboApp - Main Application Class
  */
 class KolboApp {
@@ -808,20 +871,83 @@ class KolboApp {
       // Initialize agent terminal on first activation
       if (!this._agentTerminal) {
         const container = document.getElementById('agent-terminal-container');
-        console.log('[Agent] Checking: AgentTerminal=', !!window.AgentTerminal, 'container=', !!container);
-        if (container && window.AgentTerminal) {
-          this._agentTerminal = new window.AgentTerminal();
-          this._agentTerminal.init(container).catch(err => {
-            console.error('[Agent] init failed:', err);
-            container.innerHTML = '<div style="padding:20px;color:#ef4444;font-family:monospace;white-space:pre-wrap;">Terminal init failed:\n' + err.message + '</div>';
-          });
-        } else if (container) {
-          container.innerHTML = '<div style="padding:20px;color:#f59e0b;font-family:monospace;">AgentTerminal class not loaded. Check if xterm.js scripts are loading.</div>';
-        }
-      }
+        const loadingEl = document.getElementById('agent-loading');
 
-      // Focus and re-fit terminal (must happen AFTER view is visible)
-      if (this._agentTerminal) {
+        // Show loading screen (reset state in case of retry)
+        if (loadingEl) {
+          loadingEl.style.display = '';
+          loadingEl.classList.remove('fade-out', 'error');
+        }
+        if (container) container.style.opacity = '0';
+
+        // Helper: once AgentTerminal class is available, init it
+        const initAgent = () => {
+          this._agentTerminal = new window.AgentTerminal();
+          this._agentTerminal.init(container).then(() => {
+            // Wait for Kolbo Code CLI to be actually ready (not just PTY)
+            this._agentTerminal.kolboReadyPromise.then(() => {
+              // Success: fade out loading, reveal terminal
+              if (loadingEl) loadingEl.classList.add('fade-out');
+              container.style.opacity = '1';
+              setTimeout(() => {
+                if (loadingEl) loadingEl.style.display = 'none';
+                this._agentTerminal._fit();
+                this._agentTerminal.focus();
+              }, 400);
+            });
+          }).catch(err => {
+            console.error('[Agent] init failed:', err);
+            if (loadingEl) {
+              loadingEl.classList.add('error');
+              const subtitle = loadingEl.querySelector('.agent-loading-subtitle');
+              if (subtitle) subtitle.textContent = 'Failed to start';
+              const content = loadingEl.querySelector('.agent-loading-content');
+              if (content) {
+                const errorDiv = document.createElement('div');
+                errorDiv.className = 'agent-loading-error';
+                errorDiv.textContent = err.message;
+                content.appendChild(errorDiv);
+                const retryBtn = document.createElement('button');
+                retryBtn.className = 'agent-loading-retry';
+                retryBtn.textContent = 'Retry';
+                retryBtn.onclick = () => {
+                  this._agentTerminal = null;
+                  this.switchView('agent');
+                };
+                content.appendChild(retryBtn);
+              }
+            }
+          });
+        };
+
+        if (container && window.AgentTerminal) {
+          // xterm scripts already loaded — init immediately
+          const subtitle = loadingEl?.querySelector('.agent-loading-subtitle');
+          if (subtitle) subtitle.textContent = 'Loading Kolbo Code...';
+          initAgent();
+        } else if (container) {
+          // xterm scripts still loading (deferred) — wait for them, keep loading screen visible
+          const subtitle = loadingEl?.querySelector('.agent-loading-subtitle');
+          if (subtitle) subtitle.textContent = 'Loading terminal...';
+          const waitForXterm = setInterval(() => {
+            if (window.AgentTerminal) {
+              clearInterval(waitForXterm);
+              if (subtitle) subtitle.textContent = 'Loading Kolbo Code...';
+              initAgent();
+            }
+          }, 100);
+          // Safety timeout: stop waiting after 15s
+          setTimeout(() => {
+            clearInterval(waitForXterm);
+            if (!this._agentTerminal && loadingEl) {
+              loadingEl.classList.add('error');
+              const sub = loadingEl.querySelector('.agent-loading-subtitle');
+              if (sub) sub.textContent = 'Terminal failed to load';
+            }
+          }, 15000);
+        }
+      } else {
+        // Already initialized — just focus and fit
         setTimeout(() => {
           this._agentTerminal._fit();
           this._agentTerminal.focus();
@@ -901,36 +1027,22 @@ class KolboApp {
       if (tabList) {
         tabList.innerHTML = `
           <button id="new-tab-btn" class="new-tab-btn" title="New Tab (Ctrl+T)">
-            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <path d="M12 5v14M5 12h14"/>
-            </svg>
+${Icons.get('plus', 16)}
             <span>New Tab</span>
           </button>
           <button id="split-view-btn" class="split-view-btn" title="Split View (Ctrl+Shift+S)">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <rect x="3" y="3" width="7" height="18" rx="1"></rect>
-              <rect x="14" y="3" width="7" height="18" rx="1"></rect>
-            </svg>
+${Icons.get('columns-2', 16)}
             <span>Split View</span>
           </button>
           <div id="split-presets" class="split-presets hidden">
             <button class="split-preset-btn active" data-ratio="0.5" title="Equal Split (50/50)">
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <rect x="3" y="3" width="7" height="18" rx="1"></rect>
-                <rect x="14" y="3" width="7" height="18" rx="1"></rect>
-              </svg>
+              ${Icons.get('columns-2', 16)}
             </button>
             <button class="split-preset-btn" data-ratio="0.25" title="Small Left (25/75)">
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <rect x="3" y="3" width="4" height="18" rx="1"></rect>
-                <rect x="10" y="3" width="11" height="18" rx="1"></rect>
-              </svg>
+              ${Icons.get('panel-left', 16)}
             </button>
             <button class="split-preset-btn" data-ratio="0.7" title="Large Left (70/30)">
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <rect x="3" y="3" width="11" height="18" rx="1"></rect>
-                <rect x="17" y="3" width="4" height="18" rx="1"></rect>
-              </svg>
+              ${Icons.get('panel-left', 16)}
             </button>
           </div>
         `;
@@ -938,7 +1050,7 @@ class KolboApp {
 
       const iframeContainer = document.getElementById('iframe-container');
       if (iframeContainer) {
-        iframeContainer.innerHTML = '<div id="webapp-loading" class="loading-state"><div class="spinner"></div><p>Loading Kolbo Web App...</p></div>';
+        iframeContainer.innerHTML = '<div id="webapp-loading" class="loading-state"><div class="spinner"></div><p>' + (window.t ? window.t('loading.webApp') : 'Loading Kolbo Web App...') + '</p></div>';
       }
 
       // Recreate TabManager (will rebind to new-tab-btn)
@@ -979,14 +1091,14 @@ class KolboApp {
     const password = passwordInput.value;
 
     if (!email || !password) {
-      errorEl.textContent = 'Please enter email and password';
+      errorEl.textContent = window.t ? window.t('auth.emailRequired') : 'Please enter email and password';
       return;
     }
 
     try {
       errorEl.textContent = '';
       loginBtn.disabled = true;
-      loginBtn.textContent = 'Signing in...';
+      loginBtn.textContent = window.t ? window.t('auth.signingIn') : 'Signing in...';
 
       const result = await kolboAPI.login(email, password);
 
@@ -1004,14 +1116,14 @@ class KolboApp {
           setTimeout(() => this.refreshWebappTabsWithToken(), 500);
         }
       } else {
-        errorEl.textContent = result.error || 'Login failed';
+        errorEl.textContent = result.error || (window.t ? window.t('auth.loginFailed') : 'Login failed');
       }
     } catch (error) {
       console.error('[Login] Error:', error);
-      errorEl.textContent = error.message || 'Login failed. Please try again.';
+      errorEl.textContent = error.message || (window.t ? window.t('auth.loginFailedRetry') : 'Login failed. Please try again.');
     } finally {
       loginBtn.disabled = false;
-      loginBtn.textContent = 'Sign In';
+      loginBtn.textContent = window.t ? window.t('auth.signIn') : 'Sign In';
     }
   }
 
@@ -1099,7 +1211,7 @@ class KolboApp {
 
     try {
       errorEl.style.color = '#667eea';
-      errorEl.innerHTML = '<div style="display: flex; align-items: center; justify-content: center; gap: 8px;"><div class="spinner" style="width: 16px; height: 16px; border: 2px solid rgba(102, 126, 234, 0.3); border-top-color: #667eea; border-radius: 50%; animation: spin 0.8s linear infinite;"></div><span>Opening Google Sign-In...</span></div>';
+      errorEl.innerHTML = '<div style="display: flex; align-items: center; justify-content: center; gap: 8px;"><div class="spinner" style="width: 16px; height: 16px; border: 2px solid rgba(102, 126, 234, 0.3); border-top-color: #667eea; border-radius: 50%; animation: spin 0.8s linear infinite;"></div><span>' + (window.t ? window.t('auth.openingGoogle') : 'Opening Google Sign-In...') + '</span></div>';
 
       const result = await kolboAPI.googleLogin();
 
@@ -1121,13 +1233,12 @@ class KolboApp {
           }
         }, 800);
       } else {
-        errorEl.style.color = '#ef4444';
-        errorEl.textContent = result.error || 'Google login failed';
+        this.authState = 'failed';
+        errorEl.textContent = result.error || (window.t ? window.t('auth.googleFailed') : 'Google login failed');
       }
     } catch (error) {
-      console.error('[Google Login] Error:', error);
-      errorEl.style.color = '#ef4444';
-      errorEl.textContent = error.message || 'Google login failed';
+      this.authState = 'failed';
+      errorEl.textContent = error.message || (window.t ? window.t('auth.googleFailed') : 'Google login failed');
     }
   }
 
@@ -1292,12 +1403,7 @@ class KolboApp {
     // Build HTML
     let html = `
       <div class="project-item ${this.selectedProjectId === 'all' ? 'active' : ''}" data-value="all">
-        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-          <rect x="3" y="3" width="7" height="7"></rect>
-          <rect x="14" y="3" width="7" height="7"></rect>
-          <rect x="14" y="14" width="7" height="7"></rect>
-          <rect x="3" y="14" width="7" height="7"></rect>
-        </svg>
+${Icons.get('grid-2x2', 16)}
         <span>All Projects</span>
       </div>
     `;
@@ -1310,9 +1416,7 @@ class KolboApp {
         const name = project.name || project.title || 'Unnamed Project';
         html += `
           <div class="project-item ${isActive ? 'active' : ''}" data-value="${project._id}">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"></path>
-            </svg>
+${Icons.get('folder', 16)}
             <span>${this.escapeHtml(name)}</span>
           </div>
         `;
@@ -1398,10 +1502,10 @@ class KolboApp {
       const selectedNameEl = document.getElementById('project-selected-name');
       if (selectedNameEl) {
         if (this.selectedProjectId === 'all') {
-          selectedNameEl.textContent = 'All Projects';
+        selectedNameEl.textContent = window.t ? window.t('media.allProjects') : 'All Projects';
         } else {
           const project = this.projects.find(p => p._id === this.selectedProjectId);
-          selectedNameEl.textContent = project ? (project.name || project.title || 'Unnamed Project') : 'All Projects';
+        selectedNameEl.textContent = project ? (project.name || project.title || (window.t ? window.t('media.unnamedProject') : 'Unnamed Project')) : (window.t ? window.t('media.allProjects') : 'All Projects');
         }
       }
 
@@ -1421,10 +1525,18 @@ class KolboApp {
     this.selectProject(e.target.value);
   }
 
-  handleLogout(skipConfirmation = false) {
+  async handleLogout(skipConfirmation = false) {
     // Skip confirmation if this is an automatic logout (triggered by web app session expiry)
-    if (!skipConfirmation && !confirm('Are you sure you want to logout?')) {
-      return;
+    if (!skipConfirmation) {
+      const confirmed = await showDialog({
+        title: window.t('auth.logoutTitle') || 'Log Out',
+        message: window.t('auth.logoutConfirm') || 'Are you sure you want to log out?',
+        icon: 'warning',
+        confirmLabel: window.t('header.logoutBtn') || 'Log Out',
+        cancelLabel: window.t('dialog.cancel') || 'Cancel',
+        confirmStyle: 'danger',
+      });
+      if (!confirmed) return;
     }
 
     this.cleanup();
@@ -1444,7 +1556,7 @@ class KolboApp {
     kolboAPI.logout();
     this.media = [];
     this.selectedItems.clear();
-    
+
     // Clear input values before showing login screen
     const emailInput = document.getElementById('email');
     const passwordInput = document.getElementById('password');
@@ -1452,7 +1564,7 @@ class KolboApp {
     if (emailInput) emailInput.value = '';
     if (passwordInput) passwordInput.value = '';
     if (errorEl) errorEl.textContent = '';
-    
+
     // Show login screen - this will ensure inputs are interactive
     this.showLoginScreen();
   }
@@ -1933,7 +2045,7 @@ class KolboApp {
     // Update count
     const countEl = document.getElementById('media-count');
     if (countEl) {
-      countEl.textContent = `${filtered.length} items`;
+      countEl.textContent = window.t ? window.t('media.itemsCount', { count: filtered.length }) : `${filtered.length} items`;
     }
 
     if (this.DEBUG_MODE) {
@@ -2124,9 +2236,7 @@ class KolboApp {
         <div class="selection-checkbox ${isSelected ? 'checked' : ''}" data-id="${item.id}"></div>
         <div class="cache-status" data-id="${item.id}" style="display: none;">
           <div class="cache-spinner"></div>
-          <svg class="cache-checkmark" width="14" height="14" viewBox="0 0 24 24" fill="#4CAF50">
-            <path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/>
-          </svg>
+${Icons.get('check', 16)}
         </div>
         <div class="media-preview">
           <img data-src="${item.thumbnail_url || item.url}" alt="${title}" decoding="async" class="media-img-lazy">
@@ -2151,18 +2261,12 @@ class KolboApp {
         <div class="selection-checkbox ${isSelected ? 'checked' : ''}" data-id="${item.id}"></div>
         <div class="cache-status" data-id="${item.id}" style="display: none;">
           <div class="cache-spinner"></div>
-          <svg class="cache-checkmark" width="14" height="14" viewBox="0 0 24 24" fill="#4CAF50">
-            <path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/>
-          </svg>
+${Icons.get('check', 16)}
         </div>
         <div class="media-preview">
           ${thumbnailUrl ? `<img data-src="${thumbnailUrl}" alt="${title}" decoding="async" class="media-img-lazy video-thumb-img">` : '<div class="video-thumb-img" style="width:100%;height:100%"></div>'}
           <button class="video-play-btn ${isPlaying ? 'playing' : ''}" data-id="${item.id}">
-            <svg width="32" height="32" viewBox="0 0 24 24" fill="white">
-              ${isPlaying ?
-                '<path d="M6 4h4v16H6V4zm8 0h4v16h-4V4z"/>' :
-                '<path d="M8 5v14l11-7z"/>'}
-            </svg>
+            ${isPlaying ? Icons.get('pause', 16) : Icons.get('play', 16)}
           </button>
           <div class="video-playbar" data-id="${item.id}">
             <div class="video-progress-container" data-id="${item.id}">
@@ -2207,9 +2311,7 @@ class KolboApp {
         <div class="selection-checkbox ${isSelected ? 'checked' : ''}" data-id="${item.id}"></div>
         <div class="cache-status" data-id="${item.id}" style="display: none;">
           <div class="cache-spinner"></div>
-          <svg class="cache-checkmark" width="14" height="14" viewBox="0 0 24 24" fill="#4CAF50">
-            <path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/>
-          </svg>
+${Icons.get('check', 16)}
         </div>
         <div class="audio-card">
           <div class="audio-card-header">
@@ -2224,12 +2326,8 @@ class KolboApp {
           </div>
           <div class="audio-controls">
             <button class="audio-play-btn" data-id="${item.id}" data-url="${audioUrl}">
-              <svg class="play-icon" width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
-                <path d="M8 5v14l11-7z"/>
-              </svg>
-              <svg class="pause-icon" width="18" height="18" viewBox="0 0 24 24" fill="currentColor" style="display: none;">
-                <path d="M6 4h4v16H6V4zm8 0h4v16h-4V4z"/>
-              </svg>
+<span class="play-icon">${Icons.get('play', 16)}</span>
+              <span class="pause-icon" style="display: none;">${Icons.get('pause', 16)}</span>
             </button>
             <div class="audio-time">
               <span class="audio-current-time" data-id="${item.id}">0:00</span>
@@ -2622,7 +2720,7 @@ class KolboApp {
       // Add count badge if multiple items
       if (count > 1) {
         const badge = document.createElement('div');
-        badge.textContent = `${count} items`;
+          badge.textContent = window.t ? window.t('media.itemsCount', { count: count }) : `${count} items`;
         badge.style.cssText = `
           color: white;
           font-size: 13px;
@@ -2704,11 +2802,7 @@ class KolboApp {
       }
       if (currentButton) {
         currentButton.classList.remove('playing');
-        currentButton.innerHTML = `
-          <svg width="32" height="32" viewBox="0 0 24 24" fill="white">
-            <path d="M8 5v14l11-7z"/>
-          </svg>
-        `;
+        currentButton.innerHTML = Icons.get('play', 64, 1.5);
       }
       if (currentMediaItem) {
         currentMediaItem.classList.remove('playing');
@@ -2722,22 +2816,14 @@ class KolboApp {
       this.playingVideoId = null;
       button.classList.remove('playing');
       if (mediaItem) mediaItem.classList.remove('playing');
-      button.innerHTML = `
-        <svg width="32" height="32" viewBox="0 0 24 24" fill="white">
-          <path d="M8 5v14l11-7z"/>
-        </svg>
-      `;
+      button.innerHTML = Icons.get('play', 64, 1.5);
     } else {
       video.muted = false;
       video.play();
       this.playingVideoId = videoId;
       button.classList.add('playing');
       if (mediaItem) mediaItem.classList.add('playing');
-      button.innerHTML = `
-        <svg width="32" height="32" viewBox="0 0 24 24" fill="white">
-          <path d="M6 4h4v16H6V4zm8 0h4v16h-4V4z"/>
-        </svg>
-      `;
+      button.innerHTML = Icons.get('pause', 64, 1.5);
     }
   }
 
@@ -2866,11 +2952,7 @@ class KolboApp {
       }
       if (currentButton) {
         currentButton.classList.remove('playing');
-        currentButton.innerHTML = `
-          <svg width="32" height="32" viewBox="0 0 24 24" fill="white">
-            <path d="M8 5v14l11-7z"/>
-          </svg>
-        `;
+        currentButton.innerHTML = Icons.get('play', 64, 1.5);
       }
       if (currentMediaItem) {
         currentMediaItem.classList.remove('playing');
@@ -3268,7 +3350,7 @@ class KolboApp {
       if (!folderResult.success) {
         if (!folderResult.canceled) {
           console.error('[Batch Download] Folder picker failed:', folderResult.error);
-          alert('Failed to select folder: ' + (folderResult.error || 'Unknown error'));
+          alert((window.t ? window.t('batch.folderSelectFailed') : 'Failed to select folder: ') + (folderResult.error || 'Unknown error'));
         }
         return;
       }
@@ -3302,7 +3384,7 @@ class KolboApp {
       }).filter(item => item !== null);
 
       if (items.length === 0) {
-        alert('No valid items to download');
+        alert(window.t ? window.t('batch.noValidItems') : 'No valid items to download');
         return;
       }
 
@@ -3312,9 +3394,7 @@ class KolboApp {
       if (downloadBtn) {
         downloadBtn.disabled = true;
         downloadBtn.innerHTML = `
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="animation: spin 1s linear infinite;">
-            <circle cx="12" cy="12" r="10"/>
-          </svg>
+${Icons.get('loader', 24)}
           <span>Downloading...</span>
         `;
       }
@@ -3341,23 +3421,19 @@ class KolboApp {
         // Clear selection after successful download
         this.handleBatchClear();
       } else {
-        alert('Download failed. Please try again.');
+          alert(window.t ? window.t('batch.downloadFailed') : 'Download failed. Please try again.');
       }
 
     } catch (error) {
       console.error('[Batch Download] Error:', error);
-      alert('Failed to download files: ' + error.message);
+        alert((window.t ? window.t('batch.downloadFailed') : 'Download failed. Please try again.') + ' ' + error.message);
     } finally {
       // Restore button
       const downloadBtn = document.getElementById('floating-batch-download-btn');
       if (downloadBtn) {
         downloadBtn.disabled = false;
         downloadBtn.innerHTML = `
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
-            <polyline points="7 10 12 15 17 10"/>
-            <line x1="12" y1="15" x2="12" y2="3"/>
-          </svg>
+${Icons.get('download', 16)}
           <span>Download</span>
         `;
       }
@@ -3400,7 +3476,7 @@ class KolboApp {
       }).filter(item => item !== null);
 
       if (items.length === 0) {
-        alert('No valid items to import');
+        alert(window.t ? window.t('batch.noValidImport') : 'No valid items to import');
         return;
       }
 
@@ -3410,9 +3486,7 @@ class KolboApp {
       if (importBtn) {
         importBtn.disabled = true;
         importBtn.innerHTML = `
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" style="animation: spin 1s linear infinite;">
-            <circle cx="12" cy="12" r="10" fill="none" stroke="currentColor" stroke-width="2"/>
-          </svg>
+${Icons.get('loader', 24)}
           <span>Importing...</span>
         `;
       }
@@ -3465,21 +3539,19 @@ class KolboApp {
         // Clear selection after successful import
         this.handleBatchClear();
       } else {
-        alert('Failed to send to Premiere: ' + (result.error || 'Unknown error'));
+          alert((window.t ? window.t('batch.failedPremiere') : 'Failed to send to Premiere: ') + (result.error || 'Unknown error'));
       }
 
     } catch (error) {
       console.error('[Import to Premiere] Error:', error);
-      alert('Failed to import to Premiere: ' + error.message);
+        alert((window.t ? window.t('batch.failedImportPremiere') : 'Failed to import to Premiere: ') + error.message);
     } finally {
       // Restore button
       const importBtn = document.getElementById('floating-batch-import-premiere-btn');
       if (importBtn) {
         importBtn.disabled = false;
         importBtn.innerHTML = `
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
-            <path d="M13.5 3H7a2 2 0 00-2 2v14a2 2 0 002 2h10a2 2 0 002-2V8.5L13.5 3zM7 5h6v4h4v10H7V5zm3 8v-2h2.5c.83 0 1.5.67 1.5 1.5S13.33 14 12.5 14H10z"/>
-          </svg>
+${Icons.get('file-text', 16)}
           <span>Import to Premiere</span>
         `;
       }
@@ -3899,9 +3971,7 @@ class KolboApp {
         if (checkBtn) {
           checkBtn.disabled = false;
           checkBtn.innerHTML = `
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <path d="M21.5 2v6h-6M2.5 22v-6h6M2 11.5a10 10 0 0 1 18.8-4.3M22 12.5a10 10 0 0 1-18.8 4.2"/>
-            </svg>
+${Icons.get('refresh-cw', 16)}
             Check Now
           `;
         }
@@ -3914,9 +3984,7 @@ class KolboApp {
       if (checkBtn) {
         checkBtn.disabled = false;
         checkBtn.innerHTML = `
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <path d="M21.5 2v6h-6M2.5 22v-6h6M2 11.5a10 10 0 0 1 18.8-4.3M22 12.5a10 10 0 0 1-18.8 4.2"/>
-          </svg>
+          ${Icons.get('refresh-cw', 16)}
           Check Now
         `;
       }
@@ -3940,7 +4008,7 @@ class KolboApp {
         console.error('[Drag] Failed files:', data.failedFiles);
 
         // Show error to user
-        alert(`❌ Drag Failed: ${data.message}\n\nSome files may be locked by another application.`);
+          alert((window.t ? window.t('errors.dragFailed', { message: data.message }) : `❌ Drag Failed: ${data.message}`) + '\n\nSome files may be locked by another application.');
       });
 
       // Listen for drag warnings from main process
@@ -4011,7 +4079,7 @@ class KolboApp {
     const updateBtnLabel = this.getElement('update-btn-label');
     if (updateBtn) {
       updateBtn.classList.remove('hidden');
-      if (updateBtnLabel) updateBtnLabel.textContent = 'Downloading Update…';
+          if (updateBtnLabel) updateBtnLabel.textContent = window.t ? window.t('header.downloadingUpdate') : 'Downloading Update…';
       updateBtn.onclick = () => {
         this.switchView('settings');
         setTimeout(() => {
@@ -4030,14 +4098,14 @@ class KolboApp {
     const statusEl = this.getElement('update-status');
 
     if (updateCard) updateCard.classList.remove('hidden');
-    if (versionText) versionText.textContent = `Version ${info.version} — downloading in background…`;
+        if (versionText) versionText.textContent = (window.t ? window.t('settings.updates.versionReady', { version: info.version }) : `Version ${info.version}`) + ' — downloading in background…';
 
     if (changelog && info.releaseNotes) {
       changelog.innerHTML = info.releaseNotes;
     }
 
     if (statusEl) {
-      statusEl.textContent = `Downloading update ${info.version}…`;
+          statusEl.textContent = window.t ? window.t('settings.updates.downloading', { version: info.version }) : `Downloading update ${info.version}…`;
       statusEl.className = 'settings-sublabel available';
     }
 
@@ -4084,18 +4152,14 @@ class KolboApp {
           downloadBtn.disabled = false;
           // Keep button visible - don't hide it
           downloadBtn.innerHTML = `
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
-              <polyline points="7 10 12 15 17 10"/>
-              <line x1="12" y1="15" x2="12" y2="3"/>
-            </svg>
+${Icons.get('download', 16)}
             Download Update
           `;
         }
 
         const statusEl = document.getElementById('update-status');
         if (statusEl) {
-          statusEl.textContent = 'Installer downloaded to Downloads folder!';
+          statusEl.textContent = window.t ? window.t('settings.updates.downloadedToDownloads') : 'Installer downloaded to Downloads folder!';
           statusEl.className = 'settings-sublabel available';
         }
 
@@ -4104,22 +4168,18 @@ class KolboApp {
         // Show success message
         const progressText = document.getElementById('update-progress-text');
         if (progressText) {
-          progressText.textContent = 'Download complete! Check your Downloads folder.';
+          progressText.textContent = window.t ? window.t('settings.updates.downloaded') : 'Download complete! Check your Downloads folder.';
         }
       }
     } catch (error) {
       console.error('[Update] Download failed:', error);
-      alert(`Failed to download update: ${error.message}`);
+          alert((window.t ? window.t('settings.updates.downloadFailed') : 'Failed to download update: ') + error.message);
 
       // Re-enable button
       if (downloadBtn) {
         downloadBtn.disabled = false;
         downloadBtn.innerHTML = `
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
-            <polyline points="7 10 12 15 17 10"/>
-            <line x1="12" y1="15" x2="12" y2="3"/>
-          </svg>
+${Icons.get('download', 16)}
           Download Update
         `;
       }
@@ -4141,7 +4201,9 @@ class KolboApp {
     if (progressText) {
       const mbTransferred = (progress.transferred / 1024 / 1024).toFixed(1);
       const mbTotal = (progress.total / 1024 / 1024).toFixed(1);
-      progressText.textContent = `Downloading... ${percent}% (${mbTransferred} MB / ${mbTotal} MB)`;
+          progressText.textContent = window.t
+            ? window.t('settings.updates.downloadingProgressMb', { percent: percent, mb: mbTransferred, mbTotal: mbTotal })
+            : `Downloading... ${percent}% (${mbTransferred} MB / ${mbTotal} MB)`;
     }
   }
 
@@ -4158,17 +4220,17 @@ class KolboApp {
     if (installBtn) installBtn.classList.remove('hidden');
 
     if (progressText) {
-      progressText.textContent = 'Download complete! Ready to install.';
+      progressText.textContent = window.t ? window.t('settings.updates.downloaded') : 'Download complete! Ready to install.';
     }
 
     if (statusEl) {
-      statusEl.textContent = `Update ${info.version} ready — click to restart`;
+        statusEl.textContent = (window.t ? window.t('settings.updates.versionReady', { version: info.version }) : `Version ${info.version}`) + ' ready — click to restart';
       statusEl.className = 'settings-sublabel available';
     }
 
     // Nav button now triggers install directly with one click
     if (updateBtn) {
-      if (updateBtnLabel) updateBtnLabel.textContent = 'Restart to Update';
+      if (updateBtnLabel) updateBtnLabel.textContent = window.t ? window.t('header.restartToUpdate') : 'Restart to Update';
       updateBtn.title = `Version ${info.version} ready — click to install and relaunch`;
       updateBtn.onclick = () => this.handleInstallUpdate();
     }
@@ -4217,14 +4279,18 @@ class KolboApp {
       console.log('[Settings] Clear cache clicked');
     }
 
-    // Show confirmation dialog
-    const confirmed = confirm(
-      '⚠️ Clear All Cache?\n\n' +
-      'This will delete all downloaded media files from your computer.\n\n' +
-      'Warning: Video editing projects (Premiere Pro, After Effects, DaVinci Resolve) ' +
-      'that are using these files will show "Media Offline" errors.\n\n' +
-      'Are you sure you want to continue?'
-    );
+    // Show styled confirmation dialog
+    const confirmed = await showDialog({
+      title: window.t('settings.cacheManagement.clearAllCache') || 'Clear All Cache',
+      message: (window.t('settings.cacheManagement.clearCacheDesc') || 'This will delete all downloaded media files.') +
+        '<br><br><span style="color:#f59e0b">' +
+        (window.t('settings.cacheManagement.clearCacheWarning') || 'Video editing projects using cached files will show "Media Offline" errors.') +
+        '</span>',
+      icon: 'danger',
+      confirmLabel: window.t('settings.cacheManagement.clearCache') || 'Clear Cache',
+      cancelLabel: window.t('dialog.cancel') || 'Cancel',
+      confirmStyle: 'danger',
+    });
 
     if (!confirmed) {
       return;
@@ -4244,33 +4310,33 @@ class KolboApp {
         const result = await window.kolboDesktop.clearCache();
 
         if (result.success) {
-          alert(
-            `✅ Cache Cleared Successfully!\n\n` +
-            `Deleted ${result.deletedFiles} file(s).\n\n` +
-            `New files will be downloaded when you drag them to video editors.`
-          );
+          showDialog({
+            title: window.t('settings.cacheManagement.cacheCleared') || 'Cache Cleared',
+            message: (window.t('settings.cacheManagement.deletedFiles', { count: result.deletedFiles }) || `Deleted ${result.deletedFiles} file(s).`) +
+              '<br>' + (window.t('settings.cacheManagement.newFilesWillDownload') || 'New files will be downloaded when you drag them to video editors.'),
+            icon: 'success',
+            confirmLabel: 'OK',
+            confirmStyle: 'success',
+          });
 
           // Reload cache size
           this.loadSettingsData();
         } else {
-          alert(`❌ Failed to clear cache: ${result.error}`);
+          showDialog({ title: 'Error', message: `Failed to clear cache: ${result.error}`, icon: 'danger', confirmStyle: 'danger' });
         }
 
         // Restore button
         if (clearCacheBtn) {
           clearCacheBtn.disabled = false;
           clearCacheBtn.innerHTML = `
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <polyline points="3 6 5 6 21 6"></polyline>
-              <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
-            </svg>
-            Clear All Cache
+${Icons.get('trash-2', 16)}
+            ${window.t('settings.cacheManagement.clearAllCache') || 'Clear All Cache'}
           `;
         }
       }
     } catch (error) {
       console.error('[Settings] Clear cache error:', error);
-      alert(`❌ Failed to clear cache: ${error.message}`);
+      showDialog({ title: 'Error', message: `Failed to clear cache: ${error.message}`, icon: 'danger', confirmStyle: 'danger' });
     }
   }
 
@@ -4288,20 +4354,20 @@ class KolboApp {
           console.log('[Settings] Cache folder opened:', result.path);
           }
         } else {
-          alert(`Failed to open cache folder: ${result.error}`);
+          showDialog({ title: 'Error', message: `Failed to open cache folder: ${result.error}`, icon: 'danger', confirmStyle: 'danger' });
         }
       } else {
-        // Fallback for non-Electron environments
-        alert(
-          'Cache Location:\n\n' +
-          'Windows: C:\\Users\\{YourUsername}\\AppData\\Roaming\\kolbo-desktop\\MediaCache\n\n' +
-          'Mac: ~/Library/Application Support/kolbo-desktop/MediaCache\n\n' +
-          'You can navigate to this folder using File Explorer or Finder.'
-        );
+        showDialog({
+          title: 'Cache Location',
+          message: 'Windows: C:\\Users\\{YourUsername}\\AppData\\Roaming\\kolbo-desktop\\MediaCache<br><br>' +
+            'Mac: ~/Library/Application Support/kolbo-desktop/MediaCache',
+          icon: 'info',
+          confirmStyle: 'confirm',
+        });
       }
     } catch (error) {
       console.error('[Settings] Reveal cache error:', error);
-      alert(`Failed to open cache folder: ${error.message}`);
+      showDialog({ title: 'Error', message: `Failed to open cache folder: ${error.message}`, icon: 'danger', confirmStyle: 'danger' });
     }
   }
 }
@@ -4409,11 +4475,25 @@ document.addEventListener('DOMContentLoaded', () => {
     document.body.classList.add('is-windows');
   }
 
+  // Initialize Lucide icons in static HTML
+  Icons.init();
+
   // Initialize background video first
   initBackgroundVideo();
-  
+
   app = new KolboApp();
   window.app = app; // Make accessible for debugging
+
+  // Signal main process that UI is ready — dismisses splash screen.
+  // Use requestAnimationFrame to ensure the browser has actually
+  // painted the login/app screen before we swap windows.
+  requestAnimationFrame(() => {
+    requestAnimationFrame(() => {
+      if (window.kolboDesktop && window.kolboDesktop.signalReady) {
+        window.kolboDesktop.signalReady();
+      }
+    });
+  });
 });
 
 // Global error handlers
