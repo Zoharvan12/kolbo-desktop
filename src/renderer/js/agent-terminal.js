@@ -117,7 +117,7 @@ class AgentTerminal {
       if (recvCount <= 5) {
         console.log(`[AgentTerminal] Received data #${recvCount} (${data.length} bytes)`);
       }
-      this.terminal.write(this._fixBidi(data));
+      this.terminal.write(data);
 
       // Detect Kolbo Code ready state: wait for first substantial output with text
       if (!this.kolboReady && data.length > 0) {
@@ -213,21 +213,6 @@ class AgentTerminal {
 
       // Focus the terminal after drop
       this.terminal?.focus();
-    });
-  }
-
-  /**
-   * Fix BiDi text for xterm.js which doesn't support RTL.
-   * Reverses runs of Hebrew/Arabic characters so they display correctly.
-   */
-  _fixBidi(data) {
-    // Only process if data contains RTL characters (Hebrew \u0590-\u05FF, Arabic \u0600-\u06FF)
-    if (!/[\u0590-\u05FF\u0600-\u06FF]/.test(data)) return data;
-
-    // Match RTL runs (Hebrew/Arabic chars, spaces between them, and common punctuation)
-    return data.replace(/([\u0590-\u05FF\u0600-\u06FF\u0750-\u077F\uFB50-\uFDFF\uFE70-\uFEFF][^\x1b\n\r]*[\u0590-\u05FF\u0600-\u06FF\u0750-\u077F\uFB50-\uFDFF\uFE70-\uFEFF]|[\u0590-\u05FF\u0600-\u06FF\u0750-\u077F\uFB50-\uFDFF\uFE70-\uFEFF])/g, (match) => {
-      // Reverse the RTL run so xterm.js displays it correctly
-      return [...match].reverse().join('');
     });
   }
 
