@@ -397,13 +397,18 @@ class QuickToolsManager {
   }
 }
 
-// Initialize on DOM ready
+// Initialize — works both when loaded normally and when deferred (after DOMContentLoaded)
 let quickToolsManager = null;
 
-document.addEventListener('DOMContentLoaded', () => {
-  // Delay initialization to ensure all tool classes are loaded
+function initQuickToolsManager() {
   setTimeout(() => {
     quickToolsManager = new QuickToolsManager();
     console.log('[Quick Tools] Manager created');
   }, 100);
-});
+}
+
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', initQuickToolsManager);
+} else {
+  initQuickToolsManager();
+}
