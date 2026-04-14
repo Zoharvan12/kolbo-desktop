@@ -66,7 +66,7 @@ const heapSizeMB = heapSizeGB * 1024;
 // Cap heap at 8GB max — 50% of RAM on large machines could starve the OS, GPU, and other apps
 const heapSizeMBCapped = Math.min(heapSizeMB, 8192);
 app.commandLine.appendSwitch('js-flags',
-  `--max-old-space-size=${heapSizeMBCapped} --expose-gc --optimize-for-speed --turbo-fast-api-calls`
+  `--max-old-space-size=${heapSizeMBCapped} --expose-gc`
 );
 
 // Prevent Chromium from aggressively killing the renderer under memory pressure.
@@ -80,6 +80,10 @@ app.commandLine.appendSwitch('disable-features', 'RendererCodeIntegrity,MemoryPr
 console.log('[Main] System RAM:', totalRAM.toFixed(2), 'GB');
 console.log('[Main] V8 heap limit (50% of RAM, capped 8GB):', (heapSizeMBCapped / 1024).toFixed(1), 'GB (', heapSizeMBCapped, 'MB)');
 console.log('[Main] Remaining RAM for native memory, GPU, OS:', (totalRAM - heapSizeMBCapped / 1024).toFixed(2), 'GB');
+
+// Prevent EPIPE errors from crashing the app (broken stdout/stderr pipe)
+process.stdout?.on('error', (err) => { if (err.code !== 'EPIPE') throw err; });
+process.stderr?.on('error', (err) => { if (err.code !== 'EPIPE') throw err; });
 
 // Ignore certificate errors ONLY in development
 if (process.env.NODE_ENV === 'development') {
