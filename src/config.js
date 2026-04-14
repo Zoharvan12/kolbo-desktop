@@ -111,15 +111,24 @@ const config = {
   ...currentConfig
 };
 
-// Whitelabel URL override — baked in at build time via build-env.js
-// Takes priority over environment-based URLs for whitelabel builds
+// Whitelabel URL override — renderer: baked in at build time via build-env.js
+//                          main process: passed as environment variables
 if (typeof window !== 'undefined' && window.KOLBO_WHITELABEL_APP_URL) {
   config.webappUrl = window.KOLBO_WHITELABEL_APP_URL;
-  console.log('[Config] Whitelabel webappUrl override:', config.webappUrl);
+  console.log('[Config] Whitelabel webappUrl override (renderer):', config.webappUrl);
 }
 if (typeof window !== 'undefined' && window.KOLBO_WHITELABEL_API_URL) {
   config.apiUrl = window.KOLBO_WHITELABEL_API_URL;
-  console.log('[Config] Whitelabel apiUrl override:', config.apiUrl);
+  console.log('[Config] Whitelabel apiUrl override (renderer):', config.apiUrl);
+}
+// Main process whitelabel override (process.env, set by preview script or CI)
+if (typeof process !== 'undefined' && process.env && process.env.KOLBO_WHITELABEL_API_URL) {
+  config.apiUrl = process.env.KOLBO_WHITELABEL_API_URL;
+  console.log('[Config] Whitelabel apiUrl override (env):', config.apiUrl);
+}
+if (typeof process !== 'undefined' && process.env && process.env.KOLBO_WHITELABEL_APP_URL) {
+  config.webappUrl = process.env.KOLBO_WHITELABEL_APP_URL;
+  console.log('[Config] Whitelabel webappUrl override (env):', config.webappUrl);
 }
 
 // Log current environment (helps with debugging)

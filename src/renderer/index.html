@@ -74,8 +74,13 @@
             <span data-i18n="auth.continueWithGoogle">Continue with Google</span>
           </button>
 
+          <!-- SSO Button (shown only for whitelabel orgs) -->
+          <button id="sso-login-btn" class="auth-btn" style="display:none">
+            <span data-i18n="auth.continueWithSSO">Continue with SSO</span>
+          </button>
+
           <!-- Divider -->
-          <div class="auth-divider">
+          <div class="auth-divider" id="auth-divider">
             <span data-i18n="auth.orContinueWithEmail">or continue with email</span>
           </div>
 
@@ -1125,10 +1130,10 @@
           <!-- Loading overlay — shown while terminal initializes -->
           <div id="agent-loading" class="agent-loading">
             <div class="agent-loading-content">
-              <div class="agent-loading-icon">
+              <div class="agent-loading-icon" id="agent-loading-icon">
                 <img src="images/kolbo-code-icon.png" alt="Kolbo Code" />
               </div>
-              <div class="agent-loading-title">Kolbo Code</div>
+              <div class="agent-loading-title" id="agent-loading-title">Kolbo Code</div>
               <div class="agent-loading-subtitle">Starting terminal...</div>
               <div class="agent-loading-dots"><span></span><span></span><span></span></div>
             </div>

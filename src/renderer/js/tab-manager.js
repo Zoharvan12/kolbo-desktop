@@ -1163,7 +1163,12 @@ class TabManager {
                 }
               }
 
-              const newTab = await this.createTab(updatedUrl, tabData.title, false);
+              // Replace legacy "Kolbo.AI X" title with whitelabel equivalent
+              let restoredTitle = tabData.title;
+              if (/^Kolbo\.AI \d+$/.test(restoredTitle)) {
+                restoredTitle = undefined; // let createTab generate the whitelabel default
+              }
+              const newTab = await this.createTab(updatedUrl, restoredTitle, false);
               if (newTab && tabData.id) {
                 tabIdMap.set(tabData.id, newTab.id);
 
@@ -1385,7 +1390,8 @@ class TabManager {
 
     const tabId = `tab-${this.nextTabId++}`;
     const tabUrl = url || this.defaultUrls.home;
-    const tabTitle = title || `Kolbo.AI ${this.tabs.length + 1}`;
+    const appLabel = window.KOLBO_WHITELABEL_APP_LABEL || 'Kolbo.AI';
+    const tabTitle = title || `${appLabel} ${this.tabs.length + 1}`;
 
     if (this.DEBUG_MODE) {
       console.log('[TabManager] Creating tab:', tabId, tabTitle, tabUrl);
@@ -2019,7 +2025,8 @@ class TabManager {
    */
   renumberTabs() {
     let visibleTabNumber = 1;
-    const defaultNamePattern = /^Kolbo\.AI \d+$/;
+    const appLabel = window.KOLBO_WHITELABEL_APP_LABEL || 'Kolbo.AI';
+    const defaultNamePattern = new RegExp(`^${appLabel.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')} \\d+$`);
 
     // First pass: collect all visible, non-merged tabs that need renumbering
     const tabsToRenumber = [];
@@ -2054,7 +2061,7 @@ class TabManager {
 
     // Second pass: renumber only the tabs with default naming
     tabsToRenumber.forEach((tab) => {
-      const newTitle = `Kolbo.AI ${visibleTabNumber}`;
+      const newTitle = `${appLabel} ${visibleTabNumber}`;
 
       // Only update if the number actually changed (avoid unnecessary DOM updates)
       if (tab.title !== newTitle) {

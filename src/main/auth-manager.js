@@ -16,6 +16,7 @@ class AuthManager {
   static setupHandlers() {
     ipcMain.handle('auth:login', this.handleEmailLogin);
     ipcMain.handle('auth:google-login', this.handleGoogleLogin);
+    ipcMain.handle('auth:sso-login', this.handleSSOLogin);
     ipcMain.handle('auth:logout', this.handleLogout);
     ipcMain.handle('auth:get-token', this.getToken);
     ipcMain.handle('auth:update-token', this.handleUpdateToken);
@@ -122,6 +123,53 @@ class AuthManager {
 
     } catch (error) {
       console.error('[AuthManager] Google OAuth error:', error);
+      return { success: false, error: error.message };
+    }
+  }
+
+  static async handleSSOLogin(event, { slug }) {
+    try {
+      console.log('[AuthManager] SSO login initiated for org:', slug);
+
+      const authCode = crypto.randomBytes(8).toString('hex');
+      const API_BASE_URL = config.apiUrl;
+      const authUrl = `${API_BASE_URL}/api/saml/login/${slug}?desktop_auth_code=${authCode}`;
+
+      console.log('[AuthManager] Opening browser for SSO with auth code:', authCode);
+      await shell.openExternal(authUrl);
+
+      console.log('[AuthManager] Browser opened, polling for SSO token...');
+
+      // Poll for 60 seconds (SSO can take longer than Google OAuth)
+      for (let i = 0; i < 60; i++) {
+        await new Promise(resolve => setTimeout(resolve, 1000));
+
+        try {
+          const response = await fetch(
+            `${API_BASE_URL}/api/saml/check-auth-code?auth_code=${authCode}`,
+            { headers: { 'User-Agent': APP_UA } }
+          );
+
+          if (response.ok) {
+            const data = await response.json();
+            const token = data.token || data.data?.token;
+
+            if (token) {
+              AuthManager.storeToken(token);
+              console.log('[AuthManager] SSO successful, token received');
+              return { success: true, token };
+            }
+          }
+        } catch (error) {
+          console.log(`[AuthManager] SSO poll attempt ${i + 1}/60 failed:`, error.message);
+        }
+      }
+
+      console.error('[AuthManager] SSO timeout after 60 seconds');
+      return { success: false, error: 'SSO timeout after 60 seconds' };
+
+    } catch (error) {
+      console.error('[AuthManager] SSO error:', error);
       return { success: false, error: error.message };
     }
   }

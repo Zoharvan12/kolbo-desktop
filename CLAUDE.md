@@ -166,7 +166,7 @@ import { GoogleGenerativeAI } from '@google/generative-ai';
 import fs from 'fs';
 import path from 'path';
 
-const genAI = new GoogleGenerativeAI('AIzaSyBT2ZTHodPo1waHrfUCfMfTpzSPYHDqOMs');
+const genAI = new GoogleGenerativeAI(process.env.GOOGLE_API_KEY);
 const model = genAI.getGenerativeModel({ model: 'gemini-2.0-flash-lite' });
 
 // To run translations:

@@ -11,6 +11,21 @@ const { execSync } = require('child_process');
 const CLI_NPM_PACKAGE = '@kolbo/kolbo-code';
 let ptyProcess = null;
 
+// Whitelabel helpers — read from env vars set by preview script / build
+function getWhitelabelSlug() {
+  return process.env.KOLBO_WHITELABEL || null;
+}
+function getWhitelabelApiUrl() {
+  return process.env.KOLBO_WHITELABEL_API_URL || null;
+}
+function getWhitelabelAppUrl() {
+  return process.env.KOLBO_WHITELABEL_APP_URL || null;
+}
+function getWhitelabelNpmPackage() {
+  const slug = getWhitelabelSlug();
+  return slug ? `@kolbo/${slug}` : CLI_NPM_PACKAGE;
+}
+
 // Pre-warm cache: populated by warmUp(), consumed by ensureCli()/getPty()
 let _warmCliResult = null;  // { path, status, version } from ensureCli()
 let _warmPty = null;        // node-pty module, pre-loaded
@@ -109,7 +124,7 @@ function setupAgentTerminalHandlers() {
   // Get latest npm version
   function getLatestNpmVersion() {
     try {
-      const result = execSync(`npm view ${CLI_NPM_PACKAGE} version`, {
+      const result = execSync(`npm view ${getWhitelabelNpmPackage()} version`, {
         encoding: 'utf-8',
         timeout: 15000,
       }).trim();
@@ -121,9 +136,10 @@ function setupAgentTerminalHandlers() {
 
   // Install or update CLI via npm
   function installCli() {
-    console.log(`[AgentTerminal] Installing/updating ${CLI_NPM_PACKAGE}...`);
+    const pkg = getWhitelabelNpmPackage();
+    console.log(`[AgentTerminal] Installing/updating ${pkg}...`);
     try {
-      execSync(`npm i -g ${CLI_NPM_PACKAGE}@latest`, {
+      execSync(`npm i -g ${pkg}@latest`, {
         encoding: 'utf-8',
         timeout: 120000,
         stdio: 'pipe',
@@ -196,9 +212,10 @@ function setupAgentTerminalHandlers() {
     console.log('[AgentTerminal] CLI path:', kolboPath, 'status:', status);
 
     if (!kolboPath) {
+      const pkg = getWhitelabelNpmPackage();
       return {
         success: false,
-        error: 'Kolbo CLI could not be installed.\nMake sure npm is available and try: npm i -g @kolbo-cli/kolbo'
+        error: `Kolbo CLI could not be installed.\nMake sure npm is available and try: npm i -g ${pkg}`
       };
     }
 
@@ -206,17 +223,24 @@ function setupAgentTerminalHandlers() {
       const nodePty = getPty();
       const shell = process.platform === 'win32' ? 'powershell.exe' : (process.env.SHELL || '/bin/bash');
 
+      // Build env — inject whitelabel API/App URLs so CLI picks them up
+      const ptyEnv = {
+        ...process.env,
+        TERM: 'xterm-256color',
+        COLORTERM: 'truecolor',
+        FORCE_COLOR: '3',
+      };
+      const wlApiUrl = getWhitelabelApiUrl();
+      const wlAppUrl = getWhitelabelAppUrl();
+      if (wlApiUrl) ptyEnv.KOLBO_API_BASE = wlApiUrl;
+      if (wlAppUrl) ptyEnv.KOLBO_APP_BASE = wlAppUrl;
+
       ptyProcess = nodePty.spawn(shell, [], {
         name: 'xterm-256color',
         cols: 120,
         rows: 30,
         cwd: os.homedir(),
-        env: {
-          ...process.env,
-          TERM: 'xterm-256color',
-          COLORTERM: 'truecolor',
-          FORCE_COLOR: '3',
-        },
+        env: ptyEnv,
       });
 
       // Launch kolbo CLI

@@ -188,8 +188,41 @@ function writeBuildEnv() {
     KOLBO_WHITELABEL: config.id,
     KOLBO_WHITELABEL_APP_URL: config.webappUrl,
     KOLBO_WHITELABEL_API_URL: config.apiUrl,
+    KOLBO_WHITELABEL_SSO_SLUG: config.ssoSlug || '',
+    KOLBO_WHITELABEL_APP_LABEL: config.appLabel || config.name,
+    KOLBO_WHITELABEL_CODE_LABEL: config.codeLabel || 'Code',
   });
-  console.log('  ✓ build-env.js written with whitelabel vars');
+
+  // Append visual assets (auth background + logo SVG) as inlined data URLs
+  const authBgPath = path.join(ROOT, config.assets.splashSquare);
+  const logoSvgPath = path.join(ROOT, config.assets.logoSvg);
+
+  const authBgBase64 = fs.readFileSync(authBgPath).toString('base64');
+  const authBgMime = mimeForFile(authBgPath);
+
+  let logoSvg = fs.readFileSync(logoSvgPath, 'utf8');
+  logoSvg = logoSvg.replace(/<\?xml[^?]*\?>\s*/g, '').trim();
+
+  const outputPath = path.join(ROOT, 'src', 'renderer', 'build-env.js');
+  const extraVars = `\nwindow.KOLBO_WHITELABEL_AUTH_BG = 'data:${authBgMime};base64,${authBgBase64}';\nwindow.KOLBO_WHITELABEL_LOGO_SVG = ${JSON.stringify(logoSvg)};\n`;
+  fs.appendFileSync(outputPath, extraVars, 'utf8');
+
+  console.log('  ✓ build-env.js written with whitelabel vars + auth assets');
+}
+
+// ── Step 3b: Generate installer sidebar BMP (164×314) ────────────────────────
+async function generateInstallerSidebar() {
+  const { Jimp } = require('jimp');
+  const squareSrc = path.join(ROOT, config.assets.splashSquare);
+  const outDir = path.join(ROOT, `whitelabels/${brand}/generated`);
+  fs.mkdirSync(outDir, { recursive: true });
+  const outPath = path.join(outDir, 'installerSidebar.bmp');
+
+  const img = await Jimp.read(squareSrc);
+  img.cover({ w: 164, h: 314 });
+  await img.write(outPath);
+  console.log('  ✓ installerSidebar.bmp (164×314)');
+  return outPath;
 }
 
 // ── Step 4: Create electron-builder override config ───────────────────────────
@@ -230,6 +263,8 @@ function createOverrideConfig() {
     nsis: {
       ...baseNsis,
       include: `installer-scripts/installer-${brand}.nsh`,
+      installerSidebar: `${generatedDir}/installerSidebar.bmp`,
+      uninstallerSidebar: `${generatedDir}/installerSidebar.bmp`,
     },
   };
 
@@ -293,6 +328,9 @@ async function main() {
   try {
     console.log('1/5 Generating icons...');
     await generateIcons();
+
+    console.log('\n1b/5 Generating installer sidebar...');
+    await generateInstallerSidebar();
 
     console.log('\n2/5 Generating branded splash...');
     generateSplash();

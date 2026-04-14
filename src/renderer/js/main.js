@@ -365,6 +365,12 @@ class KolboApp {
     this.cacheDOM();
     this.bindEvents();
 
+    // Apply whitelabel branding if applicable
+    if (window.KOLBO_WHITELABEL) {
+      this.initWhitelabelBranding();
+      this.initWhitelabelAuth();
+    }
+
     // Setup drag event listeners
     this.setupDragEventListeners();
 
@@ -463,6 +469,11 @@ class KolboApp {
 
     if (googleLoginBtn) {
       googleLoginBtn.addEventListener('click', () => this.handleGoogleLogin());
+    }
+
+    const ssoLoginBtn = document.getElementById('sso-login-btn');
+    if (ssoLoginBtn) {
+      ssoLoginBtn.addEventListener('click', () => this.handleSSOLogin());
     }
 
     if (togglePasswordBtn) {
@@ -679,14 +690,16 @@ class KolboApp {
       }
     });
 
-    // Re-initialize the background video to ensure it's properly displayed and interactive
-    setTimeout(() => {
-      const video = document.querySelector('.auth-video');
-      if (video) {
-        video.load();
-        video.play().catch(err => console.warn('[Video] Autoplay prevented:', err));
-      }
-    }, 100);
+    // Re-initialize the background video (skip for whitelabel — uses static image)
+    if (!window.KOLBO_WHITELABEL) {
+      setTimeout(() => {
+        const video = document.querySelector('.auth-video');
+        if (video) {
+          video.load();
+          video.play().catch(err => console.warn('[Video] Autoplay prevented:', err));
+        }
+      }, 100);
+    }
   }
 
   showLoadingOverlay() {
@@ -923,7 +936,7 @@ class KolboApp {
         if (container && window.AgentTerminal) {
           // xterm scripts already loaded — init immediately
           const subtitle = loadingEl?.querySelector('.agent-loading-subtitle');
-          if (subtitle) subtitle.textContent = 'Loading Kolbo Code...';
+          if (subtitle) subtitle.textContent = `Loading ${window.KOLBO_WHITELABEL_CODE_LABEL || 'Kolbo Code'}...`;
           initAgent();
         } else if (container) {
           // xterm scripts still loading (deferred) — wait for them, keep loading screen visible
@@ -932,7 +945,7 @@ class KolboApp {
           const waitForXterm = setInterval(() => {
             if (window.AgentTerminal) {
               clearInterval(waitForXterm);
-              if (subtitle) subtitle.textContent = 'Loading Kolbo Code...';
+              if (subtitle) subtitle.textContent = `Loading ${window.KOLBO_WHITELABEL_CODE_LABEL || 'Kolbo Code'}...`;
               initAgent();
             }
           }, 100);
@@ -1078,6 +1091,204 @@ ${Icons.get('columns-2', 16)}
       if (this.DEBUG_MODE) {
         console.log('[Refresh] Webapp view relaunched successfully');
       }
+    }
+  }
+
+  // ── Whitelabel: replace all Kolbo branding with whitelabel equivalents ────────
+  initWhitelabelBranding() {
+    const logoSvg = window.KOLBO_WHITELABEL_LOGO_SVG;
+    const appLabel = window.KOLBO_WHITELABEL_APP_LABEL || window.KOLBO_WHITELABEL;
+    const codeLabel = window.KOLBO_WHITELABEL_CODE_LABEL || 'Code';
+    const appName = appLabel;
+
+    // Update document title
+    document.title = appName;
+
+    // Replace webapp tab icon (K SVG → whitelabel logo) and label
+    const webappTab = document.getElementById('webapp-tab');
+    if (webappTab && logoSvg) {
+      const svg = webappTab.querySelector('svg');
+      if (svg) {
+        const wrapper = document.createElement('span');
+        wrapper.innerHTML = logoSvg;
+        const newSvg = wrapper.querySelector('svg');
+        if (newSvg) {
+          const tw = newSvg.getAttribute('width') || '366';
+          const th = newSvg.getAttribute('height') || '366';
+          if (!newSvg.getAttribute('viewBox')) newSvg.setAttribute('viewBox', `0 0 ${tw} ${th}`);
+          newSvg.removeAttribute('width');
+          newSvg.removeAttribute('height');
+          newSvg.setAttribute('height', '20');
+          newSvg.style.width = 'auto';
+          svg.replaceWith(newSvg);
+        }
+      }
+      const label = webappTab.querySelector('span[data-i18n]');
+      if (label) { label.textContent = appLabel; label.removeAttribute('data-i18n'); }
+    }
+
+    // Replace agent tab label
+    const agentTab = document.getElementById('agent-tab');
+    if (agentTab) {
+      const label = agentTab.querySelector('span[data-i18n]');
+      if (label) { label.textContent = codeLabel; label.removeAttribute('data-i18n'); }
+    }
+
+    // Update agent (Kolbo Code) loading screen title and icon
+    const agentLoadingTitle = document.getElementById('agent-loading-title');
+    if (agentLoadingTitle) agentLoadingTitle.textContent = codeLabel;
+
+    const agentLoadingIcon = document.getElementById('agent-loading-icon');
+    if (agentLoadingIcon && logoSvg) {
+      const wrapper = document.createElement('span');
+      wrapper.innerHTML = logoSvg;
+      const newSvg = wrapper.querySelector('svg');
+      if (newSvg) {
+        const iw = newSvg.getAttribute('width') || '366';
+        const ih = newSvg.getAttribute('height') || '366';
+        if (!newSvg.getAttribute('viewBox')) newSvg.setAttribute('viewBox', `0 0 ${iw} ${ih}`);
+        newSvg.removeAttribute('width');
+        newSvg.removeAttribute('height');
+        newSvg.style.width = '64px';
+        newSvg.style.height = '64px';
+        agentLoadingIcon.innerHTML = '';
+        agentLoadingIcon.appendChild(newSvg);
+      }
+    }
+
+    // Replace loading overlay logo (large K SVG → whitelabel logo)
+    const overlayLogo = document.querySelector('.logo-icon-large');
+    if (overlayLogo && logoSvg) {
+      const wrapper = document.createElement('span');
+      wrapper.innerHTML = logoSvg;
+      const newSvg = wrapper.querySelector('svg');
+      if (newSvg) {
+        const ow = newSvg.getAttribute('width') || '366';
+        const oh = newSvg.getAttribute('height') || '366';
+        if (!newSvg.getAttribute('viewBox')) newSvg.setAttribute('viewBox', `0 0 ${ow} ${oh}`);
+        newSvg.classList.add('logo-icon-large');
+        newSvg.removeAttribute('width');
+        newSvg.removeAttribute('height');
+        newSvg.style.height = '80px';
+        newSvg.style.width = 'auto';
+        overlayLogo.replaceWith(newSvg);
+      }
+    }
+  }
+
+  // ── Whitelabel: auth screen — static bg, whitelabel logo, SSO-only ────────────
+  initWhitelabelAuth() {
+    const logoSvg = window.KOLBO_WHITELABEL_LOGO_SVG;
+    const authBg = window.KOLBO_WHITELABEL_AUTH_BG;
+
+    // 1. Replace video background with static image
+    const authBgEl = document.querySelector('.auth-background');
+    if (authBgEl && authBg) {
+      authBgEl.innerHTML = `<div class="auth-overlay"></div>`;
+      authBgEl.style.backgroundImage = `url('${authBg}')`;
+      authBgEl.style.backgroundSize = 'cover';
+      authBgEl.style.backgroundPosition = 'center';
+    }
+
+    // 2. Replace Kolbo logo in auth card with whitelabel logo
+    const authLogoEl = document.querySelector('.auth-logo');
+    if (authLogoEl && logoSvg) {
+      const wrapper = document.createElement('div');
+      wrapper.innerHTML = logoSvg;
+      const newSvg = wrapper.querySelector('svg');
+      if (newSvg) {
+        // Preserve coordinate system as viewBox before removing fixed dimensions
+        const w = newSvg.getAttribute('width') || '366';
+        const h = newSvg.getAttribute('height') || '366';
+        if (!newSvg.getAttribute('viewBox')) {
+          newSvg.setAttribute('viewBox', `0 0 ${w} ${h}`);
+        }
+        newSvg.removeAttribute('width');
+        newSvg.removeAttribute('height');
+        newSvg.style.width = '100px';
+        newSvg.style.height = '100px';
+        newSvg.style.display = 'block';
+        authLogoEl.innerHTML = '';
+        authLogoEl.appendChild(newSvg);
+      }
+    }
+
+    // 3. SSO-only: hide Google button, divider, email form → show SSO button
+    const googleBtn = document.getElementById('google-login-btn');
+    const divider = document.getElementById('auth-divider');
+    const authForm = document.querySelector('.auth-form');
+    const ssoBtn = document.getElementById('sso-login-btn');
+
+    if (googleBtn) googleBtn.style.display = 'none';
+    if (divider) divider.style.display = 'none';
+    if (authForm) authForm.style.display = 'none';
+    if (ssoBtn) ssoBtn.style.display = '';
+  }
+
+  // ── SSO Login handler ─────────────────────────────────────────────────────────
+  async handleSSOLogin() {
+    const slug = window.KOLBO_WHITELABEL_SSO_SLUG;
+    const errorEl = document.getElementById('login-error');
+    const ssoBtn = document.getElementById('sso-login-btn');
+
+    if (!slug) {
+      if (errorEl) errorEl.textContent = 'SSO not configured';
+      return;
+    }
+
+    let countdownInterval = null;
+    try {
+      if (ssoBtn) ssoBtn.disabled = true;
+
+      // Show spinner + countdown so user knows to complete auth in the browser
+      let secondsLeft = 60;
+      const updateMsg = () => {
+        if (!errorEl) return;
+        errorEl.style.color = '#667eea';
+        errorEl.innerHTML = `<div style="display:flex;align-items:center;justify-content:center;gap:8px;flex-direction:column"><div style="display:flex;align-items:center;gap:8px"><div class="spinner" style="width:16px;height:16px;border:2px solid rgba(102,126,234,0.3);border-top-color:#667eea;border-radius:50%;animation:spin 0.8s linear infinite;"></div><span>Complete sign-in in your browser...</span></div><span style="font-size:12px;opacity:0.7">Waiting ${secondsLeft}s</span></div>`;
+      };
+      updateMsg();
+      countdownInterval = setInterval(() => { secondsLeft--; updateMsg(); }, 1000);
+
+      const result = await window.kolboDesktop.ssoLogin(slug);
+
+      if (result.success) {
+        if (errorEl) {
+          errorEl.style.color = '#10b981';
+          errorEl.textContent = '✓ Successfully signed in!';
+        }
+
+        setTimeout(async () => {
+          this.showLoadingOverlay();
+          document.getElementById('login-screen').classList.add('hidden');
+
+          // Sync token from main process (electron-store) → renderer (localStorage)
+          if (typeof kolboAPI !== 'undefined' && kolboAPI.syncTokenFromMainProcess) {
+            await kolboAPI.syncTokenFromMainProcess();
+          }
+
+          await this.loadProjects();
+          await this.loadMedia();
+          this.showMediaScreen(false);
+
+          if (this.tabManager) {
+            setTimeout(() => this.refreshWebappTabsWithToken(), 500);
+          }
+        }, 800);
+      } else {
+        if (errorEl) {
+          errorEl.style.color = '';
+          errorEl.textContent = result.error || 'SSO login failed';
+        }
+      }
+    } catch (error) {
+      if (errorEl) {
+        errorEl.style.color = '';
+        errorEl.textContent = error.message || 'SSO login failed';
+      }
+    } finally {
+      clearInterval(countdownInterval);
+      if (ssoBtn) ssoBtn.disabled = false;
     }
   }
 

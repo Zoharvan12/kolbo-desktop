@@ -155,7 +155,8 @@ class AgentTerminal {
     });
 
     // Spawn the PTY process
-    this.terminal.write('\x1b[36mChecking Kolbo Code CLI...\x1b[0m\r\n');
+    const codeLabel = window.KOLBO_WHITELABEL_CODE_LABEL || 'Kolbo Code';
+    this.terminal.write(`\x1b[36mChecking ${codeLabel} CLI...\x1b[0m\r\n`);
     await this._spawn();
     this.initialized = true;
   }
@@ -165,9 +166,11 @@ class AgentTerminal {
     if (!result.success) {
       this.terminal.write(`\x1b[31mError: ${result.error}\x1b[0m\r\n`);
     } else if (result.status === 'installed') {
-      this.terminal.write('\x1b[32mKolbo Code CLI installed successfully.\x1b[0m\r\n');
+      const cl = window.KOLBO_WHITELABEL_CODE_LABEL || 'Kolbo Code';
+      this.terminal.write(`\x1b[32m${cl} CLI installed successfully.\x1b[0m\r\n`);
     } else if (result.status === 'updated') {
-      this.terminal.write('\x1b[32mKolbo Code CLI updated to latest version.\x1b[0m\r\n');
+      const cl = window.KOLBO_WHITELABEL_CODE_LABEL || 'Kolbo Code';
+      this.terminal.write(`\x1b[32m${cl} CLI updated to latest version.\x1b[0m\r\n`);
     }
   }
 

@@ -81,6 +81,9 @@ contextBridge.exposeInMainWorld('kolboDesktop', {
   googleLogin: () =>
     ipcRenderer.invoke('auth:google-login'),
 
+  ssoLogin: (slug) =>
+    ipcRenderer.invoke('auth:sso-login', { slug }),
+
   logout: () =>
     ipcRenderer.invoke('auth:logout'),
 
