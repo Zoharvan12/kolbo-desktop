@@ -111,6 +111,17 @@ const config = {
   ...currentConfig
 };
 
+// Whitelabel URL override — baked in at build time via build-env.js
+// Takes priority over environment-based URLs for whitelabel builds
+if (typeof window !== 'undefined' && window.KOLBO_WHITELABEL_APP_URL) {
+  config.webappUrl = window.KOLBO_WHITELABEL_APP_URL;
+  console.log('[Config] Whitelabel webappUrl override:', config.webappUrl);
+}
+if (typeof window !== 'undefined' && window.KOLBO_WHITELABEL_API_URL) {
+  config.apiUrl = window.KOLBO_WHITELABEL_API_URL;
+  console.log('[Config] Whitelabel apiUrl override:', config.apiUrl);
+}
+
 // Log current environment (helps with debugging)
 console.log(`[Config] Environment: ${config.environment.toUpperCase()}`);
 console.log(`[Config] API URL: ${config.apiUrl}`);
