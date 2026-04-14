@@ -195,6 +195,15 @@ function writeBuildEnv() {
 // ── Step 4: Create electron-builder override config ───────────────────────────
 function createOverrideConfig() {
   const generatedDir = `whitelabels/${brand}/generated`;
+  const packageJson = require('../package.json');
+
+  // electron-builder's --config does a top-level merge, NOT deep-merge.
+  // So mac:{icon} alone would wipe out hardenedRuntime, notarize, entitlements, etc.
+  // We spread the original mac config and only override the icon.
+  const baseMac = packageJson.build.mac || {};
+  const baseWin = packageJson.build.win || {};
+  const baseNsis = packageJson.build.nsis || {};
+
   const override = {
     productName: config.name,
     appId: config.appId,
@@ -210,13 +219,16 @@ function createOverrideConfig() {
       releaseType: 'release',
     },
     win: {
+      ...baseWin,
       icon: `${generatedDir}/icon.ico`,
       artifactName: '${productName}-Setup-${version}.${ext}',
     },
     mac: {
+      ...baseMac,
       icon: `${generatedDir}/icon.icns`,
     },
     nsis: {
+      ...baseNsis,
       include: `installer-scripts/installer-${brand}.nsh`,
     },
   };
