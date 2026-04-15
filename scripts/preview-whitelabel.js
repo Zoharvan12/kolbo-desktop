@@ -60,6 +60,17 @@ function writeBuildEnv() {
   const extraVars = `\nwindow.KOLBO_WHITELABEL_AUTH_BG = 'data:${authBgMime};base64,${authBgBase64}';\nwindow.KOLBO_WHITELABEL_LOGO_SVG = ${JSON.stringify(logoSvg)};\n`;
   fs.appendFileSync(outputPath, extraVars, 'utf8');
 
+  // Write main-process runtime config (baked into bundle; used when env vars aren't available)
+  const runtimeConfig = {
+    id: config.id,
+    apiUrl: config.apiUrl,
+    webappUrl: config.webappUrl,
+    ssoSlug: config.ssoSlug || '',
+    appLabel: config.appLabel || config.name,
+    codeLabel: config.codeLabel || 'Code',
+  };
+  fs.writeFileSync(path.join(ROOT, 'src', 'whitelabel-config.json'), JSON.stringify(runtimeConfig, null, 2), 'utf8');
+
   console.log(`✅ build-env.js written for ${config.name}`);
   console.log(`   App URL: ${config.webappUrl}`);
   console.log(`   API URL: ${config.apiUrl}`);
@@ -97,6 +108,9 @@ if (launchApp) {
       env: { ...process.env, KOLBO_ENV: 'development' }
     });
     console.log('✅ build-env.js restored to Kolbo defaults');
+    // Remove whitelabel-config.json so main process uses Kolbo defaults
+    const wlConfigPath = path.join(ROOT, 'src', 'whitelabel-config.json');
+    if (fs.existsSync(wlConfigPath)) fs.unlinkSync(wlConfigPath);
   });
 } else {
   console.log('\nDo NOT use npm start (it overwrites build-env.js).');

@@ -111,8 +111,25 @@ const config = {
   ...currentConfig
 };
 
+// Whitelabel URL override — main process: read from bundled whitelabel-config.json (production)
+if (typeof window === 'undefined' && typeof require !== 'undefined') {
+  try {
+    const wlConfig = require('./whitelabel-config.json');
+    if (wlConfig && wlConfig.apiUrl) {
+      config.apiUrl = wlConfig.apiUrl;
+      console.log('[Config] Whitelabel apiUrl override (bundled config):', config.apiUrl);
+    }
+    if (wlConfig && wlConfig.webappUrl) {
+      config.webappUrl = wlConfig.webappUrl;
+      console.log('[Config] Whitelabel webappUrl override (bundled config):', config.webappUrl);
+    }
+  } catch (_) {
+    // No whitelabel-config.json — standard Kolbo build, use defaults
+  }
+}
+
 // Whitelabel URL override — renderer: baked in at build time via build-env.js
-//                          main process: passed as environment variables
+//                          main process: passed as environment variables (preview/CI)
 if (typeof window !== 'undefined' && window.KOLBO_WHITELABEL_APP_URL) {
   config.webappUrl = window.KOLBO_WHITELABEL_APP_URL;
   console.log('[Config] Whitelabel webappUrl override (renderer):', config.webappUrl);

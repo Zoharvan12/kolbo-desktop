@@ -208,6 +208,19 @@ function writeBuildEnv() {
   fs.appendFileSync(outputPath, extraVars, 'utf8');
 
   console.log('  ✓ build-env.js written with whitelabel vars + auth assets');
+
+  // Also write a CommonJS config for the main process (baked into the production bundle)
+  const runtimeConfig = {
+    id: config.id,
+    apiUrl: config.apiUrl,
+    webappUrl: config.webappUrl,
+    ssoSlug: config.ssoSlug || '',
+    appLabel: config.appLabel || config.name,
+    codeLabel: config.codeLabel || 'Code',
+  };
+  const runtimePath = path.join(ROOT, 'src', 'whitelabel-config.json');
+  fs.writeFileSync(runtimePath, JSON.stringify(runtimeConfig, null, 2), 'utf8');
+  console.log('  ✓ whitelabel-config.json written for main process');
 }
 
 // ── Step 3b: Generate installer sidebar BMP (164×314) ────────────────────────

@@ -13,6 +13,9 @@ whitelabels/*/generated/
 # Whitelabel temp build config
 whitelabel-build-config.json
 
+# Whitelabel main-process runtime config (generated per-build, not committed)
+src/whitelabel-config.json
+
 # Splash backup created during whitelabel builds
 src/renderer/splash.html.kolbo-original
 
