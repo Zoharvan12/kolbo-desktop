@@ -133,7 +133,7 @@ class AuthManager {
 
       const authCode = crypto.randomBytes(8).toString('hex');
       const API_BASE_URL = config.apiUrl;
-      const authUrl = `${API_BASE_URL}/api/saml/login/${slug}?desktop_auth_code=${authCode}`;
+      const authUrl = `${API_BASE_URL}/saml/login/${slug}?desktop_auth_code=${authCode}`;
 
       console.log('[AuthManager] Opening browser for SSO with auth code:', authCode);
       await shell.openExternal(authUrl);
@@ -146,7 +146,7 @@ class AuthManager {
 
         try {
           const response = await fetch(
-            `${API_BASE_URL}/api/saml/check-auth-code?auth_code=${authCode}`,
+            `${API_BASE_URL}/saml/check-auth-code?auth_code=${authCode}`,
             { headers: { 'User-Agent': APP_UA } }
           );
 
