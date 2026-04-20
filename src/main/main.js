@@ -3272,48 +3272,44 @@ function setupSessionCSP() {
   defaultSession.webRequest.onHeadersReceived(
     { urls: ['*://localhost/*', '*://*.kolbo.ai/*', '*://staging.kolbo.ai/*'] },
     (details, callback) => {
-      // Quick exit: skip string work if there are no CSP headers at all
       const headers = details.responseHeaders;
-      if (!headers ||
-          (!headers['content-security-policy'] && !headers['Content-Security-Policy'])) {
-        return callback({ responseHeaders: headers });
-      }
+      if (!headers) return callback({ responseHeaders: headers });
 
-      try {
-        if (headers) {
-          // Helper function to modify CSP header
+      // Always strip X-Frame-Options — SAMEORIGIN blocks file:// parent in Electron
+      delete headers['x-frame-options'];
+      delete headers['X-Frame-Options'];
+
+      // Strip CSP frame-ancestors (file:// isn't a valid frame-ancestors source per spec)
+      if (headers['content-security-policy'] || headers['Content-Security-Policy']) {
+        try {
           const modifyCSP = (headerName) => {
-            if (details.responseHeaders[headerName]) {
-              const cspArray = Array.isArray(details.responseHeaders[headerName])
-                ? details.responseHeaders[headerName]
-                : [details.responseHeaders[headerName]];
+            if (headers[headerName]) {
+              const cspArray = Array.isArray(headers[headerName])
+                ? headers[headerName]
+                : [headers[headerName]];
 
               const modifiedCSP = cspArray.map(csp => {
                 // IMPORTANT: frame-ancestors directive does NOT support file://, app://, or
                 // non-network schemes per CSP spec. The wildcard * only matches http/https.
                 // Solution: REMOVE any frame-ancestors directive entirely for Electron compatibility.
-                // If frame-ancestors exists, remove it completely
                 if (csp.includes('frame-ancestors')) {
                   return csp.replace(/frame-ancestors\s+[^;]+;?\s*/gi, '').trim();
                 }
-                // Don't add frame-ancestors - just return the CSP as-is
                 return csp;
               });
 
-              details.responseHeaders[headerName] = modifiedCSP;
+              headers[headerName] = modifiedCSP;
             }
           };
 
-          // Modify both lowercase and mixed-case CSP headers
           modifyCSP('content-security-policy');
           modifyCSP('Content-Security-Policy');
+        } catch (error) {
+          console.warn('[Main] Error modifying CSP headers:', error);
         }
-      } catch (error) {
-        // Error processing headers, just pass through
-        console.warn('[Main] Error modifying CSP headers:', error);
       }
 
-      callback({ responseHeaders: details.responseHeaders });
+      callback({ responseHeaders: headers });
     }
   );
 

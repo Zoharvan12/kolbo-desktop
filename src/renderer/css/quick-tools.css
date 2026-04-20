@@ -595,7 +595,7 @@
 }
 
 .qt-frame-time {
-  font-family: 'Poppins', sans-serif;
+  font-family: 'Inter', sans-serif;
   font-size: 14px;
   color: #ffffff;
   min-width: 80px;
@@ -641,7 +641,7 @@
   border-radius: 3px;
   font-size: 11px;
   color: #ffffff;
-  font-family: 'Poppins', sans-serif;
+  font-family: 'Inter', sans-serif;
 }
 
 .qt-captured-frame-remove {
