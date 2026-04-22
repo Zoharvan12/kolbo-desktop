@@ -1,7 +1,7 @@
 // Custom Windows code signing hook for electron-builder.
-// Called once per signable file (.exe, .dll inside the asar, etc.).
+// Called once per signable file (.exe inside the installer, etc.).
 // No-op when CODESIGN_TOOL_PATH is unset (local builds).
-const { execFileSync } = require('child_process');
+const { execSync } = require('child_process');
 const path = require('path');
 
 exports.default = async function sign(configuration) {
@@ -24,19 +24,15 @@ exports.default = async function sign(configuration) {
     return;
   }
 
-  const jarPath = path.join(toolPath, 'CodeSignTool.jar');
+  const batPath = path.join(toolPath, 'CodeSignTool.bat');
   console.log(`  🔏 Signing ${path.basename(filePath)} via SSL.com eSigner...`);
 
-  execFileSync('java', [
-    '-jar', jarPath,
-    'sign',
-    `-username=${username}`,
-    `-password=${password}`,
-    `-credential_id=${credentialId}`,
-    `-totp_secret=${totpSecret}`,
-    `-input_file_path=${filePath}`,
-    '-override',
-  ], { stdio: 'inherit' });
+  // Use execSync so the .bat runs through cmd, which is required on Windows.
+  // Arguments are double-quoted to handle special characters (@ in password, = in TOTP).
+  execSync(
+    `"${batPath}" sign -username="${username}" -password="${password}" -credential_id="${credentialId}" -totp_secret="${totpSecret}" -input_file_path="${filePath}" -override`,
+    { stdio: 'inherit' }
+  );
 
   console.log(`  ✅ Signed: ${path.basename(filePath)}`);
 };
