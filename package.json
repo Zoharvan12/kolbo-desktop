@@ -1,6 +1,6 @@
 {
   "name": "kolbo-desktop",
-  "version": "1.4.5",
+  "version": "1.4.6",
   "description": "Kolbo Studio - AI Creative Platform for Video Editors",
   "main": "src/main/main.js",
   "author": {
@@ -102,7 +102,7 @@
       "icon": "assets/icon.ico",
       "publisherName": "Kolbo.AI",
       "artifactName": "${productName}-Setup-${version}.${ext}",
-      "verifyUpdateCodeSignature": false
+      "sign": "./scripts/sign-win.js"
     },
     "nsis": {
       "oneClick": false,

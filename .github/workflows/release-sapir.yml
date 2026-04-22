@@ -42,10 +42,26 @@ jobs:
       - name: Rebuild native modules for Windows
         run: npx electron-builder install-app-deps
 
+      - name: Download SSL.com CodeSignTool
+        shell: powershell
+        run: |
+          $toolDir = Join-Path $env:RUNNER_TOOL_CACHE "codesigntool"
+          New-Item -ItemType Directory -Force -Path $toolDir | Out-Null
+          $zipPath = Join-Path $toolDir "codesigntool.zip"
+          Invoke-WebRequest -Uri "https://github.com/SSLcom/esigner-codesign/releases/download/v1.3.2/SSLcom-CodeSignTool-v1.3.2-win.zip" -OutFile $zipPath -UseBasicParsing
+          Expand-Archive -Path $zipPath -DestinationPath $toolDir -Force
+          $jar = Get-ChildItem -Path $toolDir -Filter "CodeSignTool.jar" -Recurse | Select-Object -First 1
+          echo "CODESIGN_TOOL_PATH=$($jar.DirectoryName)" >> $env:GITHUB_ENV
+          echo "CodeSignTool found at: $($jar.FullName)"
+
       - name: Build Sapir Windows installer
         env:
           KOLBO_ENV: production
           CI: 'true'
+          SSLCOM_USERNAME: ${{ secrets.SSLCOM_USERNAME }}
+          SSLCOM_PASSWORD: ${{ secrets.SSLCOM_PASSWORD }}
+          SSLCOM_CREDENTIAL_ID: ${{ secrets.SSLCOM_CREDENTIAL_ID }}
+          SSLCOM_TOTP_SECRET: ${{ secrets.SSLCOM_TOTP_SECRET }}
         run: node scripts/build-whitelabel.js sapir --win
 
       - name: Fix latest.yml filename format (Windows sed)
