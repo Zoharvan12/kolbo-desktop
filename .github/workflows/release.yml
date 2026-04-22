@@ -55,39 +55,25 @@ jobs:
       - name: Rebuild native modules for Windows
         run: npx electron-builder install-app-deps
 
-      - name: Download SSL.com CodeSignTool
-        if: github.event.inputs.sign != 'false'
-        shell: powershell
-        run: |
-          $toolDir = Join-Path $env:RUNNER_TOOL_CACHE "codesigntool"
-          New-Item -ItemType Directory -Force -Path $toolDir | Out-Null
-          $zipPath = Join-Path $toolDir "codesigntool.zip"
-          Invoke-WebRequest -Uri "https://github.com/SSLcom/CodeSignTool/releases/download/v1.3.2/CodeSignTool-v1.3.2-windows.zip" -OutFile $zipPath -UseBasicParsing
-          Expand-Archive -Path $zipPath -DestinationPath $toolDir -Force
-          $bat = Get-ChildItem -Path $toolDir -Filter "CodeSignTool.bat" -Recurse | Select-Object -First 1
-          $confDir = Join-Path $bat.DirectoryName "conf"
-          New-Item -ItemType Directory -Force -Path $confDir | Out-Null
-          $propsFile = Join-Path $confDir "code_sign_tool.properties"
-          "CLIENT_ID=kaXTRACNijSWsFdRKg_KAfD3fqrBlzMbWs6TwWHwAn8" | Out-File $propsFile -Encoding utf8
-          "OAUTH2_ENDPOINT=https://login.ssl.com/oauth2/token" | Add-Content $propsFile
-          "CSC_API_ENDPOINT=https://cs.ssl.com" | Add-Content $propsFile
-          "TSA_URL=http://ts.ssl.com" | Add-Content $propsFile
-          "TSA_LEGACY_URL=http://ts.ssl.com/legacy" | Add-Content $propsFile
-          echo "CODESIGN_TOOL_PATH=$($bat.DirectoryName)" >> $env:GITHUB_ENV
-          echo "CodeSignTool found at: $($bat.FullName)"
-
       - name: Build Windows installer
         env:
           KOLBO_ENV: production
-          SSLCOM_USERNAME: ${{ github.event.inputs.sign != 'false' && secrets.SSLCOM_USERNAME || '' }}
-          SSLCOM_PASSWORD: ${{ github.event.inputs.sign != 'false' && secrets.SSLCOM_PASSWORD || '' }}
-          SSLCOM_CREDENTIAL_ID: ${{ github.event.inputs.sign != 'false' && secrets.SSLCOM_CREDENTIAL_ID || '' }}
-          SSLCOM_TOTP_SECRET: ${{ github.event.inputs.sign != 'false' && secrets.SSLCOM_TOTP_SECRET || '' }}
         run: |
-          # Use --publish never to prevent electron-builder from publishing to GitHub
-          # The workflow handles uploading to the release instead
           node build-env.js
           npx electron-builder --win --publish never
+
+      - name: Sign Windows installer
+        if: github.event.inputs.sign != 'false'
+        uses: SSLcom/esigner-codesign@v1.3.2
+        with:
+          command: sign
+          username: ${{ secrets.SSLCOM_USERNAME }}
+          password: ${{ secrets.SSLCOM_PASSWORD }}
+          credential_id: ${{ secrets.SSLCOM_CREDENTIAL_ID }}
+          totp_secret: ${{ secrets.SSLCOM_TOTP_SECRET }}
+          file_path: "dist/Kolbo Studio-Setup-${{ needs.prepare-release.outputs.version }}.exe"
+          override: "true"
+          environment_name: "PROD"
 
       - name: Fix filename format in latest.yml
         shell: bash

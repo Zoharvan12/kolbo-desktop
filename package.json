@@ -102,7 +102,7 @@
       "icon": "assets/icon.ico",
       "publisherName": "Kolbo.AI",
       "artifactName": "${productName}-Setup-${version}.${ext}",
-      "sign": "./scripts/sign-win.js"
+      "verifyUpdateCodeSignature": false
     },
     "nsis": {
       "oneClick": false,
