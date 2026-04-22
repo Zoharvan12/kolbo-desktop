@@ -65,6 +65,16 @@ jobs:
           Invoke-WebRequest -Uri "https://github.com/SSLcom/CodeSignTool/releases/download/v1.3.2/CodeSignTool-v1.3.2-windows.zip" -OutFile $zipPath -UseBasicParsing
           Expand-Archive -Path $zipPath -DestinationPath $toolDir -Force
           $bat = Get-ChildItem -Path $toolDir -Filter "CodeSignTool.bat" -Recurse | Select-Object -First 1
+          # Write SSL.com OAuth2 config required by CodeSignTool
+          $confDir = Join-Path $bat.DirectoryName "conf"
+          New-Item -ItemType Directory -Force -Path $confDir | Out-Null
+          @"
+CLIENT_ID=kaXTRACNijSWsFdRKg_KAfD3fqrBlzMbWs6TwWHwAn8
+OAUTH2_ENDPOINT=https://login.ssl.com/oauth2/token
+CSC_API_ENDPOINT=https://cs.ssl.com
+TSA_URL=http://ts.ssl.com
+TSA_LEGACY_URL=http://ts.ssl.com/legacy
+"@ | Set-Content -Path (Join-Path $confDir "code_sign_tool.properties") -Encoding utf8
           echo "CODESIGN_TOOL_PATH=$($bat.DirectoryName)" >> $env:GITHUB_ENV
           echo "CodeSignTool found at: $($bat.FullName)"
 
