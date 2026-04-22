@@ -63,3 +63,6 @@ resources/kolbo-cli.exe
 
 # Project documentation (may contain secrets/API keys)
 CLAUDE.md
+
+# Claude temp files
+.claude/
