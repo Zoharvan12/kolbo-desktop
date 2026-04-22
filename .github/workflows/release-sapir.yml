@@ -5,6 +5,16 @@ on:
   push:
     branches:
       - master
+  workflow_dispatch:
+    inputs:
+      sign:
+        description: "Sign Windows binaries (uses signing credits)"
+        required: false
+        default: "true"
+        type: choice
+        options:
+          - "true"
+          - "false"
 
 permissions:
   contents: write
@@ -43,6 +53,7 @@ jobs:
         run: npx electron-builder install-app-deps
 
       - name: Download SSL.com CodeSignTool
+        if: github.event.inputs.sign != 'false'
         shell: powershell
         run: |
           $toolDir = Join-Path $env:RUNNER_TOOL_CACHE "codesigntool"
@@ -58,10 +69,10 @@ jobs:
         env:
           KOLBO_ENV: production
           CI: 'true'
-          SSLCOM_USERNAME: ${{ secrets.SSLCOM_USERNAME }}
-          SSLCOM_PASSWORD: ${{ secrets.SSLCOM_PASSWORD }}
-          SSLCOM_CREDENTIAL_ID: ${{ secrets.SSLCOM_CREDENTIAL_ID }}
-          SSLCOM_TOTP_SECRET: ${{ secrets.SSLCOM_TOTP_SECRET }}
+          SSLCOM_USERNAME: ${{ github.event.inputs.sign != 'false' && secrets.SSLCOM_USERNAME || '' }}
+          SSLCOM_PASSWORD: ${{ github.event.inputs.sign != 'false' && secrets.SSLCOM_PASSWORD || '' }}
+          SSLCOM_CREDENTIAL_ID: ${{ github.event.inputs.sign != 'false' && secrets.SSLCOM_CREDENTIAL_ID || '' }}
+          SSLCOM_TOTP_SECRET: ${{ github.event.inputs.sign != 'false' && secrets.SSLCOM_TOTP_SECRET || '' }}
         run: node scripts/build-whitelabel.js sapir --win
 
       - name: Fix latest.yml filename format (Windows sed)
