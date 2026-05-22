@@ -1,6 +1,6 @@
 {
   "name": "kolbo-desktop",
-  "version": "1.4.6",
+  "version": "1.5.0",
   "description": "Kolbo Studio - AI Creative Platform for Video Editors",
   "main": "src/main/main.js",
   "author": {
@@ -66,7 +66,7 @@
     "publish": {
       "provider": "github",
       "owner": "Zoharvan12",
-      "repo": "kolbo-desktop",
+      "repo": "kolbo-desktop-releases",
       "releaseType": "release"
     },
     "directories": {

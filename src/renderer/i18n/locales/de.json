@@ -87,7 +87,8 @@
       "videos": "Videos",
       "images": "Bilder",
       "audio": "Audio",
-      "favorites": "Favoriten"
+      "favorites": "Favoriten",
+      "trash": "Papierkorb"
     },
     "subcategories": {
       "all": "Alle",
@@ -112,7 +113,40 @@
       "tts": "TTS",
       "sfx": "SFX"
     },
-    "duration": "0:00 / {{duration}}"
+    "duration": "0:00 / {{duration}}",
+    "actions": {
+      "favorite": "Favorit",
+      "unfavorite": "Kein Favorit mehr",
+      "delete": "In den Papierkorb verschieben",
+      "restore": "Wiederherstellen",
+      "deleteForever": "Endgültig löschen"
+    },
+    "toasts": {
+      "movedToTrash": "In den Papierkorb verschoben",
+      "movedNToTrash": "{{count}} in den Papierkorb verschoben",
+      "restored": "Wiederhergestellt",
+      "restoredN": "{{count}} wiederhergestellt",
+      "restoredPartial": "{{succeeded}}/{{total}} wiederhergestellt",
+      "deletedForever": "Endgültig gelöscht",
+      "deletedForeverN": "{{count}} endgültig gelöscht",
+      "favorited": "Als Favorit markiert",
+      "favoritedN": "{{count}} als Favorit markiert",
+      "unfavorited": "Nicht mehr als Favorit markiert",
+      "unfavoritedN": "{{count}} nicht mehr als Favorit markiert",
+      "favoriteFailed": "Favoriten konnten nicht aktualisiert werden",
+      "deleteFailed": "Löschen fehlgeschlagen",
+      "restoreFailed": "Wiederherstellung fehlgeschlagen",
+      "deleteForeverFailed": "Endgültiges Löschen fehlgeschlagen",
+      "favoritePartial": "Einige Favoriten konnten nicht aktualisiert werden"
+    },
+    "confirm": {
+      "deleteForeverTitle": "Endgültig löschen?",
+      "deleteForeverNTitle": "{{count}} Elemente endgültig löschen?",
+      "deleteForeverMessage": "Dieses Element wird endgültig entfernt. Dies kann nicht rückgängig gemacht werden.",
+      "deleteForeverNMessage": "Diese Elemente werden endgültig entfernt. Dies kann nicht rückgängig gemacht werden.",
+      "deleteForeverConfirm": "Endgültig löschen",
+      "cancel": "Abbrechen"
+    }
   },
   "settings": {
     "title": "Einstellungen",
@@ -314,7 +348,11 @@
     "waitForDownloads": "Bitte warten – Dateien werden noch heruntergeladen...",
     "folderSelectFailed": "Ordner konnte nicht ausgewählt werden",
     "downloadFailed": "Download fehlgeschlagen. Bitte versuchen Sie es erneut.",
-    "noValidImport": "Keine gültigen Elemente zum Importieren"
+    "noValidImport": "Keine gültigen Elemente zum Importieren",
+    "favorite": "Favorit",
+    "delete": "Löschen",
+    "restore": "Wiederherstellen",
+    "deleteForever": "Endgültig löschen"
   },
   "errors": {
     "premiereNotDetected": "Kolbo Adobe Plugin nicht erkannt",

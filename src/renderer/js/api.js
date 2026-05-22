@@ -324,19 +324,60 @@ class KolboAPI {
   }
 
   /**
-   * Get favorites
-   * NOTE: Main process currently doesn't have a separate favorites endpoint
-   * This passes isFavorited=true to getMedia
+   * Get trash (soft-deleted items, 30-day retention)
    */
-  async getFavorites(options = {}) {
-    if (this.DEBUG_MODE) {
-      console.log('[API] Get favorites via IPC');
+  async getTrash(options = {}) {
+    if (this.DEBUG_MODE) console.log('[API] Get trash via IPC');
+    try {
+      const response = await window.kolboDesktop.getTrash(options);
+      if (response.success) return response.data;
+      throw new Error(response.error || 'Failed to fetch trash');
+    } catch (error) {
+      console.error('[API] Get trash error:', error);
+      throw error;
     }
+  }
 
-    return this.getMedia({
-      ...options,
-      isFavorited: true
-    });
+  async favoriteMedia(id) {
+    const response = await window.kolboDesktop.favoriteMedia(id);
+    if (!response.success) throw new Error(response.error || 'Favorite failed');
+    return response.data;
+  }
+
+  async unfavoriteMedia(id) {
+    const response = await window.kolboDesktop.unfavoriteMedia(id);
+    if (!response.success) throw new Error(response.error || 'Unfavorite failed');
+    return response.data;
+  }
+
+  async deleteMedia(id) {
+    const response = await window.kolboDesktop.deleteMedia(id);
+    if (!response.success) throw new Error(response.error || 'Delete failed');
+    return response.data;
+  }
+
+  async bulkDeleteMedia(fileIds) {
+    const response = await window.kolboDesktop.bulkDeleteMedia(fileIds);
+    if (!response.success) throw new Error(response.error || 'Bulk delete failed');
+    return response.data;
+  }
+
+  async restoreMedia(id) {
+    const response = await window.kolboDesktop.restoreMedia(id);
+    if (!response.success) throw new Error(response.error || 'Restore failed');
+    return response.data;
+  }
+
+  async permanentDeleteMedia(id) {
+    const response = await window.kolboDesktop.permanentDeleteMedia(id);
+    if (!response.success) throw new Error(response.error || 'Permanent delete failed');
+    return response.data;
+  }
+
+  async bulkPermanentDeleteMedia(mediaIds) {
+    const response = await window.kolboDesktop.bulkPermanentDeleteMedia(mediaIds);
+    if (!response.success) throw new Error(response.error || 'Bulk permanent delete failed');
+    return response.data;
   }
 
   /**

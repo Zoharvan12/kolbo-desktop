@@ -150,3 +150,126 @@
   background: rgba(59, 130, 246, 0.25);
   border-color: #3b82f6;
 }
+
+/* Landing card — default Kolbo Code view */
+.agent-landing {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: radial-gradient(ellipse at top, #161827 0%, #0a0a0a 60%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  z-index: 5;
+}
+
+.agent-landing-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 14px;
+  padding: 40px 48px;
+  max-width: 460px;
+  width: 100%;
+  background: rgba(255, 255, 255, 0.02);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  border-radius: 16px;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.4);
+}
+
+.agent-landing-icon {
+  width: 72px;
+  height: 72px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 4px;
+}
+
+.agent-landing-icon img {
+  width: 72px;
+  height: 72px;
+  object-fit: contain;
+  filter: drop-shadow(0 0 16px rgba(59, 130, 246, 0.25));
+}
+
+.agent-landing-title {
+  font-size: 22px;
+  font-weight: 600;
+  color: #f4f4f5;
+  letter-spacing: -0.02em;
+}
+
+.agent-landing-subtitle {
+  font-size: 14px;
+  color: #a1a1aa;
+  text-align: center;
+  line-height: 1.5;
+  max-width: 340px;
+}
+
+.agent-landing-url {
+  font-family: 'Cascadia Code', 'Fira Code', monospace;
+  font-size: 12px;
+  color: #71717a;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  padding: 8px 14px;
+  border-radius: 6px;
+  margin: 4px 0 12px;
+  user-select: text;
+  word-break: break-all;
+  text-align: center;
+}
+
+.agent-landing-primary {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 11px 28px;
+  background: linear-gradient(180deg, #3b82f6 0%, #2563eb 100%);
+  border: 1px solid #3b82f6;
+  border-radius: 8px;
+  color: #fff;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.18s ease;
+  box-shadow: 0 4px 14px rgba(59, 130, 246, 0.3);
+}
+
+.agent-landing-primary:hover {
+  background: linear-gradient(180deg, #4f8ef7 0%, #2f6fe8 100%);
+  transform: translateY(-1px);
+  box-shadow: 0 6px 18px rgba(59, 130, 246, 0.4);
+}
+
+.agent-landing-primary:active {
+  transform: translateY(0);
+}
+
+.agent-landing-primary i,
+.agent-landing-primary svg {
+  width: 16px;
+  height: 16px;
+}
+
+.agent-landing-secondary {
+  background: none;
+  border: none;
+  color: #71717a;
+  font-size: 12px;
+  cursor: pointer;
+  padding: 6px 10px;
+  border-radius: 4px;
+  transition: color 0.15s ease;
+}
+
+.agent-landing-secondary:hover {
+  color: #a1a1aa;
+  text-decoration: underline;
+}

@@ -257,6 +257,9 @@ class TabManager {
     // Setup listener for opening specific tabs in new windows
     this.setupNewWindowTabListener();
 
+    // Setup listener for iframe renderer crashes (grey-screen recovery)
+    this.setupIframeCrashRecovery();
+
     // Auto-save state on window close/blur to preserve user's work
     this.setupAutoSave();
 
@@ -694,6 +697,66 @@ class TabManager {
         this.createTab(url, null, true);
       });
     }
+  }
+
+  /**
+   * Auto-recovery for the "grey iframe" bug: when the cross-origin iframe's
+   * renderer process dies (OOM / GPU hang / sad-tab), main process notifies us
+   * via 'iframe-renderer-crashed'. We reload only iframes whose origin matches
+   * the dead webContents so the user doesn't have to hit refresh manually.
+   */
+  setupIframeCrashRecovery() {
+    if (!window.kolboDesktop || !window.kolboDesktop.onIframeRendererCrashed) {
+      return;
+    }
+
+    // Throttle: never reload the same iframe more than once per 5s, to avoid
+    // crash loops if the underlying problem is persistent.
+    const lastReloadAt = new Map();
+    const COOLDOWN_MS = 5000;
+
+    window.kolboDesktop.onIframeRendererCrashed(({ url, reason }) => {
+      console.warn('[TabManager] Iframe renderer crashed:', reason, 'url:', url);
+
+      let crashedOrigin = null;
+      try { crashedOrigin = url ? new URL(url).origin : null; } catch {}
+
+      const now = Date.now();
+      let reloadedCount = 0;
+
+      this.tabs.forEach(tab => {
+        if (!tab.iframe || !tab.iframe.src || tab.iframe.src === 'about:blank') return;
+
+        let tabOrigin = null;
+        try { tabOrigin = new URL(tab.iframe.src).origin; } catch {}
+
+        // Reload if origins match, or if we couldn't determine the crashed origin
+        // (fall back to reloading all webapp iframes — safer than leaving them grey).
+        const shouldReload = crashedOrigin
+          ? (tabOrigin === crashedOrigin)
+          : true;
+
+        if (!shouldReload) return;
+
+        const last = lastReloadAt.get(tab.id) || 0;
+        if (now - last < COOLDOWN_MS) {
+          console.warn('[TabManager] Skipping crash-recovery reload for', tab.id, '(cooldown)');
+          return;
+        }
+        lastReloadAt.set(tab.id, now);
+
+        // Re-assign src to force reload; preserves the existing iframe element and listeners.
+        const src = tab.iframe.src;
+        tab.iframe.src = 'about:blank';
+        // Defer so the about:blank navigation commits before we navigate back.
+        setTimeout(() => {
+          if (tab.iframe) tab.iframe.src = src;
+        }, 50);
+        reloadedCount++;
+      });
+
+      console.warn(`[TabManager] Auto-reloaded ${reloadedCount} iframe(s) after crash`);
+    });
   }
 
   setupGlobalMessageListener() {
@@ -1461,6 +1524,9 @@ class TabManager {
     tabElement.setAttribute('data-tab-id', tabId);
     tabElement.innerHTML = `
       <span class="tab-title">${this.escapeHtml(tabTitle)}</span>
+      <button class="tab-refresh" title="Refresh page">
+        ${Icons.get('refresh-cw', 10)}
+      </button>
       <button class="tab-close" title="Close tab (Ctrl+W)">
         ${Icons.get('x', 10)}
       </button>
@@ -1479,7 +1545,7 @@ class TabManager {
 
     // Add event listeners
     tabElement.addEventListener('click', (e) => {
-      if (!e.target.closest('.tab-close')) {
+      if (!e.target.closest('.tab-close') && !e.target.closest('.tab-refresh')) {
         this.switchTab(tabId);
       }
     });
@@ -1487,6 +1553,11 @@ class TabManager {
     tabElement.querySelector('.tab-close').addEventListener('click', (e) => {
       e.stopPropagation();
       this.closeTab(tabId);
+    });
+
+    tabElement.querySelector('.tab-refresh').addEventListener('click', (e) => {
+      e.stopPropagation();
+      this.refreshTab(tabId);
     });
 
     // Add drag functionality
@@ -2203,8 +2274,20 @@ class TabManager {
    */
   refresh() {
     const activeTab = this.getActiveTab();
-    if (!activeTab || !activeTab.iframe) {
+    if (!activeTab) {
       console.warn('[TabManager] No active tab to refresh');
+      return;
+    }
+    this.refreshTab(activeTab.id);
+  }
+
+  /**
+   * Refresh a specific tab by id (works regardless of active state)
+   */
+  refreshTab(tabId) {
+    const activeTab = this.tabs.find(t => t.id === tabId);
+    if (!activeTab || !activeTab.iframe) {
+      console.warn('[TabManager] refreshTab: tab not found', tabId);
       return;
     }
 
@@ -2702,6 +2785,9 @@ class TabManager {
     tabElement.innerHTML = `
       ${Icons.get('columns-2', 14)}
       <span class="tab-title">${this.escapeHtml(mergedTitle)}</span>
+      <button class="tab-refresh" title="Refresh both panes">
+        ${Icons.get('refresh-cw', 10)}
+      </button>
       <button class="tab-close" title="Close tab (Ctrl+W)">
         ${Icons.get('x', 10)}
       </button>
@@ -2838,7 +2924,7 @@ ${Icons.get('refresh-cw', 14)}
 
     // Add event listeners
     tabElement.addEventListener('click', (e) => {
-      if (!e.target.closest('.tab-close')) {
+      if (!e.target.closest('.tab-close') && !e.target.closest('.tab-refresh')) {
         this.switchTab(mergedTabId);
       }
     });
@@ -2846,6 +2932,11 @@ ${Icons.get('refresh-cw', 14)}
     tabElement.querySelector('.tab-close').addEventListener('click', (e) => {
       e.stopPropagation();
       this.closeTab(mergedTabId);
+    });
+
+    tabElement.querySelector('.tab-refresh').addEventListener('click', (e) => {
+      e.stopPropagation();
+      this.refreshTab(mergedTabId);
     });
 
     // Setup divider drag

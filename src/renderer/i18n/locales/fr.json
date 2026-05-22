@@ -87,7 +87,8 @@
       "videos": "Vidéos",
       "images": "Images",
       "audio": "Audio",
-      "favorites": "Favoris"
+      "favorites": "Favoris",
+      "trash": "Corbeille"
     },
     "subcategories": {
       "all": "Tous",
@@ -112,7 +113,40 @@
       "tts": "TTS",
       "sfx": "SFX"
     },
-    "duration": "0:00 / {{duration}}"
+    "duration": "0:00 / {{duration}}",
+    "actions": {
+      "favorite": "Favori",
+      "unfavorite": "Retirer des favoris",
+      "delete": "Déplacer vers la corbeille",
+      "restore": "Restaurer",
+      "deleteForever": "Supprimer définitivement"
+    },
+    "toasts": {
+      "movedToTrash": "Déplacé vers la corbeille",
+      "movedNToTrash": "{{count}} déplacés vers la corbeille",
+      "restored": "Restauré",
+      "restoredN": "Restauré {{count}}",
+      "restoredPartial": "{{succeeded}}/{{total}} restaurés",
+      "deletedForever": "Supprimé définitivement",
+      "deletedForeverN": "{{count}} supprimés définitivement",
+      "favorited": "Ajouté aux favoris",
+      "favoritedN": "{{count}} ajoutés aux favoris",
+      "unfavorited": "Retiré des favoris",
+      "unfavoritedN": "{{count}} retirés des favoris",
+      "favoriteFailed": "Impossible de mettre à jour le favori",
+      "deleteFailed": "Échec de la suppression",
+      "restoreFailed": "Échec de la restauration",
+      "deleteForeverFailed": "Échec de la suppression définitive",
+      "favoritePartial": "Certaines mises à jour des favoris ont échoué"
+    },
+    "confirm": {
+      "deleteForeverTitle": "Supprimer définitivement ?",
+      "deleteForeverNTitle": "Supprimer {{count}} éléments définitivement ?",
+      "deleteForeverMessage": "Cet élément sera supprimé définitivement. Cette action est irréversible.",
+      "deleteForeverNMessage": "Ces éléments seront supprimés définitivement. Cette action est irréversible.",
+      "deleteForeverConfirm": "Supprimer définitivement",
+      "cancel": "Annuler"
+    }
   },
   "settings": {
     "title": "Paramètres",
@@ -314,7 +348,11 @@
     "waitForDownloads": "Veuillez patienter — les fichiers sont toujours en cours de téléchargement...",
     "folderSelectFailed": "Échec de la sélection du dossier",
     "downloadFailed": "Échec du téléchargement. Veuillez réessayer.",
-    "noValidImport": "Aucun élément valide à importer"
+    "noValidImport": "Aucun élément valide à importer",
+    "favorite": "Favori",
+    "delete": "Supprimer",
+    "restore": "Restaurer",
+    "deleteForever": "Supprimer définitivement"
   },
   "errors": {
     "premiereNotDetected": "Plug-in Kolbo Adobe non détecté",

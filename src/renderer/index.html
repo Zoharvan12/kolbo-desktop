@@ -136,10 +136,6 @@
               </svg>
               <span data-i18n="tabs.kolboAI">Kolbo.AI</span>
             </button>
-            <button id="agent-tab" class="tab-btn" data-view="agent">
-              <i data-lucide="code"></i>
-              <span data-i18n="tabs.kolboCode">Kolbo Code</span>
-            </button>
             <button id="media-tab" class="tab-btn" data-view="media">
               <i data-lucide="menu"></i>
               <span data-i18n="tabs.myMedia">My Media</span>
@@ -159,6 +155,10 @@
             <button id="quick-tools-tab" class="tab-btn" data-view="quick-tools">
               <i data-lucide="wand-2"></i>
               <span data-i18n="tabs.quickTools">Quick Tools</span>
+            </button>
+            <button id="agent-tab" class="tab-btn" data-view="agent">
+              <i data-lucide="terminal"></i>
+              <span data-i18n="tabs.kolboCode">Kolbo Code</span>
             </button>
           </div>
           <span id="media-count" class="media-count" data-i18n="media.noItems">0 items</span>
@@ -269,8 +269,12 @@
             <span data-i18n="media.filters.audio">Audio</span>
           </button>
           <button class="filter-btn" data-type="favorites">
-            <i data-lucide="heart"></i>
+            <i data-lucide="star"></i>
             <span data-i18n="media.filters.favorites">Favorites</span>
+          </button>
+          <button class="filter-btn" data-type="trash">
+            <i data-lucide="trash-2"></i>
+            <span data-i18n="media.filters.trash">Trash</span>
           </button>
         </div>
         <div class="filters-right">
@@ -1114,7 +1118,7 @@
       </div>
 
       <!-- File Explorer View -->
-      <div id="file-explorer-view" class="view-content hidden" style="background: #1e1e1e;">
+      <div id="file-explorer-view" class="view-content hidden" dir="ltr" style="background: #1e1e1e;">
         <div id="file-explorer-loading" style="display: flex; align-items: center; justify-content: center; height: 100%; color: #888;">
           <div style="text-align: center;">
             <p style="font-size: 16px; margin-bottom: 10px;" data-i18n="tabs.loadingFileBridge">Loading File Bridge...</p>
@@ -1125,10 +1129,28 @@
 
     </div>
 
-        <!-- Agent Terminal View -->
+        <!-- Agent (Kolbo Code) View -->
         <div id="agent-view" class="view-content hidden" style="position:absolute;top:48px;left:0;right:0;bottom:0;">
-          <!-- Loading overlay — shown while terminal initializes -->
-          <div id="agent-loading" class="agent-loading">
+          <!-- Landing card — default UI, directs user to the web version -->
+          <div id="agent-landing" class="agent-landing">
+            <div class="agent-landing-card">
+              <div class="agent-landing-icon">
+                <img src="images/kolbo-code-icon.png" alt="Kolbo Code" />
+              </div>
+              <div class="agent-landing-title" id="agent-landing-title">Kolbo Code</div>
+              <div class="agent-landing-subtitle">Open Kolbo Code in your browser for the full experience.</div>
+              <div class="agent-landing-url" id="agent-landing-url">https://app.kolbo.ai/kolbo-code</div>
+              <button class="agent-landing-primary" id="agent-landing-open-btn">
+                <i data-lucide="external-link"></i>
+                <span>Open in Browser</span>
+              </button>
+              <button class="agent-landing-secondary" id="agent-landing-terminal-btn">
+                Use built-in terminal instead
+              </button>
+            </div>
+          </div>
+          <!-- Loading overlay — shown while terminal initializes (only when user opts in) -->
+          <div id="agent-loading" class="agent-loading" style="display:none;">
             <div class="agent-loading-content">
               <div class="agent-loading-icon" id="agent-loading-icon">
                 <img src="images/kolbo-code-icon.png" alt="Kolbo Code" />
@@ -1139,7 +1161,7 @@
             </div>
           </div>
           <!-- Terminal container — hidden until ready -->
-          <div id="agent-terminal-container" style="position:absolute;top:0;left:0;right:0;bottom:0;background:#0a0a0a;padding:4px;opacity:0;transition:opacity 0.3s ease;"></div>
+          <div id="agent-terminal-container" style="position:absolute;top:0;left:0;right:0;bottom:0;background:#0a0a0a;padding:4px;opacity:0;transition:opacity 0.3s ease;display:none;"></div>
         </div>
 
   </div>
@@ -1192,6 +1214,22 @@
         <button class="batch-action-btn batch-btn-download" id="floating-batch-download-btn" data-i18n-title="batch.download" title="Download Selected">
           <i data-lucide="download"></i>
           <span data-i18n="batch.download">Download</span>
+        </button>
+        <button class="batch-action-btn batch-btn-favorite" id="floating-batch-favorite-btn" data-i18n-title="batch.favorite" title="Toggle Favorite">
+          <i data-lucide="star"></i>
+          <span data-i18n="batch.favorite">Favorite</span>
+        </button>
+        <button class="batch-action-btn batch-btn-delete" id="floating-batch-delete-btn" data-i18n-title="batch.delete" title="Move to Trash">
+          <i data-lucide="trash-2"></i>
+          <span data-i18n="batch.delete">Delete</span>
+        </button>
+        <button class="batch-action-btn batch-btn-restore hidden" id="floating-batch-restore-btn" data-i18n-title="batch.restore" title="Restore from Trash">
+          <i data-lucide="undo-2"></i>
+          <span data-i18n="batch.restore">Restore</span>
+        </button>
+        <button class="batch-action-btn batch-btn-delete-forever hidden" id="floating-batch-delete-forever-btn" data-i18n-title="batch.deleteForever" title="Delete Forever">
+          <i data-lucide="x"></i>
+          <span data-i18n="batch.deleteForever">Delete forever</span>
         </button>
         <button class="batch-action-btn batch-btn-clear" id="floating-batch-clear-btn" data-i18n-title="batch.clear" title="Clear Selection">
           <i data-lucide="x"></i>

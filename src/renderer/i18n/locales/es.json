@@ -87,7 +87,8 @@
       "videos": "Vídeos",
       "images": "Imágenes",
       "audio": "Audio",
-      "favorites": "Favoritos"
+      "favorites": "Favoritos",
+      "trash": "Papelera"
     },
     "subcategories": {
       "all": "Todos",
@@ -112,7 +113,40 @@
       "tts": "TTS",
       "sfx": "SFX"
     },
-    "duration": "0:00 / {{duration}}"
+    "duration": "0:00 / {{duration}}",
+    "actions": {
+      "favorite": "Favorito",
+      "unfavorite": "Quitar de favoritos",
+      "delete": "Mover a la papelera",
+      "restore": "Restaurar",
+      "deleteForever": "Borrar para siempre"
+    },
+    "toasts": {
+      "movedToTrash": "Movido a la papelera",
+      "movedNToTrash": "Movido {{count}} a la papelera",
+      "restored": "Restaurado",
+      "restoredN": "Restaurado {{count}}",
+      "restoredPartial": "Restaurado {{succeeded}}/{{total}}",
+      "deletedForever": "Borrado permanentemente",
+      "deletedForeverN": "Borrado permanentemente {{count}}",
+      "favorited": "Añadido a favoritos",
+      "favoritedN": "Añadido a favoritos {{count}}",
+      "unfavorited": "Quitado de favoritos",
+      "unfavoritedN": "Quitado de favoritos {{count}}",
+      "favoriteFailed": "No se pudo actualizar el favorito",
+      "deleteFailed": "Error al borrar",
+      "restoreFailed": "Error al restaurar",
+      "deleteForeverFailed": "Error al borrar permanentemente",
+      "favoritePartial": "Algunas actualizaciones de favoritos fallaron"
+    },
+    "confirm": {
+      "deleteForeverTitle": "¿Borrar para siempre?",
+      "deleteForeverNTitle": "¿Borrar {{count}} elementos para siempre?",
+      "deleteForeverMessage": "Este elemento se eliminará permanentemente. Esto no se puede deshacer.",
+      "deleteForeverNMessage": "Estos elementos se eliminarán permanentemente. Esto no se puede deshacer.",
+      "deleteForeverConfirm": "Borrar para siempre",
+      "cancel": "Cancelar"
+    }
   },
   "settings": {
     "title": "Configuración",
@@ -314,7 +348,11 @@
     "waitForDownloads": "Por favor, espera — los archivos aún se están descargando...",
     "folderSelectFailed": "Fallo al seleccionar la carpeta",
     "downloadFailed": "Fallo al descargar. Por favor, inténtalo de nuevo.",
-    "noValidImport": "No hay elementos válidos para importar"
+    "noValidImport": "No hay elementos válidos para importar",
+    "favorite": "Favorito",
+    "delete": "Borrar",
+    "restore": "Restaurar",
+    "deleteForever": "Borrar para siempre"
   },
   "errors": {
     "premiereNotDetected": "Plugin de Kolbo Adobe no detectado",

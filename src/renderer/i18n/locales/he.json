@@ -87,7 +87,8 @@
       "videos": "סרטונים",
       "images": "תמונות",
       "audio": "אודיו",
-      "favorites": "מועדפים"
+      "favorites": "מועדפים",
+      "trash": "אשפה"
     },
     "subcategories": {
       "all": "הכל",
@@ -112,7 +113,40 @@
       "tts": "TTS",
       "sfx": "SFX"
     },
-    "duration": "0:00 / {{duration}}"
+    "duration": "0:00 / {{duration}}",
+    "actions": {
+      "favorite": "מועדף",
+      "unfavorite": "הסר ממועדפים",
+      "delete": "העבר לאשפה",
+      "restore": "שחזר",
+      "deleteForever": "מחק לנצח"
+    },
+    "toasts": {
+      "movedToTrash": "הועבר לאשפה",
+      "movedNToTrash": "הועברו {{count}} לאשפה",
+      "restored": "שוחזר",
+      "restoredN": "שוחזרו {{count}}",
+      "restoredPartial": "שוחזרו {{succeeded}}/{{total}}",
+      "deletedForever": "נמחק לצמיתות",
+      "deletedForeverN": "נמחקו {{count}} לצמיתות",
+      "favorited": "נוסף למועדפים",
+      "favoritedN": "נוספו {{count}} למועדפים",
+      "unfavorited": "הוסר מהמועדפים",
+      "unfavoritedN": "הוסרו {{count}} מהמועדפים",
+      "favoriteFailed": "לא ניתן לעדכן מועדף",
+      "deleteFailed": "מחיקה נכשלה",
+      "restoreFailed": "שחזור נכשל",
+      "deleteForeverFailed": "מחיקה לצמיתות נכשלה",
+      "favoritePartial": "חלק מעדכוני המועדפים נכשלו"
+    },
+    "confirm": {
+      "deleteForeverTitle": "למחוק לנצח?",
+      "deleteForeverNTitle": "למחוק {{count}} פריטים לנצח?",
+      "deleteForeverMessage": "פריט זה יוסר לצמיתות. לא ניתן לבטל פעולה זו.",
+      "deleteForeverNMessage": "פריטים אלה יוסרו לצמיתות. לא ניתן לבטל פעולה זו.",
+      "deleteForeverConfirm": "מחק לנצח",
+      "cancel": "ביטול"
+    }
   },
   "settings": {
     "title": "הגדרות",
@@ -314,7 +348,11 @@
     "waitForDownloads": "בבקשה המתן — הקבצים עדיין יורדים...",
     "folderSelectFailed": "נכשל בבחירת תיקייה",
     "downloadFailed": "ההורדה נכשלה. בבקשה נסה שוב.",
-    "noValidImport": "אין פריטים תקפים לייבוא"
+    "noValidImport": "אין פריטים תקפים לייבוא",
+    "favorite": "מועדף",
+    "delete": "מחק",
+    "restore": "שחזר",
+    "deleteForever": "מחק לנצח"
   },
   "errors": {
     "premiereNotDetected": "התוסף של Kolbo Adobe לא זוהה",

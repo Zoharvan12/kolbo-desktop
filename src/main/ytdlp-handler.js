@@ -61,9 +61,60 @@ class YtdlpHandler {
     this.YTDlpWrap = null;
     this.ytdlp = null;
     this.initialized = false;
+    this._updatingPromise = null; // dedupe concurrent forceUpdate calls
 
     // Initialize yt-dlp
     this.initialize();
+  }
+
+  /**
+   * Detect whether an error looks like an extractor breakage (YouTube/etc rotated
+   * something and the current yt-dlp can't parse it). These are the failures a
+   * fresh yt-dlp binary typically fixes.
+   */
+  isExtractionFailure(errorMessage) {
+    const msg = (errorMessage || '').toLowerCase();
+    return (
+      msg.includes('nsig') ||
+      msg.includes('signature') ||
+      msg.includes('unable to extract') ||
+      msg.includes('no video formats') ||
+      msg.includes('player_response') ||
+      msg.includes('http error 403') ||
+      msg.includes('http error 429') ||
+      msg.includes('precondition check failed') ||
+      msg.includes('failed to extract any player response')
+    );
+  }
+
+  /**
+   * Strip macOS Gatekeeper quarantine attribute from the downloaded binary.
+   * Without this, freshly-downloaded yt-dlp_macos can be silently blocked
+   * from executing on user machines.
+   */
+  stripMacQuarantine(binaryPath) {
+    if (process.platform !== 'darwin') return;
+    try {
+      const { execFileSync } = require('child_process');
+      execFileSync('xattr', ['-dr', 'com.apple.quarantine', binaryPath], { timeout: 5000 });
+      console.log('[yt-dlp Handler] Stripped quarantine attribute from binary');
+    } catch (error) {
+      // Non-fatal: xattr may not be present or the attribute may not exist
+      console.warn('[yt-dlp Handler] xattr cleanup skipped:', error.message);
+    }
+  }
+
+  /**
+   * Dedupe concurrent forceUpdate calls — multiple failing downloads should
+   * only trigger one update, then all retry against the freshened binary.
+   */
+  ensureUpdate() {
+    if (!this._updatingPromise) {
+      this._updatingPromise = this.forceUpdate().finally(() => {
+        this._updatingPromise = null;
+      });
+    }
+    return this._updatingPromise;
   }
 
   /**
@@ -79,6 +130,9 @@ class YtdlpHandler {
 
       if (fs.existsSync(binaryPath)) {
         console.log('[yt-dlp Handler] Found existing binary:', binaryPath);
+
+        // Defensive: ensure macOS quarantine isn't blocking the existing binary
+        this.stripMacQuarantine(binaryPath);
 
         // Validate the binary works (catches Python version issues, corrupted files, etc.)
         const isValid = await this.validateBinary(binaryPath);
@@ -263,6 +317,9 @@ class YtdlpHandler {
     if (process.platform !== 'win32') {
       fs.chmodSync(binaryPath, 0o755);
     }
+
+    // macOS: strip Gatekeeper quarantine so the binary can actually execute
+    this.stripMacQuarantine(binaryPath);
 
     console.log('[yt-dlp Handler] Downloaded latest binary to:', binaryPath);
   }
@@ -452,8 +509,8 @@ class YtdlpHandler {
   /**
    * Fetch media information from URL
    */
-  async getMediaInfo(url) {
-    console.log('[yt-dlp Handler] Fetching info for:', url);
+  async getMediaInfo(url, _retried = false) {
+    console.log('[yt-dlp Handler] Fetching info for:', url, _retried ? '(retry)' : '');
 
     // For direct media URLs, we can provide basic info without yt-dlp
     if (this.isDirectMediaUrl(url)) {
@@ -513,10 +570,17 @@ class YtdlpHandler {
       const errorMessage = error.message || error.toString();
       const errorType = this.classifyError(errorMessage);
 
-      // If extraction failed, trigger yt-dlp update in background
-      if (platform === 'youtube' && errorType === ERROR_TYPES.UNKNOWN) {
-        console.log('[yt-dlp Handler] YouTube extraction failed, triggering update...');
-        this.forceUpdate().catch(() => {}); // Run in background
+      // Self-heal: looks like extractor breakage → update yt-dlp and retry once
+      if (!_retried && this.isExtractionFailure(errorMessage)) {
+        console.log('[yt-dlp Handler] Extraction failure detected, updating yt-dlp and retrying...');
+        try {
+          const updated = await this.ensureUpdate();
+          if (updated) {
+            return await this.getMediaInfo(url, true);
+          }
+        } catch (updateError) {
+          console.warn('[yt-dlp Handler] Update during getMediaInfo failed:', updateError.message);
+        }
       }
 
       throw {
@@ -742,7 +806,7 @@ class YtdlpHandler {
   /**
    * Download media
    */
-  async downloadMedia(job) {
+  async downloadMedia(job, _retried = false) {
     const { id, url, outputFormat, quality, outputFolder, title } = job;
 
     console.log('[yt-dlp Handler] Starting download:', {
@@ -750,7 +814,8 @@ class YtdlpHandler {
       url,
       format: outputFormat,
       quality,
-      outputFolder
+      outputFolder,
+      retry: _retried
     });
 
     // Check if this is a direct media URL - try direct download first for efficiency
@@ -823,7 +888,29 @@ class YtdlpHandler {
             console.error('[yt-dlp Handler] Download error:', error);
             this.activeDownloads.delete(id);
 
-            const errorType = this.classifyError(error.message || error.toString());
+            const errorMessage = error.message || error.toString();
+            const errorType = this.classifyError(errorMessage);
+
+            // Self-heal: extractor broke (nsig/signature/403/etc) → update + retry once
+            if (!_retried && this.isExtractionFailure(errorMessage)) {
+              console.log('[yt-dlp Handler] Extraction failure on download, updating yt-dlp and retrying...');
+              if (this.mainWindow && !this.mainWindow.isDestroyed()) {
+                this.mainWindow.webContents.send('dl:retry', {
+                  jobId: id,
+                  reason: 'Updating extractor and retrying...'
+                });
+              }
+              try {
+                const updated = await this.ensureUpdate();
+                if (updated) {
+                  const result = await this.downloadMedia(job, true);
+                  resolve(result);
+                  return;
+                }
+              } catch (retryError) {
+                console.error('[yt-dlp Handler] Auto-retry failed:', retryError);
+              }
+            }
 
             // If yt-dlp fails and it's a direct URL, try direct download as fallback
             if (this.isDirectMediaUrl(url)) {
@@ -891,7 +978,13 @@ class YtdlpHandler {
       '-o', outputTemplate,
       '--no-playlist',
       '--no-mtime',
-      '--progress'
+      '--progress',
+      // ── Resilience: ride out transient failures (429, 5xx, fragment drops) ──
+      '--retries', '5',
+      '--fragment-retries', '10',
+      '--extractor-retries', '3',
+      '--retry-sleep', '3',
+      '--socket-timeout', '30'
     ];
 
     if (outputFormat === 'mp3') {

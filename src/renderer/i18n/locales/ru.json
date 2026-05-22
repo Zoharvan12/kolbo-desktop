@@ -87,7 +87,8 @@
       "videos": "Видео",
       "images": "Изображения",
       "audio": "Аудио",
-      "favorites": "Избранное"
+      "favorites": "Избранное",
+      "trash": "Корзина"
     },
     "subcategories": {
       "all": "Все",
@@ -112,7 +113,40 @@
       "tts": "TTS",
       "sfx": "SFX"
     },
-    "duration": "0:00 / {{duration}}"
+    "duration": "0:00 / {{duration}}",
+    "actions": {
+      "favorite": "Избранное",
+      "unfavorite": "Удалить из избранного",
+      "delete": "Переместить в корзину",
+      "restore": "Восстановить",
+      "deleteForever": "Удалить навсегда"
+    },
+    "toasts": {
+      "movedToTrash": "Перемещено в корзину",
+      "movedNToTrash": "Перемещено {{count}} в корзину",
+      "restored": "Восстановлено",
+      "restoredN": "Восстановлено {{count}}",
+      "restoredPartial": "Восстано��лено {{succeeded}}/{{total}}",
+      "deletedForever": "Удалено навсегда",
+      "deletedForeverN": "Удалено навсегда {{count}}",
+      "favorited": "Добавлено в избранное",
+      "favoritedN": "Добавлено в избранное {{count}}",
+      "unfavorited": "Удалено из избранного",
+      "unfavoritedN": "Удалено из избранного {{count}}",
+      "favoriteFailed": "Не удалось обновить избранное",
+      "deleteFailed": "Ошибка удаления",
+      "restoreFailed": "Ошибка восстановления",
+      "deleteForeverFailed": "Ошибка безвозвратного удаления",
+      "favoritePartial": "Не удалось обновить некоторые избранные элементы"
+    },
+    "confirm": {
+      "deleteForeverTitle": "Удалить навсегда?",
+      "deleteForeverNTitle": "Удалить {{count}} элементов навсегда?",
+      "deleteForeverMessage": "Этот элемент будет удален безвозвратно. Это действие нельзя отменить.",
+      "deleteForeverNMessage": "Эти элементы будут удалены безвозвратно. Это действие нельзя отменить.",
+      "deleteForeverConfirm": "Удалить навсегда",
+      "cancel": "Отмена"
+    }
   },
   "settings": {
     "title": "Настройки",
@@ -314,7 +348,11 @@
     "waitForDownloads": "Пожалуйста, подождите — файлы еще загружаются...",
     "folderSelectFailed": "Не удалось выбрать папку",
     "downloadFailed": "Не удалось загрузить. Пожалуйста, попробуйте еще раз.",
-    "noValidImport": "Нет элементов для импорта"
+    "noValidImport": "Нет элементов для импорта",
+    "favorite": "Избранное",
+    "delete": "Удалить",
+    "restore": "Восстановить",
+    "deleteForever": "Удалить навсегда"
   },
   "errors": {
     "premiereNotDetected": "Плагин Kolbo Adobe не обнаружен",

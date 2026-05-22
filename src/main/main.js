@@ -3413,6 +3413,38 @@ app.whenReady().then(() => {
   }
 });
 
+// Detect crashes in ANY renderer process — including out-of-process iframes
+// (cross-origin <iframe src="app.kolbo.ai">). The webContents-level handler
+// in createWindow() only fires for the top-level renderer; OOPIF subframe
+// crashes (grey-screen-on-iframe-only) surface here instead.
+app.on('render-process-gone', (event, webContents, details) => {
+  try {
+    if (!mainWindow || mainWindow.isDestroyed() || !mainWindow.webContents) return;
+
+    // The top-level renderer is handled separately (shows dialog + reloads window).
+    if (webContents === mainWindow.webContents) return;
+
+    const url = (() => { try { return webContents.getURL(); } catch { return ''; } })();
+    console.error('[Main] Subframe renderer crashed:', details?.reason, 'exit:', details?.exitCode, 'url:', url);
+
+    // Tell the renderer to reload any iframe whose origin matches the dead one.
+    // 'clean-exit' fires on normal navigation/teardown — ignore it.
+    if (details?.reason && details.reason !== 'clean-exit') {
+      mainWindow.webContents.send('iframe-renderer-crashed', { url, reason: details.reason });
+    }
+  } catch (err) {
+    console.error('[Main] Error in app render-process-gone handler:', err);
+  }
+});
+
+// Child-process-gone fires for utility/GPU/plugin/audio service crashes too.
+// We only care about renderer-type crashes here; the rest are recoverable by Chromium.
+app.on('child-process-gone', (event, details) => {
+  if (details?.type === 'GPU' || details?.type === 'Utility') {
+    console.warn('[Main] Child process gone:', details.type, details.reason, 'name:', details.name);
+  }
+});
+
 // Window all closed
 app.on('window-all-closed', () => {
   if (process.platform !== 'darwin') {

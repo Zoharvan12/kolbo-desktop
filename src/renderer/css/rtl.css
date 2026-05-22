@@ -309,3 +309,31 @@
 [dir=rtl] .dropdown-item {
   flex-direction: row-reverse;
 }
+
+/* Playback controls always render LTR — left→right is universal
+   for time-based media, regardless of UI language. */
+.video-playbar,
+.media-item-audio .audio-card,
+.fe-preview-timeline,
+.dl-item-progress-bar,
+.qt-progress-bar,
+.ff-progress-bar,
+.batch-progress-bar,
+.update-progress-bar,
+.slider-container,
+.fe-slider-container,
+.fe-audio-slider,
+.toggle-switch {
+  direction: ltr;
+}
+
+/* Toggle switch knob keeps its LTR slide direction */
+[dir=rtl] .toggle-slider:before {
+  left: 4px;
+  right: auto;
+}
+
+[dir=rtl] .toggle-switch input:checked + .toggle-slider:before {
+  transform: translateX(22px);
+}
+

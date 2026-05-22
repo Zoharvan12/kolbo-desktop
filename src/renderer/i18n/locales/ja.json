@@ -87,7 +87,8 @@
       "videos": "動画",
       "images": "画像",
       "audio": "音声",
-      "favorites": "お気に入り"
+      "favorites": "お気に入り",
+      "trash": "ゴミ箱"
     },
     "subcategories": {
       "all": "すべて",
@@ -112,7 +113,40 @@
       "tts": "TTS",
       "sfx": "効果音"
     },
-    "duration": "0:00 / {{duration}}"
+    "duration": "0:00 / {{duration}}",
+    "actions": {
+      "favorite": "お気に入り",
+      "unfavorite": "お気に入り解除",
+      "delete": "ゴミ箱に移動",
+      "restore": "復元",
+      "deleteForever": "完全に削除"
+    },
+    "toasts": {
+      "movedToTrash": "ゴミ箱に移動しました",
+      "movedNToTrash": "{{count}}個の項目をゴミ箱に移動しました",
+      "restored": "復元しました",
+      "restoredN": "{{count}}個の項目を復元しました",
+      "restoredPartial": "{{succeeded}}/{{total}}個の項目を復元しました",
+      "deletedForever": "���全に削除しました",
+      "deletedForeverN": "{{count}}個の項目を完全に削除しました",
+      "favorited": "お気に入りに追加しました",
+      "favoritedN": "{{count}}個の項目をお気に入りに追加しました",
+      "unfavorited": "お気に入りから削除しました",
+      "unfavoritedN": "{{count}}個の項目をお気に入りから削除しました",
+      "favoriteFailed": "お気に入りを更新できませんでした",
+      "deleteFailed": "削除に失敗しました",
+      "restoreFailed": "復元に失敗しました",
+      "deleteForeverFailed": "完全な削除に失敗しました",
+      "favoritePartial": "お気に入りの更新に失敗したものがあります"
+    },
+    "confirm": {
+      "deleteForeverTitle": "完全に削除しますか？",
+      "deleteForeverNTitle": "{{count}}個の項目を完全に削除しますか？",
+      "deleteForeverMessage": "この項目は完全に削除されます。元に戻すことはできません。",
+      "deleteForeverNMessage": "これらの項目は完全に削除されます。元に戻すことはできません。",
+      "deleteForeverConfirm": "完全に削除",
+      "cancel": "キャンセル"
+    }
   },
   "settings": {
     "title": "設定",
@@ -314,7 +348,11 @@
     "waitForDownloads": "お待ちください — ファイルはまだダウンロード中です...",
     "folderSelectFailed": "フォルダの選択に失敗しました",
     "downloadFailed": "ダウンロードに失敗しました。もう一度お試しください。",
-    "noValidImport": "インポートする有効なアイテムがありません"
+    "noValidImport": "インポートする有効なアイテムがありません",
+    "favorite": "お気に入り",
+    "delete": "削除",
+    "restore": "復元",
+    "deleteForever": "完全に削除"
   },
   "errors": {
     "premiereNotDetected": "Kolbo Adobeプラグインが検出されませんでした",

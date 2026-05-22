@@ -162,10 +162,37 @@ class DownloaderManager {
       this.handleJobError(data);
     });
 
+    // Auto-heal retry (yt-dlp being updated mid-download)
+    if (window.kolboDesktop.downloader.onRetry) {
+      window.kolboDesktop.downloader.onRetry((data) => {
+        this.handleJobRetry(data);
+      });
+    }
+
     // Download cancelled
     window.kolboDesktop.downloader.onCancelled((data) => {
       this.handleJobCancelled(data);
     });
+  }
+
+  handleJobRetry(data) {
+    const job = this.queue.find(j => j.id === data.jobId);
+    if (!job) return;
+
+    job.status = 'downloading';
+    job.progress = 0;
+
+    const item = document.querySelector(`[data-job-id="${data.jobId}"]`);
+    if (item) {
+      const progressText = item.querySelector('.dl-item-progress-text');
+      if (progressText) {
+        progressText.textContent = data.reason || 'Retrying…';
+      }
+      const progressFill = item.querySelector('.dl-item-progress-fill');
+      if (progressFill) progressFill.style.width = '0%';
+    }
+
+    console.log('[Downloader] Auto-retry:', data.jobId, data.reason);
   }
 
   async fetchMediaInfo() {

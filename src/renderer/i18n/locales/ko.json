@@ -87,7 +87,8 @@
       "videos": "비디오",
       "images": "이미지",
       "audio": "오디오",
-      "favorites": "즐겨찾기"
+      "favorites": "즐겨찾기",
+      "trash": "휴지통"
     },
     "subcategories": {
       "all": "모두",
@@ -112,7 +113,40 @@
       "tts": "TTS",
       "sfx": "SFX"
     },
-    "duration": "0:00 / {{duration}}"
+    "duration": "0:00 / {{duration}}",
+    "actions": {
+      "favorite": "즐겨찾기",
+      "unfavorite": "즐겨찾기 해제",
+      "delete": "휴지통으로 이동",
+      "restore": "복원",
+      "deleteForever": "영구 삭제"
+    },
+    "toasts": {
+      "movedToTrash": "휴지통으로 이동됨",
+      "movedNToTrash": "{{count}}개를 휴지통으로 이동함",
+      "restored": "복원됨",
+      "restoredN": "{{count}}개 복원됨",
+      "restoredPartial": "{{succeeded}}/{{total}}개 복원됨",
+      "deletedForever": "영구 삭제됨",
+      "deletedForeverN": "{{count}}개 영구 삭제됨",
+      "favorited": "즐겨찾기에 추가됨",
+      "favoritedN": "{{count}}개를 즐겨찾기에 추가함",
+      "unfavorited": "즐겨찾기에서 제거됨",
+      "unfavoritedN": "{{count}}개를 즐겨찾기에서 제거함",
+      "favoriteFailed": "즐겨찾기를 업데이트할 수 없음",
+      "deleteFailed": "삭제 실패",
+      "restoreFailed": "복원 실패",
+      "deleteForeverFailed": "영구 삭제 실패",
+      "favoritePartial": "일부 즐겨찾기 업데이트에 실패했습니다."
+    },
+    "confirm": {
+      "deleteForeverTitle": "영구 삭제하시겠습니까?",
+      "deleteForeverNTitle": "{{count}}개의 항목을 영구 삭제하시겠습니까?",
+      "deleteForeverMessage": "이 항목은 영구적으로 제거됩니다. 이 작업은 취소할 수 없습니다.",
+      "deleteForeverNMessage": "이러한 항목은 영구적으로 제거됩니다. 이 작업은 취소할 수 없습니다.",
+      "deleteForeverConfirm": "영구 삭제",
+      "cancel": "취소"
+    }
   },
   "settings": {
     "title": "설정",
@@ -314,7 +348,11 @@
     "waitForDownloads": "잠시만 기다려 주십시오 — 파일이 아직 다운로드 중입니다...",
     "folderSelectFailed": "폴더 선택 실패",
     "downloadFailed": "다운로드 실패. 다시 시도하십시오.",
-    "noValidImport": "가져올 유효한 항목이 없음"
+    "noValidImport": "가져올 유효한 항목이 없음",
+    "favorite": "즐겨찾기",
+    "delete": "삭제",
+    "restore": "복원",
+    "deleteForever": "영구 삭제"
   },
   "errors": {
     "premiereNotDetected": "Kolbo Adobe 플러그인 감지되지 않음",

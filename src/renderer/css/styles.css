@@ -926,13 +926,14 @@ body.is-mac .window-controls {
   text-align: left;
 }
 
+.tab-refresh,
 .tab-close {
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 16px;
-  height: 16px;
-  border-radius: 3px;
+  width: 18px;
+  height: 18px;
+  border-radius: 4px;
   background: transparent;
   border: none;
   color: rgba(255, 255, 255, 0.5);
@@ -942,14 +943,32 @@ body.is-mac .window-controls {
   flex-shrink: 0;
 }
 
+.tab-refresh {
+  margin-right: 2px;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.tab:hover .tab-refresh,
+.tab.active .tab-refresh {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.tab-refresh:hover,
 .tab-close:hover {
   background: rgba(255, 255, 255, 0.15);
   color: rgba(255, 255, 255, 0.9);
 }
 
+.tab-refresh:active {
+  transform: rotate(180deg);
+}
+
+.tab-refresh svg,
 .tab-close svg {
-  width: 10px;
-  height: 10px;
+  width: 11px;
+  height: 11px;
   pointer-events: none;
 }
 
@@ -2113,7 +2132,6 @@ body.is-mac .window-controls {
 }
 
 .media-item:hover {
-  transform: translateY(-2px);
   box-shadow: var(--shadow-md);
   border-color: rgb(var(--border) / 0.8);
 }
@@ -2256,6 +2274,176 @@ body.is-mac .window-controls {
   flex-direction: column;
   gap: 6px;
 }
+
+/* Vertical stack below the checkbox, sharing the same left edge. */
+.media-item-actions {
+  position: absolute;
+  top: 36px;
+  left: 8px;
+  z-index: 25;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  opacity: 0;
+  transform: translateY(-2px);
+  transition: opacity 0.18s ease, transform 0.18s ease;
+  pointer-events: none;
+}
+
+/* Reveal action chips on hover, OR when the card contains a favorited star
+   so users can see/click the star without first hovering. */
+.media-item:hover .media-item-actions,
+.media-item:has(.item-action-btn.is-favorited) .media-item-actions {
+  opacity: 1;
+  transform: translateY(0);
+  pointer-events: auto;
+}
+
+.item-action-btn {
+  width: 28px;
+  height: 28px;
+  border-radius: 999px;
+  background: rgba(10, 10, 10, 0.82);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  color: rgba(255, 255, 255, 0.92);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  padding: 0;
+  transition: background 0.15s ease, border-color 0.15s ease,
+              color 0.15s ease, transform 0.15s ease, box-shadow 0.15s ease;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.35),
+              inset 0 1px 0 rgba(255, 255, 255, 0.06);
+}
+
+/* Backdrop-filter is GPU-expensive per layer, so only allocate it on the one
+   card currently being interacted with. */
+.media-item:hover .item-action-btn {
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+}
+
+.item-action-btn:hover {
+  transform: scale(1.08);
+  background: rgba(0, 0, 0, 0.92);
+  border-color: rgba(255, 255, 255, 0.18);
+}
+
+.item-action-btn svg { width: 15px; height: 15px; stroke-width: 2.2; }
+
+/* Favorite: button background stays neutral; the star itself changes —
+   outline by default (lucide's stroke), filled amber when favorited. */
+.item-action-btn.btn-favorite svg { fill: none; }
+.item-action-btn.btn-favorite:hover svg { color: #fbbf24; }
+.item-action-btn.is-favorited svg {
+  fill: #fbbf24;
+  color: #fbbf24;
+}
+
+.item-action-btn.btn-delete:hover {
+  background: linear-gradient(135deg, rgb(var(--destructive) / 0.9), rgba(185, 28, 28, 0.9));
+  border-color: rgba(248, 113, 113, 0.55);
+  box-shadow: 0 4px 14px rgb(var(--destructive) / 0.45);
+}
+
+.item-action-btn.btn-restore:hover {
+  background: linear-gradient(135deg, rgba(16, 185, 129, 0.9), rgba(5, 150, 105, 0.9));
+  border-color: rgba(110, 231, 183, 0.55);
+  box-shadow: 0 4px 14px rgba(16, 185, 129, 0.45);
+}
+
+/* Pre-saturated dark crimson at rest telegraphs severity before hover. */
+.item-action-btn.btn-delete-forever {
+  background: linear-gradient(135deg, rgba(127, 29, 29, 0.85), rgba(69, 10, 10, 0.85));
+  border-color: rgb(var(--destructive) / 0.45);
+  color: #fecaca;
+}
+.item-action-btn.btn-delete-forever:hover {
+  background: linear-gradient(135deg, rgb(var(--destructive) / 0.98), rgba(185, 28, 28, 0.98));
+  border-color: rgba(254, 202, 202, 0.7);
+  color: #fff;
+  box-shadow: 0 4px 16px rgb(var(--destructive) / 0.55);
+}
+
+.filter-btn[data-type="favorites"].active {
+  background: linear-gradient(135deg, rgba(245, 158, 11, 0.22), rgba(217, 119, 6, 0.18));
+  color: #fbbf24;
+  box-shadow: inset 0 0 0 1px rgba(251, 191, 36, 0.35),
+              0 4px 14px rgba(251, 191, 36, 0.18);
+}
+.filter-btn[data-type="favorites"].active svg { color: #fbbf24; fill: #fbbf24; }
+
+.filter-btn[data-type="trash"].active {
+  background: linear-gradient(135deg, rgb(var(--destructive) / 0.22), rgba(127, 29, 29, 0.18));
+  color: #fca5a5;
+  box-shadow: inset 0 0 0 1px rgba(248, 113, 113, 0.32),
+              0 4px 14px rgb(var(--destructive) / 0.18);
+}
+.filter-btn[data-type="trash"].active svg { color: #fca5a5; }
+
+/* Batch buttons share the gradient + colored-glow recipe of the existing
+   .batch-btn-download/.batch-btn-premiere; variants only differ by hue. */
+.batch-action-btn.batch-btn-favorite,
+.batch-action-btn.batch-btn-delete,
+.batch-action-btn.batch-btn-restore,
+.batch-action-btn.batch-btn-delete-forever {
+  background: linear-gradient(135deg, rgb(var(--g-from)) 0%, rgb(var(--g-to)) 100%);
+  color: var(--g-text, #fff);
+  border: 1px solid var(--g-border, rgba(255, 255, 255, 0.12));
+  box-shadow: 0 4px 12px rgb(var(--g-glow) / 0.32);
+}
+.batch-action-btn.batch-btn-favorite:hover,
+.batch-action-btn.batch-btn-delete:hover,
+.batch-action-btn.batch-btn-restore:hover,
+.batch-action-btn.batch-btn-delete-forever:hover {
+  background: linear-gradient(135deg, rgb(var(--g-from-hover, var(--g-from))) 0%, rgb(var(--g-to-hover, var(--g-to))) 100%);
+  box-shadow: 0 6px 18px rgb(var(--g-glow) / 0.5);
+  transform: translateY(-2px) scale(1.02);
+  color: #fff;
+}
+
+.batch-action-btn.batch-btn-favorite {
+  --g-from: 245 158 11; --g-to: 217 119 6;
+  --g-from-hover: 250 174 38; --g-to-hover: 234 138 22;
+  --g-glow: 245 158 11; --g-text: #fffbeb;
+}
+.batch-action-btn.batch-btn-delete {
+  --g-from: 127 29 29; --g-to: 69 10 10;
+  --g-from-hover: var(--destructive); --g-to-hover: 153 27 27;
+  --g-glow: var(--destructive); --g-text: #fecaca;
+  --g-border: rgba(248, 113, 113, 0.25);
+}
+.batch-action-btn.batch-btn-restore {
+  --g-from: 16 185 129; --g-to: 5 150 105;
+  --g-from-hover: 34 197 94; --g-to-hover: 22 163 74;
+  --g-glow: 16 185 129; --g-text: #ecfdf5;
+}
+.batch-action-btn.batch-btn-delete-forever {
+  --g-from: 127 29 29; --g-to: 69 10 10;
+  --g-from-hover: var(--destructive); --g-to-hover: 153 27 27;
+  --g-glow: var(--destructive); --g-text: #fecaca;
+  --g-border: rgba(248, 113, 113, 0.45);
+  position: relative;
+}
+.batch-action-btn.batch-btn-delete-forever::before {
+  /* Diagonal hatch telegraphs irreversible action even before hover. */
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background-image: repeating-linear-gradient(
+    45deg,
+    rgba(248, 113, 113, 0.08) 0,
+    rgba(248, 113, 113, 0.08) 2px,
+    transparent 2px,
+    transparent 8px
+  );
+  pointer-events: none;
+  opacity: 0.55;
+  transition: opacity 0.15s ease;
+}
+.batch-action-btn.batch-btn-delete-forever:hover::before { opacity: 0.85; }
 
 .media-item:hover .overlay {
   opacity: 1;
@@ -2607,8 +2795,14 @@ body.is-mac .window-controls {
 }
 
 .video-play-btn:hover {
-  background: rgba(0, 0, 0, 0.8);
-  transform: translate(-50%, -50%) scale(1.15);
+  background: rgba(0, 0, 0, 0.85);
+}
+
+.video-play-btn svg {
+  width: 22px;
+  height: 22px;
+  color: #fff;
+  display: block;
 }
 
 .video-play-btn.playing {
@@ -2620,12 +2814,11 @@ body.is-mac .window-controls {
 .media-item-video:hover .video-play-btn.playing {
   opacity: 1;
   pointer-events: auto;
-  background: rgba(103, 126, 234, 0.8);
+  background: rgba(59, 130, 246, 0.8);
 }
 
 .media-item-video:hover .video-play-btn.playing:hover {
-  background: rgba(103, 126, 234, 0.9);
-  transform: translate(-50%, -50%) scale(1.15);
+  background: rgba(59, 130, 246, 0.95);
 }
 
 /* Video Playbar - Seekable Progress Bar */
@@ -2634,8 +2827,8 @@ body.is-mac .window-controls {
   bottom: 0;
   left: 0;
   right: 0;
-  height: 32px;
-  background: linear-gradient(transparent, rgba(0, 0, 0, 0.8));
+  height: 36px;
+  background: linear-gradient(transparent, rgba(0, 0, 0, 0.85));
   display: flex;
   align-items: center;
   padding: 0 10px;
@@ -2654,38 +2847,56 @@ body.is-mac .window-controls {
 
 .video-progress-container {
   flex: 1;
-  height: 4px;
-  background: rgba(255, 255, 255, 0.3);
-  border-radius: 2px;
+  height: 16px; /* large hit target — actual bar drawn inside */
   cursor: pointer;
   position: relative;
-  transition: height 0.15s ease;
+  display: flex;
+  align-items: center;
 }
 
-.video-progress-container:hover {
+.video-progress-container::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 50%;
+  transform: translateY(-50%);
   height: 6px;
+  background: rgba(255, 255, 255, 0.25);
+  border-radius: 3px;
+  pointer-events: none;
 }
 
 .video-progress-fill {
-  height: 100%;
-  background: linear-gradient(90deg, #677eea, #8b5cf6);
-  border-radius: 2px;
+  position: absolute;
+  left: 0;
+  top: 50%;
+  transform: translateY(-50%);
+  height: 6px;
+  background: linear-gradient(90deg, #3b82f6, #60a5fa);
+  border-radius: 3px;
   width: 0%;
-  position: relative;
   transition: width 0.05s linear;
+  pointer-events: none;
+}
+
+.video-progress-fill::after {
+  content: '';
+  position: absolute;
+  right: -6px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 12px;
+  height: 12px;
+  background: #fff;
+  border-radius: 50%;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.4);
+  opacity: 0;
+  transition: opacity 0.15s ease;
 }
 
 .video-progress-container:hover .video-progress-fill::after {
-  content: '';
-  position: absolute;
-  right: -5px;
-  top: 50%;
-  transform: translateY(-50%);
-  width: 10px;
-  height: 10px;
-  background: #fff;
-  border-radius: 50%;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
+  opacity: 1;
 }
 
 .video-time-display {
@@ -2698,14 +2909,7 @@ body.is-mac .window-controls {
   text-align: right;
 }
 
-/* Adjust play button position when playbar is visible */
-.media-item-video:hover .video-play-btn {
-  transform: translate(-50%, calc(-50% - 16px));
-}
-
-.media-item-video:hover .video-play-btn:hover {
-  transform: translate(-50%, calc(-50% - 16px)) scale(1.15);
-}
+/* Keep play button centered — do not shift when playbar appears on hover */
 
 /* Move overlay (file name) up when playbar is visible */
 .media-item-video:hover .overlay,
@@ -2737,7 +2941,7 @@ body.is-mac .window-controls {
   left: 0;
   right: 0;
   bottom: 0;
-  background: radial-gradient(ellipse at 50% 0%, rgba(103, 126, 234, 0.08) 0%, transparent 70%);
+  background: radial-gradient(ellipse at 50% 0%, rgba(59, 130, 246, 0.08) 0%, transparent 70%);
   pointer-events: none;
 }
 
@@ -2862,21 +3066,22 @@ body.is-mac .window-controls {
   width: 32px;
   height: 32px;
   border-radius: 50%;
-  background: linear-gradient(135deg, rgb(var(--primary)), rgb(var(--primary) / 0.8));
+  background: linear-gradient(135deg, #3b82f6, #2563eb);
   border: none;
-  color: white;
+  color: #fff;
   cursor: pointer;
   display: flex;
   align-items: center;
   justify-content: center;
   transition: all 0.2s ease;
   flex-shrink: 0;
-  box-shadow: 0 2px 8px rgba(103, 126, 234, 0.3);
+  box-shadow: 0 2px 8px rgba(59, 130, 246, 0.45);
 }
 
 .media-item-audio .audio-play-btn:hover {
+  background: linear-gradient(135deg, #60a5fa, #3b82f6);
   transform: scale(1.08);
-  box-shadow: 0 4px 12px rgba(103, 126, 234, 0.4);
+  box-shadow: 0 4px 14px rgba(59, 130, 246, 0.6);
 }
 
 .media-item-audio .audio-play-btn:active {
@@ -2886,6 +3091,20 @@ body.is-mac .window-controls {
 .media-item-audio .audio-play-btn .play-icon,
 .media-item-audio .audio-play-btn .pause-icon {
   pointer-events: none;
+}
+
+.media-item-audio .audio-play-btn .play-icon svg,
+.media-item-audio .audio-play-btn .pause-icon svg {
+  width: 14px;
+  height: 14px;
+  fill: #fff;
+  stroke: #fff;
+  stroke-width: 1.5;
+}
+
+/* Optically center the play triangle */
+.media-item-audio .audio-play-btn .play-icon svg {
+  margin-left: 2px;
 }
 
 .media-item-audio .audio-time {

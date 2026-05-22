@@ -97,6 +97,30 @@ contextBridge.exposeInMainWorld('kolboDesktop', {
   getMedia: (params) =>
     ipcRenderer.invoke('media:get', params),
 
+  getTrash: (params) =>
+    ipcRenderer.invoke('media:get-trash', params),
+
+  favoriteMedia: (id) =>
+    ipcRenderer.invoke('media:favorite', { id }),
+
+  unfavoriteMedia: (id) =>
+    ipcRenderer.invoke('media:unfavorite', { id }),
+
+  deleteMedia: (id) =>
+    ipcRenderer.invoke('media:delete', { id }),
+
+  bulkDeleteMedia: (fileIds) =>
+    ipcRenderer.invoke('media:bulk-delete', { fileIds }),
+
+  restoreMedia: (id) =>
+    ipcRenderer.invoke('media:restore', { id }),
+
+  permanentDeleteMedia: (id) =>
+    ipcRenderer.invoke('media:permanent-delete', { id }),
+
+  bulkPermanentDeleteMedia: (mediaIds) =>
+    ipcRenderer.invoke('media:bulk-permanent-delete', { mediaIds }),
+
   getProjects: () =>
     ipcRenderer.invoke('media:get-projects'),
 
@@ -263,6 +287,11 @@ contextBridge.exposeInMainWorld('kolboDesktop', {
   // Context menu action events
   onContextMenuAction: (callback) =>
     ipcRenderer.on('context-menu-action', (event, data) => callback(data)),
+
+  // Iframe (OOPIF subframe) renderer crash notification — fires when the
+  // cross-origin web-app iframe's renderer dies (grey screen). Payload: { url, reason }.
+  onIframeRendererCrashed: (callback) =>
+    ipcRenderer.on('iframe-renderer-crashed', (event, data) => callback(data)),
 
   // Memory Monitoring & Management
   onMemoryStatus: (callback) =>
@@ -465,6 +494,11 @@ contextBridge.exposeInMainWorld('kolboDesktop', {
     // Listen for errors
     onError: (callback) => {
       ipcRenderer.on('dl:error', (event, data) => callback(data));
+    },
+
+    // Listen for auto-heal retry events (yt-dlp being updated mid-download)
+    onRetry: (callback) => {
+      ipcRenderer.on('dl:retry', (event, data) => callback(data));
     },
 
     // Listen for cancellation

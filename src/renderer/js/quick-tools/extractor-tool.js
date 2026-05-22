@@ -15,6 +15,10 @@ class ExtractorTool {
     this.outputFormat = 'mp3';
     this.quality = '320k';
 
+    // Active job tracking (for routed IPC listeners)
+    this.activeJobId = null;
+    this.activeJobCallbacks = null;
+
     // DOM references
     this.dropzone = document.getElementById('qt-extractor-dropzone');
     this.workspace = document.getElementById('qt-extractor-workspace');
@@ -23,6 +27,16 @@ class ExtractorTool {
   }
 
   init() {
+    // Register IPC listeners ONCE; route by activeJobId to avoid listener leak
+    window.kolboDesktop.ffmpeg.onProgress((data) => {
+      if (data.jobId === this.activeJobId) this.activeJobCallbacks?.progress?.(data);
+    });
+    window.kolboDesktop.ffmpeg.onComplete((data) => {
+      if (data.jobId === this.activeJobId) this.activeJobCallbacks?.complete?.(data);
+    });
+    window.kolboDesktop.ffmpeg.onError((data) => {
+      if (data.jobId === this.activeJobId) this.activeJobCallbacks?.error?.(data);
+    });
     console.log('[ExtractorTool] Initialized');
   }
 
@@ -37,6 +51,7 @@ class ExtractorTool {
 
     this.file = file;
     this.fileUrl = URL.createObjectURL(file);
+    this.htmlDuration = 0;
 
     // Probe file for metadata
     try {
@@ -98,10 +113,15 @@ class ExtractorTool {
    * Get video duration
    */
   getDuration() {
-    if (!this.metadata || !this.metadata.format) {
-      return 0;
-    }
-    return parseFloat(this.metadata.format.duration) || 0;
+    const fmt = parseFloat(this.metadata?.format?.duration);
+    if (fmt > 0) return fmt;
+    const streams = this.metadata?.streams || [];
+    const streamDurations = streams.map(s => parseFloat(s.duration) || 0);
+    const fromStreams = streamDurations.length ? Math.max(0, ...streamDurations) : 0;
+    if (fromStreams > 0) return fromStreams;
+    // Fallback: duration detected from the HTML5 <video> element (works when ffprobe
+    // can't access the file path, e.g. browser drag-drop without a real fs path).
+    return this.htmlDuration > 0 ? this.htmlDuration : 0;
   }
 
   /**
@@ -191,10 +211,17 @@ class ExtractorTool {
       </div>
     `;
 
-    // Seek video to middle for thumbnail
+    // Seek video to middle for thumbnail + capture duration as fallback
     const video = this.workspace.querySelector('video');
     if (video) {
       video.addEventListener('loadedmetadata', () => {
+        if (isFinite(video.duration) && video.duration > 0) {
+          this.htmlDuration = video.duration;
+          // Refresh duration label and size estimate if ffprobe didn't supply them
+          const metaEl = this.workspace.querySelector('.qt-extractor-meta span:first-child');
+          if (metaEl) metaEl.textContent = `Duration: ${this.manager.formatTimeShort(this.getDuration())}`;
+          this.updateEstimatedSize();
+        }
         video.currentTime = video.duration / 2;
       });
     }
@@ -298,34 +325,32 @@ class ExtractorTool {
       const isLossless = this.outputFormat === 'wav' || this.outputFormat === 'flac';
       const audioBitrate = isLossless ? null : this.quality;
 
-      // Setup progress listener
-      const progressHandler = (data) => {
-        if (data.jobId === jobId) {
+      // Route this job's events through the persistent listeners registered in init()
+      this.activeJobId = jobId;
+      this.activeJobCallbacks = {
+        progress: (data) => {
           const percent = Math.round(data.progress);
           if (progressFill) progressFill.style.width = `${percent}%`;
           if (progressPercent) progressPercent.textContent = `${percent}%`;
-        }
-      };
-
-      const completeHandler = (data) => {
-        if (data.jobId === jobId) {
+        },
+        complete: (data) => {
           this.isProcessing = false;
+          this.activeJobId = null;
+          this.activeJobCallbacks = null;
           progressContainer?.classList.add('hidden');
           if (extractBtn) extractBtn.disabled = false;
 
           this.manager.showToast('Audio extracted successfully!', 'success');
           console.log('[ExtractorTool] Extraction complete:', data.outputPath);
 
-          // Reveal file in folder
           if (data.outputPath && window.kolboDesktop) {
             window.kolboDesktop.revealFileInFolder(data.outputPath);
           }
-        }
-      };
-
-      const errorHandler = (data) => {
-        if (data.jobId === jobId) {
+        },
+        error: (data) => {
           this.isProcessing = false;
+          this.activeJobId = null;
+          this.activeJobCallbacks = null;
           progressContainer?.classList.add('hidden');
           if (extractBtn) extractBtn.disabled = false;
 
@@ -333,10 +358,6 @@ class ExtractorTool {
           console.error('[ExtractorTool] Extraction error:', data.error);
         }
       };
-
-      window.kolboDesktop.ffmpeg.onProgress(progressHandler);
-      window.kolboDesktop.ffmpeg.onComplete(completeHandler);
-      window.kolboDesktop.ffmpeg.onError(errorHandler);
 
       // Start audio extraction (using existing convertJob with audio output type)
       await window.kolboDesktop.ffmpeg.convertJob({

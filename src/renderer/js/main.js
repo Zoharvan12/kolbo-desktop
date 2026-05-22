@@ -42,6 +42,12 @@ function getWebappEnvironment() {
  * @param {string} [opts.confirmStyle='confirm'] - CSS class: 'confirm' | 'danger' | 'success'
  * @returns {Promise<boolean>}
  */
+// Short alias for window.t with a literal English fallback so strings render
+// even before the i18n bundle finishes loading.
+function tr(key, fallback, params) {
+  return (typeof window !== 'undefined' && window.t) ? window.t(key, params) : fallback;
+}
+
 function showDialog({ title, message, icon = 'warning', confirmLabel = 'OK', cancelLabel, confirmStyle = 'confirm' } = {}) {
   return new Promise((resolve) => {
     const iconSvgs = {
@@ -572,6 +578,26 @@ class KolboApp {
       floatingBatchClearBtn.addEventListener('click', () => this.handleBatchClear());
     }
 
+    const floatingBatchFavoriteBtn = document.getElementById('floating-batch-favorite-btn');
+    if (floatingBatchFavoriteBtn) {
+      floatingBatchFavoriteBtn.addEventListener('click', () => this.handleBatchFavorite());
+    }
+
+    const floatingBatchDeleteBtn = document.getElementById('floating-batch-delete-btn');
+    if (floatingBatchDeleteBtn) {
+      floatingBatchDeleteBtn.addEventListener('click', () => this.handleBatchDelete());
+    }
+
+    const floatingBatchRestoreBtn = document.getElementById('floating-batch-restore-btn');
+    if (floatingBatchRestoreBtn) {
+      floatingBatchRestoreBtn.addEventListener('click', () => this.handleBatchRestore());
+    }
+
+    const floatingBatchDeleteForeverBtn = document.getElementById('floating-batch-delete-forever-btn');
+    if (floatingBatchDeleteForeverBtn) {
+      floatingBatchDeleteForeverBtn.addEventListener('click', () => this.handleBatchPermanentDelete());
+    }
+
     // Settings page buttons
     const clearCacheBtn = document.getElementById('clear-cache-btn');
     const revealCacheBtn = document.getElementById('reveal-cache-btn');
@@ -881,86 +907,10 @@ class KolboApp {
       agentView?.classList.add('active');
       if (mediaCount) mediaCount.style.display = 'none';
 
-      // Initialize agent terminal on first activation
-      if (!this._agentTerminal) {
-        const container = document.getElementById('agent-terminal-container');
-        const loadingEl = document.getElementById('agent-loading');
+      this._setupAgentLanding();
 
-        // Show loading screen (reset state in case of retry)
-        if (loadingEl) {
-          loadingEl.style.display = '';
-          loadingEl.classList.remove('fade-out', 'error');
-        }
-        if (container) container.style.opacity = '0';
-
-        // Helper: once AgentTerminal class is available, init it
-        const initAgent = () => {
-          this._agentTerminal = new window.AgentTerminal();
-          this._agentTerminal.init(container).then(() => {
-            // Wait for Kolbo Code CLI to be actually ready (not just PTY)
-            this._agentTerminal.kolboReadyPromise.then(() => {
-              // Success: fade out loading, reveal terminal
-              if (loadingEl) loadingEl.classList.add('fade-out');
-              container.style.opacity = '1';
-              setTimeout(() => {
-                if (loadingEl) loadingEl.style.display = 'none';
-                this._agentTerminal._fit();
-                this._agentTerminal.focus();
-              }, 400);
-            });
-          }).catch(err => {
-            console.error('[Agent] init failed:', err);
-            if (loadingEl) {
-              loadingEl.classList.add('error');
-              const subtitle = loadingEl.querySelector('.agent-loading-subtitle');
-              if (subtitle) subtitle.textContent = 'Failed to start';
-              const content = loadingEl.querySelector('.agent-loading-content');
-              if (content) {
-                const errorDiv = document.createElement('div');
-                errorDiv.className = 'agent-loading-error';
-                errorDiv.textContent = err.message;
-                content.appendChild(errorDiv);
-                const retryBtn = document.createElement('button');
-                retryBtn.className = 'agent-loading-retry';
-                retryBtn.textContent = 'Retry';
-                retryBtn.onclick = () => {
-                  this._agentTerminal = null;
-                  this.switchView('agent');
-                };
-                content.appendChild(retryBtn);
-              }
-            }
-          });
-        };
-
-        if (container && window.AgentTerminal) {
-          // xterm scripts already loaded — init immediately
-          const subtitle = loadingEl?.querySelector('.agent-loading-subtitle');
-          if (subtitle) subtitle.textContent = `Loading ${window.KOLBO_WHITELABEL_CODE_LABEL || 'Kolbo Code'}...`;
-          initAgent();
-        } else if (container) {
-          // xterm scripts still loading (deferred) — wait for them, keep loading screen visible
-          const subtitle = loadingEl?.querySelector('.agent-loading-subtitle');
-          if (subtitle) subtitle.textContent = 'Loading terminal...';
-          const waitForXterm = setInterval(() => {
-            if (window.AgentTerminal) {
-              clearInterval(waitForXterm);
-              if (subtitle) subtitle.textContent = `Loading ${window.KOLBO_WHITELABEL_CODE_LABEL || 'Kolbo Code'}...`;
-              initAgent();
-            }
-          }, 100);
-          // Safety timeout: stop waiting after 15s
-          setTimeout(() => {
-            clearInterval(waitForXterm);
-            if (!this._agentTerminal && loadingEl) {
-              loadingEl.classList.add('error');
-              const sub = loadingEl.querySelector('.agent-loading-subtitle');
-              if (sub) sub.textContent = 'Terminal failed to load';
-            }
-          }, 15000);
-        }
-      } else {
-        // Already initialized — just focus and fit
+      // If terminal was already started in a previous activation, just refocus it.
+      if (this._agentTerminal) {
         setTimeout(() => {
           this._agentTerminal._fit();
           this._agentTerminal.focus();
@@ -970,6 +920,128 @@ class KolboApp {
       if (this.DEBUG_MODE) {
         console.log('[View] Agent view shown');
       }
+    }
+  }
+
+  // ── Kolbo Code: landing card (default) + opt-in built-in terminal ─────────────
+  _setupAgentLanding() {
+    const landingEl = document.getElementById('agent-landing');
+    const urlEl = document.getElementById('agent-landing-url');
+    const titleEl = document.getElementById('agent-landing-title');
+    const openBtn = document.getElementById('agent-landing-open-btn');
+    const terminalBtn = document.getElementById('agent-landing-terminal-btn');
+
+    const webappUrl = (window.KOLBO_CONFIG?.webappUrl || 'https://app.kolbo.ai').replace(/\/$/, '');
+    const codeUrl = `${webappUrl}/kolbo-code`;
+    const codeLabel = window.KOLBO_WHITELABEL_CODE_LABEL || 'Kolbo Code';
+
+    if (titleEl) titleEl.textContent = codeLabel;
+    if (urlEl) urlEl.textContent = codeUrl;
+
+    // If the terminal has already been started in this session, hide the landing.
+    if (this._agentTerminal) {
+      if (landingEl) landingEl.style.display = 'none';
+      return;
+    }
+    if (landingEl) landingEl.style.display = '';
+
+    if (openBtn && !openBtn._wired) {
+      openBtn._wired = true;
+      openBtn.addEventListener('click', () => {
+        if (window.kolboDesktop?.openExternal) {
+          window.kolboDesktop.openExternal(codeUrl);
+        } else {
+          window.open(codeUrl, '_blank');
+        }
+      });
+    }
+
+    if (terminalBtn && !terminalBtn._wired) {
+      terminalBtn._wired = true;
+      terminalBtn.addEventListener('click', () => this._startAgentTerminal());
+    }
+
+    if (window.lucide?.createIcons) {
+      try { window.lucide.createIcons(); } catch (_) {}
+    }
+  }
+
+  _startAgentTerminal() {
+    if (this._agentTerminal) return;
+
+    const landingEl = document.getElementById('agent-landing');
+    const container = document.getElementById('agent-terminal-container');
+    const loadingEl = document.getElementById('agent-loading');
+
+    if (landingEl) landingEl.style.display = 'none';
+    if (container) {
+      container.style.display = '';
+      container.style.opacity = '0';
+    }
+    if (loadingEl) {
+      loadingEl.style.display = '';
+      loadingEl.classList.remove('fade-out', 'error');
+    }
+
+    const initAgent = () => {
+      this._agentTerminal = new window.AgentTerminal();
+      this._agentTerminal.init(container).then(() => {
+        this._agentTerminal.kolboReadyPromise.then(() => {
+          if (loadingEl) loadingEl.classList.add('fade-out');
+          container.style.opacity = '1';
+          setTimeout(() => {
+            if (loadingEl) loadingEl.style.display = 'none';
+            this._agentTerminal._fit();
+            this._agentTerminal.focus();
+          }, 400);
+        });
+      }).catch(err => {
+        console.error('[Agent] init failed:', err);
+        if (loadingEl) {
+          loadingEl.classList.add('error');
+          const subtitle = loadingEl.querySelector('.agent-loading-subtitle');
+          if (subtitle) subtitle.textContent = 'Failed to start';
+          const content = loadingEl.querySelector('.agent-loading-content');
+          if (content) {
+            const errorDiv = document.createElement('div');
+            errorDiv.className = 'agent-loading-error';
+            errorDiv.textContent = err.message;
+            content.appendChild(errorDiv);
+            const retryBtn = document.createElement('button');
+            retryBtn.className = 'agent-loading-retry';
+            retryBtn.textContent = 'Retry';
+            retryBtn.onclick = () => {
+              this._agentTerminal = null;
+              this._startAgentTerminal();
+            };
+            content.appendChild(retryBtn);
+          }
+        }
+      });
+    };
+
+    if (container && window.AgentTerminal) {
+      const subtitle = loadingEl?.querySelector('.agent-loading-subtitle');
+      if (subtitle) subtitle.textContent = `Loading ${window.KOLBO_WHITELABEL_CODE_LABEL || 'Kolbo Code'}...`;
+      initAgent();
+    } else if (container) {
+      const subtitle = loadingEl?.querySelector('.agent-loading-subtitle');
+      if (subtitle) subtitle.textContent = 'Loading terminal...';
+      const waitForXterm = setInterval(() => {
+        if (window.AgentTerminal) {
+          clearInterval(waitForXterm);
+          if (subtitle) subtitle.textContent = `Loading ${window.KOLBO_WHITELABEL_CODE_LABEL || 'Kolbo Code'}...`;
+          initAgent();
+        }
+      }, 100);
+      setTimeout(() => {
+        clearInterval(waitForXterm);
+        if (!this._agentTerminal && loadingEl) {
+          loadingEl.classList.add('error');
+          const sub = loadingEl.querySelector('.agent-loading-subtitle');
+          if (sub) sub.textContent = 'Terminal failed to load';
+        }
+      }, 15000);
     }
   }
 
@@ -1821,10 +1893,13 @@ ${Icons.get('folder', 16)}
       mediaContainer.scrollTop = 0;
     }
 
-    if (filterType === 'favorites' || previousFilter === 'favorites') {
-      if (this.DEBUG_MODE) {
-        console.log('[Filter] Triggering API reload for favorites');
-      }
+    // Favorites & Trash require API reload (different endpoints). All other
+    // type filters can stay client-side.
+    const needsApiReload =
+      filterType === 'favorites' || previousFilter === 'favorites' ||
+      filterType === 'trash' || previousFilter === 'trash';
+    if (needsApiReload) {
+      if (this.DEBUG_MODE) console.log('[Filter] API reload for', filterType);
       clearTimeout(this.filterDebounceTimer);
       this.filterDebounceTimer = setTimeout(() => {
         this.loadMedia(true);
@@ -1988,21 +2063,21 @@ ${Icons.get('folder', 16)}
       const rowsVisible = Math.ceil(viewportHeight / 200); // ~200px per row
       const optimalPageSize = Math.min(KolboApp.CONSTANTS.OPTIMAL_PAGE_SIZE_MAX, Math.max(KolboApp.CONSTANTS.OPTIMAL_PAGE_SIZE_MIN, itemsPerRow * (rowsVisible + 2))); // +2 rows buffer
 
+      const isTrash = this.currentFilter === 'trash';
+      const isFavorites = this.currentFilter === 'favorites';
+
       const params = {
         page: this.currentPage,
         pageSize: optimalPageSize,
         sort: 'created_desc',
-        type: (this.currentFilter === 'all' || this.currentFilter === 'favorites') ? 'all' : this.currentFilter,
+        type: (this.currentFilter === 'all' || isFavorites || isTrash) ? 'all' : this.currentFilter,
         projectId: this.selectedProjectId
       };
 
-      // Add favorites filter if active
-      // Backend expects category=favorites, NOT isFavorited=true
-      if (this.currentFilter === 'favorites') {
+      // /media/db/all?category=favorites returns full media items (with duration,
+      // model badges, etc). The dedicated /favorite-items endpoint drops those fields.
+      if (isFavorites) {
         params.category = 'favorites';
-        if (this.DEBUG_MODE) {
-          console.log('[Media] ✓ Favorites filter active, setting category=favorites');
-        }
       } else if (this.currentSubcategory && this.currentSubcategory !== 'all') {
         params.category = this.currentSubcategory;
       }
@@ -2020,7 +2095,9 @@ ${Icons.get('folder', 16)}
         }
       }
 
-      const response = await kolboAPI.getMedia(params);
+      const response = isTrash
+        ? await kolboAPI.getTrash({ page: this.currentPage, pageSize: optimalPageSize })
+        : await kolboAPI.getMedia(params);
 
       if (this.DEBUG_MODE) {
         console.log('[Media] API Response:', {
@@ -2034,6 +2111,10 @@ ${Icons.get('folder', 16)}
       // Extract items array from response.data.items (API returns {status, data: {items, pagination}})
       const newItems = (response.data && response.data.items) || [];
       const pagination = (response.data && response.data.pagination) || {};
+
+      // /media/db/all doesn't reliably hydrate isFavorited; the favorites tab itself
+      // implies every returned item is favorited. Stamp them so the star renders filled.
+      if (isFavorites) newItems.forEach(it => { it.isFavorited = true; });
 
       // IMPROVED: Track empty responses to prevent infinite loops
       if (appendToExisting && newItems.length === 0 && pagination.hasNext) {
@@ -2249,7 +2330,7 @@ ${Icons.get('folder', 16)}
 
     // Count visible items based on current filter
     let filtered = this.media;
-    if (this.currentFilter !== 'all' && this.currentFilter !== 'favorites') {
+    if (this.currentFilter !== 'all' && this.currentFilter !== 'favorites' && this.currentFilter !== 'trash') {
       filtered = this.media.filter(item => item.type === this.currentFilter);
     }
 
@@ -2424,6 +2505,37 @@ ${Icons.get('folder', 16)}
     }
   }
 
+  isFavorited(item) {
+    return Boolean(item.isFavorited || item.is_favorited || item.metadata?.isFavorited);
+  }
+
+  renderItemActions(item) {
+    if (this.currentFilter === 'trash') {
+      return `
+        <div class="media-item-actions">
+          <button class="item-action-btn btn-restore" data-action="restore" data-id="${item.id}" title="${tr('media.actions.restore', 'Restore')}">
+            ${Icons.get('undo-2', 16)}
+          </button>
+          <button class="item-action-btn btn-delete-forever" data-action="permanent-delete" data-id="${item.id}" title="${tr('media.actions.deleteForever', 'Delete forever')}">
+            ${Icons.get('x', 16)}
+          </button>
+        </div>
+      `;
+    }
+    const fav = this.isFavorited(item);
+    const favTitle = fav ? tr('media.actions.unfavorite', 'Unfavorite') : tr('media.actions.favorite', 'Favorite');
+    return `
+      <div class="media-item-actions">
+        <button class="item-action-btn btn-favorite ${fav ? 'is-favorited' : ''}" data-action="favorite" data-id="${item.id}" title="${favTitle}">
+          ${Icons.get('star', 16)}
+        </button>
+        <button class="item-action-btn btn-delete" data-action="delete" data-id="${item.id}" title="${tr('media.actions.delete', 'Move to Trash')}">
+          ${Icons.get('trash-2', 16)}
+        </button>
+      </div>
+    `;
+  }
+
   renderMediaItem(item) {
     const fileName = this.getFileName(item);
     const title = item.title || fileName;
@@ -2449,6 +2561,7 @@ ${Icons.get('folder', 16)}
           <div class="cache-spinner"></div>
 ${Icons.get('check', 16)}
         </div>
+        ${this.renderItemActions(item)}
         <div class="media-preview">
           <img data-src="${item.thumbnail_url || item.url}" alt="${title}" decoding="async" class="media-img-lazy">
           <span class="type-badge type-badge-image">Image</span>
@@ -2474,10 +2587,11 @@ ${Icons.get('check', 16)}
           <div class="cache-spinner"></div>
 ${Icons.get('check', 16)}
         </div>
+        ${this.renderItemActions(item)}
         <div class="media-preview">
           ${thumbnailUrl ? `<img data-src="${thumbnailUrl}" alt="${title}" decoding="async" class="media-img-lazy video-thumb-img">` : '<div class="video-thumb-img" style="width:100%;height:100%"></div>'}
           <button class="video-play-btn ${isPlaying ? 'playing' : ''}" data-id="${item.id}">
-            ${isPlaying ? Icons.get('pause', 16) : Icons.get('play', 16)}
+            ${isPlaying ? Icons.get('pause', 22, 2) : Icons.get('play', 22, 2)}
           </button>
           <div class="video-playbar" data-id="${item.id}">
             <div class="video-progress-container" data-id="${item.id}">
@@ -2524,6 +2638,7 @@ ${Icons.get('check', 16)}
           <div class="cache-spinner"></div>
 ${Icons.get('check', 16)}
         </div>
+        ${this.renderItemActions(item)}
         <div class="audio-card">
           <div class="audio-card-header">
             <span class="audio-category-badge ${categoryClass}">${categoryLabel}</span>
@@ -2607,6 +2722,37 @@ ${Icons.get('check', 16)}
       gridEl.removeEventListener('contextmenu', oldContextHandler);
     }
 
+    const oldMousedownHandler = gridEl._progressMousedownHandler;
+    if (oldMousedownHandler) {
+      gridEl.removeEventListener('mousedown', oldMousedownHandler);
+    }
+
+    // Mousedown on progress bar -> drag-to-scrub. Also blocks native file-drag
+    // from starting on the playbar (which is inside a draggable media-item).
+    const progressMousedownHandler = (e) => {
+      if (e.button !== 0) return;
+      const progressContainer = e.target.closest('.video-progress-container');
+      if (!progressContainer) return;
+
+      e.preventDefault();
+      e.stopPropagation();
+      const videoId = progressContainer.dataset.id;
+
+      this.handleVideoSeek(e, videoId);
+
+      const onMove = (ev) => {
+        this.handleVideoSeek(ev, videoId);
+      };
+      const onUp = () => {
+        window.removeEventListener('mousemove', onMove);
+        window.removeEventListener('mouseup', onUp);
+      };
+      window.addEventListener('mousemove', onMove);
+      window.addEventListener('mouseup', onUp);
+    };
+    gridEl.addEventListener('mousedown', progressMousedownHandler);
+    gridEl._progressMousedownHandler = progressMousedownHandler;
+
     // Create new click handler
     const clickHandler = (e) => {
       // Check if click is on video playbar area (priority - for seeking)
@@ -2631,6 +2777,19 @@ ${Icons.get('check', 16)}
           this.handleVideoPlayPause(playBtn.dataset.id);
         }
         // Audio play button handling can be added here if needed
+        return;
+      }
+
+      // Check if click is on a per-item action button (star / delete / restore)
+      const actionBtn = e.target.closest('.item-action-btn');
+      if (actionBtn) {
+        e.stopPropagation();
+        const action = actionBtn.dataset.action;
+        const itemId = actionBtn.dataset.id;
+        if (action === 'favorite') this.toggleFavorite(itemId);
+        else if (action === 'delete') this.deleteItem(itemId);
+        else if (action === 'restore') this.restoreItem(itemId);
+        else if (action === 'permanent-delete') this.permanentDeleteItem(itemId);
         return;
       }
 
@@ -2725,6 +2884,12 @@ ${Icons.get('check', 16)}
 
     // Dragstart handler - MUST be synchronous
     const dragstartHandler = (e) => {
+      // Don't initiate file drag when interacting with the inline playbar / play button
+      if (e.target.closest('.video-playbar, .video-play-btn, .audio-play-btn')) {
+        e.preventDefault();
+        return;
+      }
+
       const mediaItem = e.target.closest('.media-item[draggable="true"]');
       if (!mediaItem) return;
 
@@ -3013,7 +3178,7 @@ ${Icons.get('check', 16)}
       }
       if (currentButton) {
         currentButton.classList.remove('playing');
-        currentButton.innerHTML = Icons.get('play', 64, 1.5);
+        currentButton.innerHTML = Icons.get('play', 22, 2);
       }
       if (currentMediaItem) {
         currentMediaItem.classList.remove('playing');
@@ -3027,14 +3192,14 @@ ${Icons.get('check', 16)}
       this.playingVideoId = null;
       button.classList.remove('playing');
       if (mediaItem) mediaItem.classList.remove('playing');
-      button.innerHTML = Icons.get('play', 64, 1.5);
+      button.innerHTML = Icons.get('play', 22, 2);
     } else {
       video.muted = false;
       video.play();
       this.playingVideoId = videoId;
       button.classList.add('playing');
       if (mediaItem) mediaItem.classList.add('playing');
-      button.innerHTML = Icons.get('pause', 64, 1.5);
+      button.innerHTML = Icons.get('pause', 22, 2);
     }
   }
 
@@ -3163,7 +3328,7 @@ ${Icons.get('check', 16)}
       }
       if (currentButton) {
         currentButton.classList.remove('playing');
-        currentButton.innerHTML = Icons.get('play', 64, 1.5);
+        currentButton.innerHTML = Icons.get('play', 22, 2);
       }
       if (currentMediaItem) {
         currentMediaItem.classList.remove('playing');
@@ -3313,8 +3478,10 @@ ${Icons.get('check', 16)}
           e.stopPropagation();
           const rect = waveform.getBoundingClientRect();
           const clickX = e.clientX - rect.left;
-          const progress = clickX / rect.width;
-          audio.currentTime = progress * audio.duration;
+          const progress = Math.max(0, Math.min(1, clickX / rect.width));
+          if (audio.duration) {
+            audio.currentTime = progress * audio.duration;
+          }
 
           // If not playing, start playback
           if (audio.paused) {
@@ -3515,6 +3682,17 @@ ${Icons.get('check', 16)}
     const count = document.getElementById('floating-batch-count');
     const cachingStatus = document.getElementById('batch-caching-status');
     const cachingText = document.getElementById('batch-caching-text');
+
+    // Show restore button only in trash view; hide favorite/delete there.
+    const inTrash = this.currentFilter === 'trash';
+    const deleteBtn = document.getElementById('floating-batch-delete-btn');
+    const restoreBtn = document.getElementById('floating-batch-restore-btn');
+    const favoriteBtn = document.getElementById('floating-batch-favorite-btn');
+    const deleteForeverBtn = document.getElementById('floating-batch-delete-forever-btn');
+    if (deleteBtn) deleteBtn.classList.toggle('hidden', inTrash);
+    if (favoriteBtn) favoriteBtn.classList.toggle('hidden', inTrash);
+    if (restoreBtn) restoreBtn.classList.toggle('hidden', !inTrash);
+    if (deleteForeverBtn) deleteForeverBtn.classList.toggle('hidden', !inTrash);
 
     if (this.selectedItems.size > 0) {
       menu?.classList.remove('hidden');
@@ -3767,6 +3945,194 @@ ${Icons.get('file-text', 16)}
         `;
       }
     }
+  }
+
+  refreshItemCard(id) {
+    const item = this.media.find(m => m.id === id);
+    const el = document.querySelector(`.media-item[data-id="${id}"]`);
+    if (!item || !el) return;
+    const fav = this.isFavorited(item);
+    const favBtn = el.querySelector('.item-action-btn.btn-favorite');
+    if (favBtn) {
+      favBtn.classList.toggle('is-favorited', fav);
+      favBtn.title = fav ? tr('media.actions.unfavorite', 'Unfavorite') : tr('media.actions.favorite', 'Favorite');
+    }
+  }
+
+  async _optimisticMutate({ ids, apiCall, okMsg, failMsg, mode = 'remove', targetState }) {
+    const prior = [...this.media];
+    const idSet = new Set(ids);
+    const gridEl = this.getElement('media-grid');
+
+    if (mode === 'remove') {
+      this.media = this.media.filter(m => !idSet.has(m.id));
+      ids.forEach(id => this.selectedItems.delete(id));
+      if (gridEl) gridEl.querySelectorAll('.media-item').forEach(el => {
+        if (idSet.has(el.dataset.id)) el.remove();
+      });
+      this.updateBatchMenu();
+    } else if (mode === 'flip-favorite') {
+      this.media.forEach(m => { if (idSet.has(m.id)) m.isFavorited = targetState; });
+      ids.forEach(id => this.refreshItemCard(id));
+    }
+
+    try {
+      await apiCall();
+      const msg = typeof okMsg === 'function' ? okMsg() : okMsg;
+      if (msg) this.showToast(msg, 'info');
+      return { ok: true };
+    } catch (e) {
+      console.error(failMsg, e);
+      this.media = prior;
+      this.renderMedia(true);
+      if (failMsg) this.showToast(failMsg, 'error');
+      return { ok: false };
+    }
+  }
+
+  async toggleFavorite(id) {
+    const item = this.media.find(m => m.id === id);
+    if (!item) return;
+    const next = !this.isFavorited(item);
+    // Unfavoriting in the favorites tab removes the card; otherwise we just flip.
+    const dropFromList = !next && this.currentFilter === 'favorites';
+
+    if (dropFromList) {
+      await this._optimisticMutate({
+        ids: [id],
+        apiCall: () => kolboAPI.unfavoriteMedia(id),
+        failMsg: tr('media.toasts.favoriteFailed', 'Could not update favorite'),
+        mode: 'remove',
+      });
+    } else {
+      await this._optimisticMutate({
+        ids: [id],
+        apiCall: () => next ? kolboAPI.favoriteMedia(id) : kolboAPI.unfavoriteMedia(id),
+        failMsg: tr('media.toasts.favoriteFailed', 'Could not update favorite'),
+        mode: 'flip-favorite',
+        targetState: next,
+      });
+    }
+  }
+
+  deleteItem(id) {
+    return this._optimisticMutate({
+      ids: [id],
+      apiCall: () => kolboAPI.deleteMedia(id),
+      okMsg: tr('media.toasts.movedToTrash', 'Moved to Trash'),
+      failMsg: tr('media.toasts.deleteFailed', 'Delete failed'),
+    });
+  }
+
+  restoreItem(id) {
+    return this._optimisticMutate({
+      ids: [id],
+      apiCall: () => kolboAPI.restoreMedia(id),
+      okMsg: tr('media.toasts.restored', 'Restored'),
+      failMsg: tr('media.toasts.restoreFailed', 'Restore failed'),
+    });
+  }
+
+  async permanentDeleteItem(id) {
+    const ok = await showDialog({
+      title: tr('media.confirm.deleteForeverTitle', 'Delete forever?'),
+      message: tr('media.confirm.deleteForeverMessage', 'This item will be permanently removed. This cannot be undone.'),
+      icon: 'danger',
+      confirmLabel: tr('media.confirm.deleteForeverConfirm', 'Delete forever'),
+      cancelLabel: tr('media.confirm.cancel', 'Cancel'),
+      confirmStyle: 'danger',
+    });
+    if (!ok) return;
+    return this._optimisticMutate({
+      ids: [id],
+      apiCall: () => kolboAPI.permanentDeleteMedia(id),
+      okMsg: tr('media.toasts.deletedForever', 'Permanently deleted'),
+      failMsg: tr('media.toasts.deleteForeverFailed', 'Permanent delete failed'),
+    });
+  }
+
+  async handleBatchFavorite() {
+    if (this.selectedItems.size === 0) return;
+    const ids = Array.from(this.selectedItems);
+    const items = ids.map(id => this.media.find(m => m.id === id)).filter(Boolean);
+    if (items.length === 0) return;
+
+    const allFav = items.every(it => this.isFavorited(it));
+    const targetState = !allFav;
+    const toFlip = items.filter(it => this.isFavorited(it) !== targetState);
+    if (toFlip.length === 0) return;
+
+    const flipIds = toFlip.map(it => it.id);
+    const apiFn = targetState ? kolboAPI.favoriteMedia.bind(kolboAPI) : kolboAPI.unfavoriteMedia.bind(kolboAPI);
+
+    await this._optimisticMutate({
+      ids: flipIds,
+      apiCall: async () => {
+        const results = await Promise.allSettled(flipIds.map(id => apiFn(id)));
+        const failed = results.filter(r => r.status === 'rejected').length;
+        if (failed > 0) throw new Error(`${failed}/${flipIds.length} failed`);
+      },
+      okMsg: targetState
+        ? tr('media.toasts.favoritedN', `Favorited ${flipIds.length}`, { count: flipIds.length })
+        : tr('media.toasts.unfavoritedN', `Unfavorited ${flipIds.length}`, { count: flipIds.length }),
+      failMsg: tr('media.toasts.favoritePartial', 'Some favorite updates failed'),
+      mode: 'flip-favorite',
+      targetState,
+    });
+  }
+
+  async handleBatchDelete() {
+    if (this.selectedItems.size === 0) return;
+    const ids = Array.from(this.selectedItems);
+    this.handleBatchClear();
+    await this._optimisticMutate({
+      ids,
+      apiCall: () => kolboAPI.bulkDeleteMedia(ids),
+      okMsg: tr('media.toasts.movedNToTrash', `Moved ${ids.length} to Trash`, { count: ids.length }),
+      failMsg: tr('media.toasts.deleteFailed', 'Delete failed'),
+    });
+  }
+
+  async handleBatchPermanentDelete() {
+    if (this.selectedItems.size === 0) return;
+    const ids = Array.from(this.selectedItems);
+    const ok = await showDialog({
+      title: tr('media.confirm.deleteForeverNTitle', `Delete ${ids.length} items forever?`, { count: ids.length }),
+      message: tr('media.confirm.deleteForeverNMessage', 'These items will be permanently removed. This cannot be undone.'),
+      icon: 'danger',
+      confirmLabel: tr('media.confirm.deleteForeverConfirm', 'Delete forever'),
+      cancelLabel: tr('media.confirm.cancel', 'Cancel'),
+      confirmStyle: 'danger',
+    });
+    if (!ok) return;
+    this.handleBatchClear();
+    await this._optimisticMutate({
+      ids,
+      apiCall: () => kolboAPI.bulkPermanentDeleteMedia(ids),
+      okMsg: tr('media.toasts.deletedForeverN', `Permanently deleted ${ids.length}`, { count: ids.length }),
+      failMsg: tr('media.toasts.deleteForeverFailed', 'Permanent delete failed'),
+    });
+  }
+
+  // kolbo-api has no bulk restore endpoint, so fan out and accept partial success.
+  async handleBatchRestore() {
+    if (this.selectedItems.size === 0) return;
+    const ids = Array.from(this.selectedItems);
+    this.handleBatchClear();
+    let succeeded = ids.length;
+    await this._optimisticMutate({
+      ids,
+      apiCall: async () => {
+        const results = await Promise.allSettled(ids.map(id => kolboAPI.restoreMedia(id)));
+        const failed = results.filter(r => r.status === 'rejected').length;
+        succeeded = ids.length - failed;
+        if (failed === ids.length) throw new Error('all restore calls failed');
+      },
+      okMsg: () => succeeded === ids.length
+        ? tr('media.toasts.restoredN', `Restored ${ids.length}`, { count: ids.length })
+        : tr('media.toasts.restoredPartial', `Restored ${succeeded}/${ids.length}`, { succeeded, total: ids.length }),
+      failMsg: tr('media.toasts.restoreFailed', 'Restore failed'),
+    });
   }
 
   handleBatchClear() {

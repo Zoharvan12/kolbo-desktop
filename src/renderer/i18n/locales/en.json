@@ -95,7 +95,41 @@
       "videos": "Videos",
       "images": "Images",
       "audio": "Audio",
-      "favorites": "Favorites"
+      "favorites": "Favorites",
+      "trash": "Trash"
+    },
+    "actions": {
+      "favorite": "Favorite",
+      "unfavorite": "Unfavorite",
+      "delete": "Move to Trash",
+      "restore": "Restore",
+      "deleteForever": "Delete forever"
+    },
+    "toasts": {
+      "movedToTrash": "Moved to Trash",
+      "movedNToTrash": "Moved {{count}} to Trash",
+      "restored": "Restored",
+      "restoredN": "Restored {{count}}",
+      "restoredPartial": "Restored {{succeeded}}/{{total}}",
+      "deletedForever": "Permanently deleted",
+      "deletedForeverN": "Permanently deleted {{count}}",
+      "favorited": "Favorited",
+      "favoritedN": "Favorited {{count}}",
+      "unfavorited": "Unfavorited",
+      "unfavoritedN": "Unfavorited {{count}}",
+      "favoriteFailed": "Could not update favorite",
+      "deleteFailed": "Delete failed",
+      "restoreFailed": "Restore failed",
+      "deleteForeverFailed": "Permanent delete failed",
+      "favoritePartial": "Some favorite updates failed"
+    },
+    "confirm": {
+      "deleteForeverTitle": "Delete forever?",
+      "deleteForeverNTitle": "Delete {{count}} items forever?",
+      "deleteForeverMessage": "This item will be permanently removed. This cannot be undone.",
+      "deleteForeverNMessage": "These items will be permanently removed. This cannot be undone.",
+      "deleteForeverConfirm": "Delete forever",
+      "cancel": "Cancel"
     },
     "subcategories": {
       "all": "All",
@@ -326,7 +360,11 @@
     "waitForDownloads": "Please wait — files are still downloading...",
     "folderSelectFailed": "Failed to select folder",
     "downloadFailed": "Download failed. Please try again.",
-    "noValidImport": "No valid items to import"
+    "noValidImport": "No valid items to import",
+    "favorite": "Favorite",
+    "delete": "Delete",
+    "restore": "Restore",
+    "deleteForever": "Delete forever"
   },
   "errors": {
     "premiereNotDetected": "Kolbo Adobe Plugin Not Detected",

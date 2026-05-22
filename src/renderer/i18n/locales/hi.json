@@ -87,7 +87,8 @@
       "videos": "वीडियो",
       "images": "छवियाँ",
       "audio": "ऑडियो",
-      "favorites": "पसंदीदा"
+      "favorites": "पसंदीदा",
+      "trash": "ट्रैश"
     },
     "subcategories": {
       "all": "सभी",
@@ -112,7 +113,40 @@
       "tts": "TTS",
       "sfx": "SFX"
     },
-    "duration": "0:00 / {{duration}}"
+    "duration": "0:00 / {{duration}}",
+    "actions": {
+      "favorite": "पसंदीदा",
+      "unfavorite": "पसंदीदा से हटाएं",
+      "delete": "ट्रैश में ले जाएं",
+      "restore": "पुनर्स्थापित करें",
+      "deleteForever": "हमेशा के लिए हटाएं"
+    },
+    "toasts": {
+      "movedToTrash": "ट्रैश में ले जाया गया",
+      "movedNToTrash": "{{count}} को ट्रैश में ले जाया गया",
+      "restored": "पुनर्स्थापित किया गया",
+      "restoredN": "{{count}} पुनर्स्थापित किया गया",
+      "restoredPartial": "{{succeeded}}/{{total}} पुनर्स्थापित किया गया",
+      "deletedForever": "स्थायी रूप से हटाया गया",
+      "deletedForeverN": "स्थायी रूप से {{count}} हटाया गया",
+      "favorited": "पसंदीदा बनाया गया",
+      "favoritedN": "{{count}} पसंदीदा बनाया गया",
+      "unfavorited": "पसंदीदा से हटाया गया",
+      "unfavoritedN": "{{count}} पसंदीदा से हटाया गया",
+      "favoriteFailed": "पसंदीदा अपडेट नहीं कर सका",
+      "deleteFailed": "हटाना विफल",
+      "restoreFailed": "पुनर्स्थापित करना विफल",
+      "deleteForeverFailed": "स्थायी रूप से हटाना विफल",
+      "favoritePartial": "कुछ पसंदीदा अपडेट विफल"
+    },
+    "confirm": {
+      "deleteForeverTitle": "हमेशा के लिए हटाएं?",
+      "deleteForeverNTitle": "{{count}} आइटम हमेशा के लिए हटाएं?",
+      "deleteForeverMessage": "यह आइटम स्थायी रूप से हटा दिया जाएगा. इसे पूर्ववत नहीं किया जा सकता.",
+      "deleteForeverNMessage": "ये आइटम स्थायी रूप से हटा दिए जाएंगे. इसे पूर्ववत नहीं किया जा सकता.",
+      "deleteForeverConfirm": "हमेशा के लिए हटाएं",
+      "cancel": "रद्द करें"
+    }
   },
   "settings": {
     "title": "सेटिंग्स",
@@ -314,7 +348,11 @@
     "waitForDownloads": "कृपया प्रतीक्षा करें — फ़ाइलें अभी भी डाउनलोड हो रही हैं...",
     "folderSelectFailed": "फ़ोल्डर चुनने में विफल",
     "downloadFailed": "डाउनलोड विफल। कृपया पुन: प्रयास करें।",
-    "noValidImport": "आयात करने के लिए कोई मान्य आइटम नहीं"
+    "noValidImport": "आयात करने के लिए कोई मान्य आइटम नहीं",
+    "favorite": "पसंदीदा",
+    "delete": "हटाएं",
+    "restore": "पुनर्स्थापित करें",
+    "deleteForever": "हमेशा के लिए हटाएं"
   },
   "errors": {
     "premiereNotDetected": "Kolbo Adobe प्लगइन का पता नहीं चला",

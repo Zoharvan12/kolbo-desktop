@@ -347,7 +347,7 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Create Public Release (for manual downloads)
+      - name: Create Public Release (for manual downloads + auto-update)
         uses: softprops/action-gh-release@v1
         with:
           repository: Zoharvan12/kolbo-desktop-releases
@@ -362,7 +362,12 @@ jobs:
           draft: false
           prerelease: false
           files: |
+            release-artifacts/latest.yml
+            release-artifacts/latest-mac.yml
             release-artifacts/Kolbo.Studio-Setup-latest.exe
             release-artifacts/Kolbo.Studio-latest.dmg
+            release-artifacts/Kolbo Studio-Setup-${{ needs.prepare-release.outputs.version }}.exe
+            release-artifacts/Kolbo Studio-${{ needs.prepare-release.outputs.version }}-universal.dmg
+            release-artifacts/Kolbo Studio-${{ needs.prepare-release.outputs.version }}-universal.zip
         env:
           GITHUB_TOKEN: ${{ secrets.RELEASES_PAT }}

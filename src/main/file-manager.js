@@ -26,6 +26,14 @@ class FileManager {
     // PERFORMANCE FIX: Batch cache check to reduce IPC overhead
     ipcMain.handle('cache:batch-is-cached', this.batchIsFileCached.bind(this));
     ipcMain.handle('media:get', this.getMedia.bind(this));
+    ipcMain.handle('media:get-trash', this.getTrash.bind(this));
+    ipcMain.handle('media:favorite', this.favoriteMedia.bind(this));
+    ipcMain.handle('media:unfavorite', this.unfavoriteMedia.bind(this));
+    ipcMain.handle('media:delete', this.deleteMedia.bind(this));
+    ipcMain.handle('media:bulk-delete', this.bulkDeleteMedia.bind(this));
+    ipcMain.handle('media:restore', this.restoreMedia.bind(this));
+    ipcMain.handle('media:permanent-delete', this.permanentDeleteMedia.bind(this));
+    ipcMain.handle('media:bulk-permanent-delete', this.bulkPermanentDeleteMedia.bind(this));
     ipcMain.handle('media:get-projects', this.getProjects.bind(this));
 
     // Ensure cache directory exists
@@ -559,103 +567,78 @@ class FileManager {
     }
   }
 
-  // Get favorites using dedicated endpoint (same as Adobe plugin)
-  static async getFavorites(event, params) {
+  // Shared auth+fetch helper for media mutations. Returns { success, data, error }.
+  static async _authedFetch(label, path, { method = 'GET', body } = {}) {
     try {
-      const API_BASE_URL = config.apiUrl;
       const token = store.get('token') || store.get('kolbo_access_token') || store.get('kolbo_token');
-
-      if (!token) {
-        console.error('[FileManager] No token found for favorites');
-        return { success: false, error: 'Not authenticated' };
-      }
-
-      const queryParams = new URLSearchParams();
-      // Favorites endpoint uses 'limit' instead of 'pageSize'
-      queryParams.set('limit', params.pageSize || 100);
-      if (params.page) queryParams.set('page', params.page);
-
-      // Add item_type filter if specified
-      if (params.type && params.type !== 'all') {
-        queryParams.set('item_type', params.type);
-      }
-
-      // Add project_id filter if specified
-      if (params.projectId && params.projectId !== 'all') {
-        queryParams.set('project_id', params.projectId);
-      }
-
-      const url = `${API_BASE_URL}/favorite-items?${queryParams.toString()}`;
-      console.log('[FileManager] Fetching favorites from:', url);
-
-      const response = await fetch(url, {
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'User-Agent': APP_UA
-        }
+      if (!token) return { success: false, error: 'Not authenticated' };
+      const headers = { 'Authorization': `Bearer ${token}`, 'User-Agent': APP_UA };
+      if (body) headers['Content-Type'] = 'application/json';
+      const response = await fetch(`${config.apiUrl}${path}`, {
+        method,
+        headers,
+        body: body ? JSON.stringify(body) : undefined,
       });
-
-      if (!response.ok) {
-        console.error('[FileManager] Favorites fetch failed:', response.status, response.statusText);
-        return { success: false, error: `HTTP ${response.status}` };
-      }
-
-      const responseData = await response.json();
-      console.log('[FileManager] Favorites raw response:', responseData);
-
-      // Transform favorites response to match media response format
-      // Favorites endpoint returns {favorites: [...], totalCount, page, totalPages, hasMore}
-      // Media endpoint returns {status: true, data: {items: [...], pagination: {...}}}
-      const favorites = responseData.data?.favorites || responseData.favorites || [];
-      const totalCount = responseData.data?.totalCount || responseData.totalCount || 0;
-      const currentPage = responseData.data?.page || responseData.page || 1;
-      const totalPages = responseData.data?.totalPages || responseData.totalPages || 1;
-      const hasMore = responseData.data?.hasMore || responseData.hasMore || false;
-
-      // Transform each favorite to match media item format
-      const items = favorites.map(fav => ({
-        id: fav.item_id || fav._id,
-        type: fav.item_type,
-        category: fav.metadata?.category || fav.item_type,
-        filename: fav.metadata?.title || fav.metadata?.filename || 'Untitled',
-        url: fav.url,
-        thumbnailUrl: fav.metadata?.thumbnail_url || fav.metadata?.thumbnailUrl,
-        created: fav.created_at,
-        projectId: fav.project_id,
-        userId: fav.user_id,
-        metadata: fav.metadata || {},
-        isFavorited: true
-      }));
-
-      console.log('[FileManager] Transformed favorites:', {
-        itemsCount: items.length,
-        totalItems: totalCount,
-        currentPage,
-        totalPages,
-        hasMore
-      });
-
-      // Return in standard media format
-      const data = {
-        status: true,
-        data: {
-          items: items,
-          pagination: {
-            totalItems: totalCount,
-            currentPage: currentPage,
-            totalPages: totalPages,
-            hasNext: hasMore,
-            pageSize: params.pageSize || 100
-          }
-        }
-      };
-
+      if (!response.ok) return { success: false, error: `HTTP ${response.status}` };
+      const data = await response.json().catch(() => ({}));
       return { success: true, data };
-
     } catch (error) {
-      console.error('[FileManager] getFavorites error:', error);
+      console.error(`[FileManager] ${label} error:`, error);
       return { success: false, error: error.message };
     }
+  }
+
+  static async getTrash(event, params = {}) {
+    const qs = new URLSearchParams();
+    if (params.page) qs.set('page', params.page);
+    if (params.pageSize) qs.set('pageSize', params.pageSize);
+    const path = `/media/db/trash${qs.toString() ? '?' + qs : ''}`;
+    const result = await this._authedFetch('getTrash', path);
+    if (!result.success) return result;
+
+    // kolbo-api versions return either { data: { items, pagination } } or { items, pagination }
+    const raw = result.data;
+    const inner = raw.data || raw;
+    const items = inner.items || inner.media || [];
+    const pagination = inner.pagination || {
+      totalItems: inner.totalCount || items.length,
+      currentPage: inner.page || params.page || 1,
+      totalPages: inner.totalPages || 1,
+      hasNext: inner.hasMore || inner.hasNext || false,
+      pageSize: params.pageSize || items.length,
+    };
+    return { success: true, data: { status: true, data: { items, pagination } } };
+  }
+
+  static favoriteMedia(event, { id }) {
+    return this._authedFetch('favoriteMedia', `/v1/media/${encodeURIComponent(id)}/favorite`, { method: 'POST', body: {} });
+  }
+
+  static unfavoriteMedia(event, { id }) {
+    return this._authedFetch('unfavoriteMedia', `/v1/media/${encodeURIComponent(id)}/favorite`, { method: 'DELETE' });
+  }
+
+  // Mutations live under /media/files (read API is /v1/media).
+  static deleteMedia(event, { id }) {
+    return this._authedFetch('deleteMedia', `/media/files/${encodeURIComponent(id)}`, { method: 'DELETE' });
+  }
+
+  static bulkDeleteMedia(event, { fileIds }) {
+    return this._authedFetch('bulkDeleteMedia', '/media/files/bulk/delete', { method: 'POST', body: { fileIds } });
+  }
+
+  // No bulk restore endpoint — caller fans out.
+  static restoreMedia(event, { id }) {
+    return this._authedFetch('restoreMedia', `/media/db/${encodeURIComponent(id)}/restore`, { method: 'POST', body: {} });
+  }
+
+  static permanentDeleteMedia(event, { id }) {
+    return this._authedFetch('permanentDeleteMedia', `/media/db/${encodeURIComponent(id)}/permanent`, { method: 'DELETE' });
+  }
+
+  // Backend expects `mediaIds` (not `fileIds`).
+  static bulkPermanentDeleteMedia(event, { mediaIds }) {
+    return this._authedFetch('bulkPermanentDeleteMedia', '/media/db/bulk/permanent', { method: 'POST', body: { mediaIds } });
   }
 
   static async getProjects(event) {

@@ -87,7 +87,8 @@
       "videos": "Vídeos",
       "images": "Imagens",
       "audio": "Áudio",
-      "favorites": "Favoritos"
+      "favorites": "Favoritos",
+      "trash": "Lixeira"
     },
     "subcategories": {
       "all": "Todos",
@@ -112,7 +113,40 @@
       "tts": "TTS",
       "sfx": "SFX"
     },
-    "duration": "0:00 / {{duration}}"
+    "duration": "0:00 / {{duration}}",
+    "actions": {
+      "favorite": "Favorito",
+      "unfavorite": "Remover dos favoritos",
+      "delete": "Mover para a Lixeira",
+      "restore": "Restaurar",
+      "deleteForever": "Excluir permanentemente"
+    },
+    "toasts": {
+      "movedToTrash": "Movido para a Lixeira",
+      "movedNToTrash": "Movido {{count}} para a Lixeira",
+      "restored": "Restaurado",
+      "restoredN": "Restaurado {{count}}",
+      "restoredPartial": "Restaurado {{succeeded}}/{{total}}",
+      "deletedForever": "Excluído permanentemente",
+      "deletedForeverN": "Excluído permanentemente {{count}}",
+      "favorited": "Adicionado aos favoritos",
+      "favoritedN": "Adicionado aos favoritos {{count}}",
+      "unfavorited": "Removido dos favoritos",
+      "unfavoritedN": "Removido dos favoritos {{count}}",
+      "favoriteFailed": "Não foi possível atualizar o favorito",
+      "deleteFailed": "Falha ao excluir",
+      "restoreFailed": "Falha ao restaurar",
+      "deleteForeverFailed": "Falha ao excluir permanentemente",
+      "favoritePartial": "Falha ao atualizar alguns favoritos"
+    },
+    "confirm": {
+      "deleteForeverTitle": "Excluir permanentemente?",
+      "deleteForeverNTitle": "Excluir {{count}} itens permanentemente?",
+      "deleteForeverMessage": "Este item será removido permanentemente. Esta ação não pode ser desfeita.",
+      "deleteForeverNMessage": "Estes itens serão removidos permanentemente. Esta ação não pode ser desfeita.",
+      "deleteForeverConfirm": "Excluir permanentemente",
+      "cancel": "Cancelar"
+    }
   },
   "settings": {
     "title": "Configurações",
@@ -314,7 +348,11 @@
     "waitForDownloads": "Por favor, aguarde — os arquivos ainda estão sendo baixados...",
     "folderSelectFailed": "Falha ao selecionar a pasta",
     "downloadFailed": "Falha no download. Por favor, tente novamente.",
-    "noValidImport": "Nenhum item válido para importar"
+    "noValidImport": "Nenhum item válido para importar",
+    "favorite": "Favorito",
+    "delete": "Excluir",
+    "restore": "Restaurar",
+    "deleteForever": "Excluir permanentemente"
   },
   "errors": {
     "premiereNotDetected": "Plugin Kolbo Adobe Não Detectado",

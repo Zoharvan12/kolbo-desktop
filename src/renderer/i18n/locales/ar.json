@@ -87,7 +87,8 @@
       "videos": "مقاطع الفيديو",
       "images": "الصور",
       "audio": "الصوت",
-      "favorites": "المفضلة"
+      "favorites": "المفضلة",
+      "trash": "المهملات"
     },
     "subcategories": {
       "all": "الكل",
@@ -112,7 +113,40 @@
       "tts": "TTS",
       "sfx": "SFX"
     },
-    "duration": "0:00 / {{duration}}"
+    "duration": "0:00 / {{duration}}",
+    "actions": {
+      "favorite": "مفضل",
+      "unfavorite": "إزالة من المفضلة",
+      "delete": "نقل إلى المهملات",
+      "restore": "استعادة",
+      "deleteForever": "حذف نهائي"
+    },
+    "toasts": {
+      "movedToTrash": "نُقل إلى المهملات",
+      "movedNToTrash": "نُقل {{count}} إلى المهملات",
+      "restored": "تمت الاستعادة",
+      "restoredN": "تمت استعادة {{count}}",
+      "restoredPartial": "تمت استعادة {{succeeded}}/{{total}}",
+      "deletedForever": "تم الحذف نهائيًا",
+      "deletedForeverN": "تم حذف {{count}} نهائيًا",
+      "favorited": "تمت الإضافة إلى المفضلة",
+      "favoritedN": "تمت إضافة {{count}} إلى المفضلة",
+      "unfavorited": "تمت الإزالة من المفضلة",
+      "unfavoritedN": "تمت إزالة {{count}} من المفضلة",
+      "favoriteFailed": "تعذر تحديث المفضلة",
+      "deleteFailed": "فشل الحذف",
+      "restoreFailed": "فشلت الاستعادة",
+      "deleteForeverFailed": "فشل الحذف النهائي",
+      "favoritePartial": "فشلت بعض تحديثات المفضلة"
+    },
+    "confirm": {
+      "deleteForeverTitle": "حذف نهائي؟",
+      "deleteForeverNTitle": "حذف {{count}} من العناصر نهائيًا؟",
+      "deleteForeverMessage": "ستتم إزالة هذا العنصر نهائيًا. لا يمكن التراجع عن هذا الإجراء.",
+      "deleteForeverNMessage": "ستتم إزالة هذه العناصر نهائيًا. لا يمكن التراجع عن هذا الإجراء.",
+      "deleteForeverConfirm": "حذف نهائي",
+      "cancel": "إلغاء"
+    }
   },
   "settings": {
     "title": "الإعدادات",
@@ -314,7 +348,11 @@
     "waitForDownloads": "يرجى الانتظار — لا تزال الملفات قيد التنزيل...",
     "folderSelectFailed": "فشل تحديد المجلد",
     "downloadFailed": "فشل التنزيل. يرجى المحاولة مرة أخرى.",
-    "noValidImport": "لا توجد عناصر صالحة للاستيراد"
+    "noValidImport": "لا توجد عناصر صالحة للاستيراد",
+    "favorite": "مفضل",
+    "delete": "حذف",
+    "restore": "استعادة",
+    "deleteForever": "حذف نهائي"
   },
   "errors": {
     "premiereNotDetected": "لم يتم الكشف عن المكوّن الإضافي لـ Kolbo Adobe",
