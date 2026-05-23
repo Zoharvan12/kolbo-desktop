@@ -42,18 +42,11 @@ Use: `gh run watch --repo Zoharvan12/kolbo-desktop`
 
 The build takes ~5-8 minutes (Windows + Mac in parallel).
 
-### 4. Rebuild and upload the complete suite zip
-```bash
-cd G:\Projects\Kolbo.AI\github\kolbo-adobe-plugin
-node create-suite.js
-```
-
-This downloads the 4 latest installers from both GitHub repos and uploads `Kolbo_Studio_Suite_latest.zip` to the latest plugin release.
-
 ## Permanent download URLs (after release)
 - Windows: https://github.com/Zoharvan12/kolbo-desktop/releases/latest/download/Kolbo.Studio-Setup-latest.exe
 - Mac: https://github.com/Zoharvan12/kolbo-desktop/releases/latest/download/Kolbo.Studio-latest.dmg
-- Suite: https://github.com/Zoharvan12/kolbo-adobe-plugin/releases/latest/download/Kolbo_Studio_Suite_latest.zip
+
+Note: The combined suite zip is deprecated — we ship direct download links to each installer instead. Do NOT run `create-suite.js`.
 
 ## Notes
 - No MongoDB update needed for the desktop app — only the plugin uses MongoDB for version checks

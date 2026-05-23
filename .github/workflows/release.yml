@@ -75,6 +75,67 @@ jobs:
           override: "true"
           environment_name: "PROD"
 
+      # CRITICAL: SSL.com signs the .exe in place AFTER electron-builder generated latest.yml.
+      # Signing mutates the file bytes (embeds the signature), so the SHA512 and size in
+      # latest.yml are now stale. electron-updater verifies SHA512 on download and rejects
+      # the update silently if it doesn't match -> users never get auto-updated, must install
+      # manually. We must regenerate the hash + size from the SIGNED binary.
+      #
+      # Also delete the .blockmap: it's a differential-update index built from the unsigned
+      # bytes, so it's also stale. Without it, electron-updater falls back to full download
+      # (which is correct behavior here since the binary changed).
+      - name: Regenerate latest.yml hash from signed installer
+        shell: bash
+        env:
+          EXE_PATH: dist/Kolbo Studio-Setup-${{ needs.prepare-release.outputs.version }}.exe
+        run: |
+          node -e "
+            const fs = require('fs');
+            const crypto = require('crypto');
+            const exe = process.env.EXE_PATH;
+            const buf = fs.readFileSync(exe);
+            const sha512 = crypto.createHash('sha512').update(buf).digest('base64');
+            const size = buf.length;
+            let yml = fs.readFileSync('dist/latest.yml', 'utf8');
+
+            // Strip blockmap entries from the files array (stale after signing).
+            // Matches a 2-space-indented '- url: <something>.blockmap' block plus
+            // its following 'sha512:' and 'size:' lines.
+            yml = yml.replace(/^  - url:[^\n]*\.blockmap\n(?:    [^\n]*\n)+/gm, '');
+
+            // Replace size + sha512 for the exe entry inside files (first .exe match)
+            yml = yml.replace(
+              /(- url:[^\n]*\.exe\n    sha512: )[^\n]+(\n    size: )\d+/,
+              \`\$1\${sha512}\$2\${size}\`
+            );
+
+            // Replace top-level sha512 and size (the duplicated 'path' block at end)
+            yml = yml.replace(/^sha512: .+$/m, 'sha512: ' + sha512);
+            yml = yml.replace(/^size: \d+$/m, 'size: ' + size);
+
+            // Sanity check: the new sha512 must appear in the rewritten yml.
+            // If electron-builder ever changes its latest.yml format and the regex
+            // stops matching, fail the build loudly instead of silently uploading
+            // a stale hash (which would break auto-update for every user).
+            if (!yml.includes(sha512)) {
+              console.error('latest.yml regex did not match — sha512 not injected.');
+              console.error('Current file:');
+              console.error(yml);
+              process.exit(1);
+            }
+
+            fs.writeFileSync('dist/latest.yml', yml);
+            console.log('=== Regenerated latest.yml ===');
+            console.log(yml);
+            console.log('=== New sha512:', sha512);
+            console.log('=== New size:', size);
+          "
+
+      - name: Remove stale blockmap (regenerated from pre-signing bytes)
+        shell: bash
+        run: |
+          rm -f "dist/Kolbo Studio-Setup-${{ needs.prepare-release.outputs.version }}.exe.blockmap"
+
       - name: Fix filename format in latest.yml
         shell: bash
         run: |
@@ -92,7 +153,6 @@ jobs:
           name: windows-artifacts
           path: |
             dist/Kolbo Studio-Setup-${{ needs.prepare-release.outputs.version }}.exe
-            dist/Kolbo Studio-Setup-${{ needs.prepare-release.outputs.version }}.exe.blockmap
             dist/latest.yml
             dist/Kolbo.Studio-Setup-latest.exe
 
