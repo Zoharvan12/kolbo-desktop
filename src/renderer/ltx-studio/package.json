@@ -1,0 +1,40 @@
+{
+  "name": "kolbo-video-studio",
+  "version": "0.1.0-wip",
+  "description": "Kolbo Video Studio (vendored from Lightricks/LTX-Desktop, Apache-2.0) — built as a static sub-app loaded by kolbo-desktop via file://",
+  "type": "module",
+  "private": true,
+  "license": "Apache-2.0",
+  "scripts": {
+    "build": "vite build",
+    "dev": "vite",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "class-variance-authority": "^0.7.0",
+    "clsx": "^2.1.1",
+    "js-yaml": "^4.1.1",
+    "lucide-react": "^0.400.0",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "react-resizable-panels": "4.7.2",
+    "tailwind-merge": "^2.3.0",
+    "use-sync-external-store": "1.6.0",
+    "zod": "4.3.6",
+    "zustand": "5.0.12"
+  },
+  "devDependencies": {
+    "@types/js-yaml": "^4.0.9",
+    "@types/node": "^22.7.7",
+    "@types/react": "^18.3.3",
+    "@types/react-dom": "^18.3.0",
+    "@vitejs/plugin-react": "^4.7.0",
+    "autoprefixer": "^10.4.19",
+    "postcss": "^8.4.38",
+    "source-map": "0.7.6",
+    "tailwindcss": "^3.4.4",
+    "typescript": "^5.4.5",
+    "vite": "^7.3.1",
+    "vite-plugin-singlefile": "2.3.3"
+  }
+}

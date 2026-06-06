@@ -54,11 +54,15 @@ function detectEnvironment() {
 const detectedEnvironment = detectEnvironment();
 console.log('[Preload] Final detected environment:', detectedEnvironment);
 
-// Webview preload path for process-isolated tabs
+// Webview preload path for process-isolated tabs.
+// We avoid `require('path')` because Electron 28+ contextIsolation/sandbox
+// preloads can't reliably load node built-ins from inside the renderer
+// process. __dirname is a string in CommonJS preloads, so manual join is
+// portable across Win (\) and Unix (/).
 let webviewPreloadPath = '';
 try {
-  const path = require('path');
-  webviewPreloadPath = path.join(__dirname, '..', 'renderer', 'webview-preload.js');
+  const sep = __dirname.includes('\\') ? '\\' : '/';
+  webviewPreloadPath = `${__dirname}${sep}..${sep}renderer${sep}webview-preload.js`;
 } catch (e) {
   console.error('[Preload] Failed to resolve webview preload path:', e.message);
 }

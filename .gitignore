@@ -66,3 +66,4 @@ CLAUDE.md
 
 # Claude temp files
 .claude/
+branch_structure.json

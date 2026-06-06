@@ -59,6 +59,8 @@
     "formatFactory": "Format Factory",
     "downloader": "Downloader",
     "quickTools": "Quick Tools",
+    "videoStudio": "Video Studio",
+    "loadingVideoStudio": "Loading Video Studio...",
     "newTab": "New Tab",
     "splitView": "Split View",
     "loadingFileBridge": "Loading File Bridge...",

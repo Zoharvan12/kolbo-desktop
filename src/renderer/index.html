@@ -156,6 +156,10 @@
               <i data-lucide="wand-2"></i>
               <span data-i18n="tabs.quickTools">Quick Tools</span>
             </button>
+            <button id="video-studio-tab" class="tab-btn" data-view="video-studio" style="display:none;">
+              <i data-lucide="clapperboard"></i>
+              <span data-i18n="tabs.videoStudio">Video Studio</span>
+            </button>
             <button id="agent-tab" class="tab-btn" data-view="agent">
               <i data-lucide="terminal"></i>
               <span data-i18n="tabs.kolboCode">Kolbo Code</span>
@@ -1128,6 +1132,18 @@
       </div>
 
     </div>
+
+        <!-- Video Studio View (LTX-Desktop sub-app, loaded lazily) -->
+        <div id="video-studio-view" class="view-content hidden" style="position:absolute;top:48px;left:0;right:0;bottom:0;background:#0a0a0a;">
+          <div id="video-studio-loading" style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;color:#9ca3af;font-size:14px;">
+            <span data-i18n="tabs.loadingVideoStudio">Loading Video Studio...</span>
+          </div>
+          <iframe id="video-studio-iframe"
+                  style="position:absolute;inset:0;width:100%;height:100%;border:0;display:none;background:#0a0a0a;"
+                  sandbox="allow-same-origin allow-scripts allow-forms allow-popups allow-modals allow-downloads allow-storage-access-by-user-activation"
+                  allow="clipboard-read; clipboard-write; autoplay; fullscreen"
+                  title="Kolbo Video Studio"></iframe>
+        </div>
 
         <!-- Agent (Kolbo Code) View -->
         <div id="agent-view" class="view-content hidden" style="position:absolute;top:48px;left:0;right:0;bottom:0;">

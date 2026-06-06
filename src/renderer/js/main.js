@@ -517,6 +517,10 @@ class KolboApp {
     if (fileExplorerTab) {
       fileExplorerTab.addEventListener('click', () => this.switchView('file-explorer'));
     }
+    const videoStudioTab = document.getElementById('video-studio-tab');
+    if (videoStudioTab) {
+      videoStudioTab.addEventListener('click', () => this.switchView('video-studio'));
+    }
     const agentTab = document.getElementById('agent-tab');
     if (agentTab) {
       agentTab.addEventListener('click', () => this.switchView('agent'));
@@ -778,6 +782,7 @@ class KolboApp {
     const quickToolsView = document.getElementById('quick-tools-view');
     const fileExplorerView = document.getElementById('file-explorer-view');
     const agentView = document.getElementById('agent-view');
+    const videoStudioView = document.getElementById('video-studio-view');
     const mediaCount = document.getElementById('media-count');
 
     // Hide all views first
@@ -797,6 +802,8 @@ class KolboApp {
     fileExplorerView?.classList.remove('active');
     agentView?.classList.add('hidden');
     agentView?.classList.remove('active');
+    videoStudioView?.classList.add('hidden');
+    videoStudioView?.classList.remove('active');
 
     if (view === 'media') {
       mediaView?.classList.remove('hidden');
@@ -902,6 +909,15 @@ class KolboApp {
       if (this.DEBUG_MODE) {
         console.log('[View] File Explorer view shown');
       }
+    } else if (view === 'video-studio') {
+      videoStudioView?.classList.remove('hidden');
+      videoStudioView?.classList.add('active');
+      if (mediaCount) mediaCount.style.display = 'none';
+      this._loadVideoStudioIframe();
+
+      if (this.DEBUG_MODE) {
+        console.log('[View] Video Studio view shown');
+      }
     } else if (view === 'agent') {
       agentView?.classList.remove('hidden');
       agentView?.classList.add('active');
@@ -920,6 +936,52 @@ class KolboApp {
       if (this.DEBUG_MODE) {
         console.log('[View] Agent view shown');
       }
+    }
+  }
+
+  // ── Video Studio: lazy-load the vendored LTX sub-app from file:// ──────────────
+  _loadVideoStudioIframe() {
+    const iframe = document.getElementById('video-studio-iframe');
+    const loading = document.getElementById('video-studio-loading');
+    if (!iframe) return;
+    if (iframe.dataset.loaded === 'true') {
+      if (loading) loading.style.display = 'none';
+      iframe.style.display = '';
+      // Refresh token in case user re-logged in.
+      this._postVideoStudioInit(iframe);
+      return;
+    }
+    // Resolve relative path so it works in both dev (electron .) and packaged builds.
+    const subAppUrl = new URL('./ltx-studio/dist/index.html', window.location.href).toString();
+    iframe.addEventListener('load', () => {
+      iframe.dataset.loaded = 'true';
+      if (loading) loading.style.display = 'none';
+      iframe.style.display = '';
+      this._postVideoStudioInit(iframe);
+    }, { once: true });
+    iframe.src = subAppUrl;
+  }
+
+  _postVideoStudioInit(iframe) {
+    const win = iframe?.contentWindow;
+    if (!win) return;
+    const token = (window.kolboAPI && window.kolboAPI.getToken && window.kolboAPI.getToken()) || '';
+    const apiBaseUrl = (window.KOLBO_CONFIG && window.KOLBO_CONFIG.apiUrl) || 'https://api.kolbo.ai';
+    const brandName = window.KOLBO_WHITELABEL_APP_LABEL || 'Kolbo Studio';
+    const brandLogoUrl = window.KOLBO_WHITELABEL_LOGO_URL || '';
+    try {
+      win.postMessage(
+        {
+          type: 'kolbo-video-studio:init',
+          payload: { token, apiBaseUrl, brandName, brandLogoUrl },
+        },
+        '*', // file:// origin is "null" — explicit "*" is required here.
+      );
+      if (this.DEBUG_MODE) {
+        console.log('[VideoStudio] posted init', { hasToken: !!token, apiBaseUrl, brandName });
+      }
+    } catch (err) {
+      console.error('[VideoStudio] postMessage failed:', err);
     }
   }
 

@@ -182,7 +182,17 @@ node translate-locales.js
 ### RTL Languages
 Hebrew and Arabic automatically flip layout to RTL when selected.
 
+## Video Studio Sub-App
+
+`src/renderer/ltx-studio/` is a vendored copy of [Lightricks/LTX-Desktop](https://github.com/Lightricks/LTX-Desktop) (Apache 2.0), built as a static React+Vite sub-app and loaded by `main.js::_loadVideoStudioIframe()` into a tab driven by `src/renderer/index.html#video-studio-view`.
+
+- Build: `npm run build:ltx-studio` — outputs `src/renderer/ltx-studio/dist/`. Chained into `build:prod:win` and `build:prod:mac`.
+- LTX's Electron main process and Python backend were removed. A stub at `src/renderer/ltx-studio/frontend/lib/electron-api-stub.ts` provides safe no-op defaults so the React app boots.
+- Generation is NOT yet wired — needs a Kolbo API adapter in `frontend/lib/backend.ts`. See `src/renderer/ltx-studio/KOLBO-VENDORING-NOTES.md` for the full follow-up list.
+- electron-builder `files` glob in `package.json` excludes the LTX source folders (`frontend/`, `shared/`, `node_modules/`, etc.) and includes only `dist/`.
+- Third-party attribution at root `THIRD-PARTY.md`.
+
 ## Last Updated
-- **Date**: April 14, 2026
-- **Version**: 1.3.0
-- **Status**: i18n system implemented with 12 languages
+- **Date**: May 27, 2026
+- **Version**: 1.5.1
+- **Status**: Video Studio sub-app vendored from LTX-Desktop (scaffold only — API adapter pending)
