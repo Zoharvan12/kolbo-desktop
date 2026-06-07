@@ -3046,6 +3046,10 @@ body.is-mac .window-controls {
   height: 100%;
   width: 0%;
   pointer-events: none;
+  /* Soft tint showing how much of the track has played */
+  background: linear-gradient(to right, rgba(255,255,255,0.08), rgba(255,255,255,0.04));
+  border-right: 1.5px solid rgba(255,255,255,0.35);
+  transition: width 0.1s linear;
 }
 
 @keyframes waveformPulse {

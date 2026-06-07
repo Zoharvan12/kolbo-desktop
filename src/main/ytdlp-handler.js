@@ -859,41 +859,86 @@ class YtdlpHandler {
 
     return new Promise((resolve, reject) => {
       try {
-        // Track the download
         const downloadState = { aborted: false };
+        let hasError = false; // prevent 'close' from firing a false complete after an error
+
+        // ── Progress phase tracking ─────────────────────────────────────────────
+        // yt-dlp downloads separate streams sequentially (e.g. video then audio).
+        // Each stream resets the percentage from 0. We detect resets and scale the
+        // reported progress across all phases so the bar never jumps backward.
+        //
+        //  Video-only (single stream or audio extract):
+        //    download  → 0–80 %
+        //    merge/convert → 80–99 %  (reported in 'close' handler)
+        //
+        //  Two-stream (4K / 1440p / 1080p):
+        //    video stream  → 0–60 %
+        //    audio stream  → 60–80 %
+        //    merge          → 80–99 %
+        const isAudioOnly = outputFormat === 'mp3';
+        let downloadPhase = 0;    // increments when we detect a reset
+        let prevRawPercent = -1;
+
+        const scalePercent = (rawPercent) => {
+          if (isAudioOnly) {
+            // download occupies 0-80%, conversion happens silently after
+            return Math.round(rawPercent * 0.80);
+          }
+          if (downloadPhase === 0) {
+            return Math.round(rawPercent * 0.60);      // video  → 0-60%
+          }
+          return Math.round(60 + rawPercent * 0.20);   // audio  → 60-80%
+        };
+
+        const sendProgress = (scaledPercent, extra = {}) => {
+          if (this.mainWindow && !this.mainWindow.isDestroyed()) {
+            this.mainWindow.webContents.send('dl:progress', {
+              jobId: id,
+              progress: scaledPercent,
+              ...extra
+            });
+          }
+        };
 
         const downloadProcess = this.ytdlp.exec([url, ...options])
           .on('progress', (progress) => {
-            if (downloadState.aborted) return;
+            if (downloadState.aborted || hasError) return;
 
-            console.log(`[yt-dlp Handler] Progress [${id}]: ${progress.percent}%`);
+            const rawPercent = progress.percent || 0;
 
-            // Send progress to renderer
-            if (this.mainWindow && !this.mainWindow.isDestroyed()) {
-              this.mainWindow.webContents.send('dl:progress', {
-                jobId: id,
-                progress: progress.percent || 0,
-                downloadedBytes: this.parseSize(progress.totalSize),
-                speed: progress.currentSpeed || null,
-                eta: progress.eta || null
-              });
+            // Detect stream reset: a big drop in percentage means a new stream started
+            if (prevRawPercent > 10 && rawPercent < prevRawPercent - 10) {
+              downloadPhase++;
+              console.log(`[yt-dlp Handler] Phase reset detected [${id}], now phase ${downloadPhase}`);
             }
+            prevRawPercent = rawPercent;
+
+            const scaledPercent = scalePercent(rawPercent);
+            console.log(`[yt-dlp Handler] Progress [${id}]: raw=${rawPercent}% phase=${downloadPhase} scaled=${scaledPercent}%`);
+
+            sendProgress(scaledPercent, {
+              downloadedBytes: this.parseSize(progress.totalSize),
+              speed: progress.currentSpeed || null,
+              eta: progress.eta || null
+            });
           })
           .on('ytDlpEvent', (eventType, eventData) => {
             console.log(`[yt-dlp Handler] Event [${id}]:`, eventType, eventData);
           })
           .on('error', async (error) => {
             if (downloadState.aborted) return;
+            hasError = true;
 
             console.error('[yt-dlp Handler] Download error:', error);
             this.activeDownloads.delete(id);
+            this.cleanupTempFiles(outputFolder, sanitizedTitle);
 
             const errorMessage = error.message || error.toString();
             const errorType = this.classifyError(errorMessage);
 
-            // Self-heal: extractor broke (nsig/signature/403/etc) → update + retry once
+            // Self-heal: extractor breakage → update yt-dlp + retry once
             if (!_retried && this.isExtractionFailure(errorMessage)) {
-              console.log('[yt-dlp Handler] Extraction failure on download, updating yt-dlp and retrying...');
+              console.log('[yt-dlp Handler] Extraction failure, updating yt-dlp and retrying...');
               if (this.mainWindow && !this.mainWindow.isDestroyed()) {
                 this.mainWindow.webContents.send('dl:retry', {
                   jobId: id,
@@ -912,7 +957,7 @@ class YtdlpHandler {
               }
             }
 
-            // If yt-dlp fails and it's a direct URL, try direct download as fallback
+            // Fallback: direct HTTP for simple media URLs
             if (this.isDirectMediaUrl(url)) {
               console.log('[yt-dlp Handler] yt-dlp failed, trying direct download fallback');
               try {
@@ -938,14 +983,59 @@ class YtdlpHandler {
               originalError: error.message
             });
           })
-          .on('close', () => {
-            if (downloadState.aborted) return;
+          .on('close', async () => {
+            if (downloadState.aborted || hasError) return;
 
-            console.log('[yt-dlp Handler] Download complete:', id);
+            console.log('[yt-dlp Handler] yt-dlp process closed:', id);
             this.activeDownloads.delete(id);
 
-            // Find the actual output file
-            const outputPath = this.findOutputFile(outputFolder, sanitizedTitle, outputFormat);
+            // Report 82% — the merge/conversion phase is starting
+            sendProgress(82, { status: 'Finalizing...' });
+
+            // Find the output file — extension depends on what yt-dlp actually produced
+            let outputPath = this.findOutputFile(outputFolder, sanitizedTitle, outputFormat);
+
+            if (outputFormat === 'mp3') {
+              // ── Audio path ───────────────────────────────────────────────────────
+              // yt-dlp normally handles m4a→mp3 conversion internally (via our
+              // --ffmpeg-location). If it left a non-mp3 file, convert it ourselves.
+              if (outputPath && !outputPath.endsWith('.mp3') && fs.existsSync(outputPath)) {
+                const mp3Target = path.join(outputFolder, `${sanitizedTitle}.mp3`);
+                try {
+                  console.log('[yt-dlp Handler] Converting to MP3:', outputPath, '→', mp3Target);
+                  outputPath = await this.convertToMp3WithFfmpeg(outputPath, mp3Target, id, quality);
+                } catch (convErr) {
+                  console.warn('[yt-dlp Handler] ffmpeg MP3 conversion failed, keeping original:', convErr.message);
+                }
+              }
+            } else {
+              // ── Video path ───────────────────────────────────────────────────────
+              // If yt-dlp left a .webm or .mkv (e.g. merge failed internally), remux to mp4.
+              if (outputPath && !outputPath.endsWith('.mp4') && fs.existsSync(outputPath)) {
+                const remuxTarget = path.join(outputFolder, `${sanitizedTitle}.mp4`);
+                try {
+                  console.log('[yt-dlp Handler] Non-mp4 output detected, remuxing:', outputPath, '→', remuxTarget);
+                  outputPath = await this.remuxWithFfmpeg(outputPath, remuxTarget, id);
+                } catch (remuxErr) {
+                  console.warn('[yt-dlp Handler] ffmpeg remux failed, keeping original:', remuxErr.message);
+                }
+              }
+            }
+
+            // Validate: if the file doesn't exist or is suspiciously small, report an error
+            if (!this.validateOutputFile(outputPath)) {
+              console.error('[yt-dlp Handler] Output file missing or invalid:', outputPath);
+              this.cleanupTempFiles(outputFolder, sanitizedTitle);
+              if (this.mainWindow && !this.mainWindow.isDestroyed()) {
+                this.mainWindow.webContents.send('dl:error', {
+                  jobId: id,
+                  error: 'Download finished but output file is missing or corrupt. Please try again.',
+                  errorType: ERROR_TYPES.UNKNOWN
+                });
+              }
+              reject({ type: ERROR_TYPES.UNKNOWN, message: 'Output file missing after download' });
+              return;
+            }
 
             if (this.mainWindow && !this.mainWindow.isDestroyed()) {
               this.mainWindow.webContents.send('dl:complete', {
@@ -957,7 +1047,6 @@ class YtdlpHandler {
             resolve(outputPath);
           });
 
-        // Store reference for cancellation
         this.activeDownloads.set(id, {
           process: downloadProcess,
           state: downloadState
@@ -980,57 +1069,111 @@ class YtdlpHandler {
       '--no-mtime',
       '--progress',
       // ── Resilience: ride out transient failures (429, 5xx, fragment drops) ──
-      '--retries', '5',
-      '--fragment-retries', '10',
-      '--extractor-retries', '3',
+      '--retries', '10',
+      '--fragment-retries', '20',
+      '--extractor-retries', '5',
       '--retry-sleep', '3',
-      '--socket-timeout', '30'
+      '--socket-timeout', '30',
+      '--concurrent-fragments', '4',
+      '--newline', // flush one progress line per update — required for real-time reporting
     ];
 
+    // Always provide the bundled ffmpeg so merging always works
+    const ffmpegPath = this.getFfmpegPath();
+    if (ffmpegPath) {
+      options.push('--ffmpeg-location', ffmpegPath);
+    }
+
     if (outputFormat === 'mp3') {
-      // Audio extraction
       options.push(
-        '-x',  // Extract audio
+        '-x',
         '--audio-format', 'mp3'
       );
 
-      // Set audio quality based on selection
       if (quality === 'high' || quality === '320') {
-        options.push('--audio-quality', '0'); // Best quality
+        options.push('--audio-quality', '0');
       } else if (quality === 'standard' || quality === '192') {
-        options.push('--audio-quality', '5'); // Medium quality
+        options.push('--audio-quality', '5');
       } else if (quality === 'low' || quality === '128') {
-        options.push('--audio-quality', '9'); // Lower quality
+        options.push('--audio-quality', '9');
       } else {
-        options.push('--audio-quality', '0'); // Default to best
+        options.push('--audio-quality', '0');
       }
     } else {
-      // Video download
       options.push(
         '--merge-output-format', 'mp4',
         '--remux-video', 'mp4',
         '--embed-metadata',
-        '--no-keep-video'  // Remove separate video file after merge (prevents leftover m4a)
+        '--no-keep-video'
       );
 
-      // Build format string based on quality
-      // Prefer H.264 (avc1) video and AAC (mp4a) audio for Premiere Pro compatibility
-      // Fallback chain: specific resolution with preferred codec -> specific resolution any codec -> best available
-      // This ensures if requested resolution isn't available, we still get the best possible quality
-      let formatString = 'bestvideo[vcodec^=avc1]+bestaudio[acodec^=mp4a]/bestvideo+bestaudio/best';
+      // ── Format selection strategy ────────────────────────────────────────────
+      // YouTube 4K/1440p is VP9 (vp09) or AV1 (av01) only — H.264 (avc1) doesn't
+      // exist at those resolutions. For 1080p and below, H.264 is available and
+      // preferred for editor compatibility. Always fall back to bestvideo+bestaudio
+      // so merging (with ffmpeg above) is the last resort rather than nothing.
+      let formatString;
 
       if (quality === 'best' || quality === 'Best Available' || quality === 'Best Available (Auto)') {
-        // Best available quality - prefer combined formats first, then merge
-        formatString = 'best[vcodec^=avc1]/best/bestvideo[vcodec^=avc1]+bestaudio[acodec^=mp4a]/bestvideo+bestaudio';
+        // Prefer combined H.264+AAC, then best separate streams
+        formatString = 'best[vcodec^=avc1][acodec^=mp4a]/bestvideo[vcodec^=avc1]+bestaudio[ext=m4a]/bestvideo+bestaudio[ext=m4a]/bestvideo+bestaudio/best';
+
       } else if (quality === '4k' || quality === '2160' || quality === '4K (2160p)') {
-        // Try specific resolution, fall back to best available if not found
-        formatString = 'bestvideo[height<=2160][vcodec^=avc1]+bestaudio[acodec^=mp4a]/bestvideo[height<=2160]+bestaudio/best[height<=2160]/bestvideo+bestaudio/best';
+        // 4K on YouTube is VP9 (313) or AV1 (401) + m4a (140) — never H.264
+        formatString = [
+          'bestvideo[height<=2160][vcodec^=vp09]+bestaudio[ext=m4a]',
+          'bestvideo[height<=2160][vcodec^=av01]+bestaudio[ext=m4a]',
+          'bestvideo[height<=2160][vcodec^=vp09]+bestaudio',
+          'bestvideo[height<=2160]+bestaudio[ext=m4a]',
+          'bestvideo[height<=2160]+bestaudio',
+          'bestvideo+bestaudio',
+          'best'
+        ].join('/');
+
+      } else if (quality === '1440' || quality === '1440p') {
+        // 1440p is also usually VP9 on YouTube
+        formatString = [
+          'bestvideo[height<=1440][vcodec^=vp09]+bestaudio[ext=m4a]',
+          'bestvideo[height<=1440][vcodec^=av01]+bestaudio[ext=m4a]',
+          'bestvideo[height<=1440]+bestaudio[ext=m4a]',
+          'bestvideo[height<=1440]+bestaudio',
+          'bestvideo+bestaudio',
+          'best'
+        ].join('/');
+
       } else if (quality === '1080' || quality === '1080p') {
-        formatString = 'bestvideo[height<=1080][vcodec^=avc1]+bestaudio[acodec^=mp4a]/bestvideo[height<=1080]+bestaudio/best[height<=1080]/bestvideo+bestaudio/best';
+        // 1080p: prefer H.264, fall back gracefully
+        formatString = [
+          'bestvideo[height<=1080][vcodec^=avc1]+bestaudio[ext=m4a]',
+          'bestvideo[height<=1080][vcodec^=avc1]+bestaudio',
+          'bestvideo[height<=1080]+bestaudio[ext=m4a]',
+          'bestvideo[height<=1080]+bestaudio',
+          'best[height<=1080]',
+          'best'
+        ].join('/');
+
       } else if (quality === '720' || quality === '720p') {
-        formatString = 'bestvideo[height<=720][vcodec^=avc1]+bestaudio[acodec^=mp4a]/bestvideo[height<=720]+bestaudio/best[height<=720]/bestvideo+bestaudio/best';
+        formatString = [
+          'best[height<=720][vcodec^=avc1][acodec^=mp4a]',
+          'bestvideo[height<=720][vcodec^=avc1]+bestaudio[ext=m4a]',
+          'bestvideo[height<=720]+bestaudio[ext=m4a]',
+          'bestvideo[height<=720]+bestaudio',
+          'best[height<=720]',
+          'best'
+        ].join('/');
+
       } else if (quality === '480' || quality === '480p') {
-        formatString = 'bestvideo[height<=480][vcodec^=avc1]+bestaudio[acodec^=mp4a]/bestvideo[height<=480]+bestaudio/best[height<=480]/bestvideo+bestaudio/best';
+        formatString = [
+          'best[height<=480][vcodec^=avc1][acodec^=mp4a]',
+          'bestvideo[height<=480][vcodec^=avc1]+bestaudio[ext=m4a]',
+          'bestvideo[height<=480]+bestaudio',
+          'best[height<=480]',
+          'best'
+        ].join('/');
+
+      } else {
+        // Fallback / unknown quality: best available with merge support
+        formatString = 'bestvideo[vcodec^=avc1]+bestaudio[ext=m4a]/bestvideo+bestaudio[ext=m4a]/bestvideo+bestaudio/best';
       }
 
       options.push('-f', formatString);
@@ -1061,30 +1204,66 @@ class YtdlpHandler {
   }
 
   /**
-   * Find the actual output file after download
+   * Find the actual output file after download.
+   * yt-dlp may produce .mp4, .webm, .mkv, or .mp3 depending on what was available.
+   * Returns null if nothing found (caller should treat that as an error).
    */
   findOutputFile(folder, baseName, format) {
-    const ext = format === 'mp3' ? 'mp3' : 'mp4';
-    const expectedPath = path.join(folder, `${baseName}.${ext}`);
+    // Exact expected path first
+    const preferredExt = format === 'mp3' ? 'mp3' : 'mp4';
+    const expectedPath = path.join(folder, `${baseName}.${preferredExt}`);
+    if (fs.existsSync(expectedPath)) return expectedPath;
 
-    if (fs.existsSync(expectedPath)) {
-      return expectedPath;
-    }
+    // Scan folder for any file matching the base name with a video/audio extension.
+    // Exclude .part files — those are incomplete downloads.
+    const videoExts = ['mp4', 'webm', 'mkv', 'mov', 'avi', 'm4v'];
+    const audioExts = ['mp3', 'm4a', 'ogg', 'opus', 'aac', 'flac', 'wav'];
+    const allowedExts = format === 'mp3' ? audioExts : [...videoExts, ...audioExts];
 
-    // Try to find matching file
     try {
+      const prefix = baseName.substring(0, 50);
       const files = fs.readdirSync(folder);
-      const matching = files.find(f =>
-        f.startsWith(baseName.substring(0, 50)) && f.endsWith(`.${ext}`)
-      );
-      if (matching) {
-        return path.join(folder, matching);
+
+      // First pass: prefer mp4/mp3 exact match anywhere in the listing
+      for (const f of files) {
+        if (f.startsWith(prefix) && f.endsWith(`.${preferredExt}`) && !f.includes('.part')) {
+          return path.join(folder, f);
+        }
       }
-    } catch (error) {
-      console.error('[yt-dlp Handler] Error finding output file:', error);
+
+      // Second pass: any allowed extension.
+      // Sort: preferred extension first, then by size descending (largest = most likely merged).
+      const candidates = files
+        .filter(f => {
+          if (!f.startsWith(prefix)) return false;
+          if (f.includes('.part') || /\.f\d+\./.test(f)) return false;
+          const ext = f.split('.').pop().toLowerCase();
+          return allowedExts.includes(ext);
+        })
+        .map(f => {
+          try {
+            const p = path.join(folder, f);
+            const ext = f.split('.').pop().toLowerCase();
+            return { f, p, size: fs.statSync(p).size, isPreferred: ext === preferredExt };
+          } catch (_) { return null; }
+        })
+        .filter(Boolean)
+        .sort((a, b) => {
+          // Preferred extension beats any other regardless of size
+          if (a.isPreferred !== b.isPreferred) return a.isPreferred ? -1 : 1;
+          return b.size - a.size;
+        });
+
+      if (candidates.length > 0) {
+        console.log('[yt-dlp Handler] findOutputFile found via scan:', candidates[0].f);
+        return candidates[0].p;
+      }
+    } catch (err) {
+      console.error('[yt-dlp Handler] Error scanning output folder:', err.message);
     }
 
-    return expectedPath; // Return expected path even if not found
+    // Return the expected path so callers can report a meaningful missing-file error
+    return expectedPath;
   }
 
   /**
@@ -1145,6 +1324,246 @@ class YtdlpHandler {
    */
   getActiveDownloads() {
     return Array.from(this.activeDownloads.keys());
+  }
+
+  /**
+   * Returns the path to the ffmpeg binary.
+   * Priority: bundled @ffmpeg-installer → common system locations → null (let yt-dlp find it)
+   */
+  getFfmpegPath() {
+    try {
+      const installer = require('@ffmpeg-installer/ffmpeg');
+      if (installer.path && fs.existsSync(installer.path)) {
+        return installer.path;
+      }
+    } catch (_) {}
+
+    if (process.platform === 'win32') {
+      const candidates = [
+        'C:\\ffmpeg\\bin\\ffmpeg.exe',
+        path.join(process.env.LOCALAPPDATA || '', 'Programs', 'ffmpeg', 'bin', 'ffmpeg.exe'),
+        path.join(process.env.ProgramFiles || '', 'ffmpeg', 'bin', 'ffmpeg.exe'),
+      ];
+      for (const p of candidates) {
+        try { if (fs.existsSync(p)) return p; } catch (_) {}
+      }
+    } else {
+      const candidates = ['/usr/local/bin/ffmpeg', '/usr/bin/ffmpeg', '/opt/homebrew/bin/ffmpeg'];
+      for (const p of candidates) {
+        try { if (fs.existsSync(p)) return p; } catch (_) {}
+      }
+    }
+
+    return null; // yt-dlp will look on PATH
+  }
+
+  /**
+   * Clean up leftover temp files after a failed download.
+   * Removes .part files, .ytdl temps, and per-format stream files (e.g. title.f313.webm).
+   */
+  cleanupTempFiles(folder, baseName) {
+    try {
+      const files = fs.readdirSync(folder);
+      const prefix = baseName.substring(0, 50);
+      for (const file of files) {
+        if (!file.startsWith(prefix)) continue;
+        if (/\.(part|ytdl|temp)$|\.f\d+\.(webm|mp4|m4a|ogg|opus|aac|mkv)$/i.test(file)) {
+          try {
+            fs.unlinkSync(path.join(folder, file));
+            console.log('[yt-dlp Handler] Cleaned up temp file:', file);
+          } catch (_) {}
+        }
+      }
+    } catch (err) {
+      console.warn('[yt-dlp Handler] cleanupTempFiles error:', err.message);
+    }
+  }
+
+  /**
+   * Losslessly remux any media file to mp4 using ffmpeg.
+   * Reports real-time progress via dl:progress events (mapped to 82–99%).
+   * jobId is optional — omit it when calling outside a download context.
+   */
+  remuxWithFfmpeg(inputPath, outputPath, jobId = null) {
+    const ffmpegPath = this.getFfmpegPath();
+    if (!ffmpegPath) return Promise.reject(new Error('ffmpeg not found for remux'));
+
+    return new Promise((resolve, reject) => {
+      const { spawn } = require('child_process');
+
+      // -progress pipe:1 writes key=value progress lines to stdout.
+      // We parse out_time_ms and total_duration_ms to get a real percentage.
+      const args = [
+        '-y',
+        '-i', inputPath,
+        '-c', 'copy',
+        '-movflags', '+faststart',
+        '-progress', 'pipe:1',
+        '-nostats',
+        outputPath
+      ];
+
+      console.log('[yt-dlp Handler] Remuxing with ffmpeg:', [ffmpegPath, ...args].join(' '));
+
+      const proc = spawn(ffmpegPath, args);
+      let stderr = '';
+      let totalDurationMs = 0;
+
+      // Parse total duration from ffmpeg stderr header (e.g. "Duration: 01:23:45.67")
+      const parseDuration = (text) => {
+        const m = text.match(/Duration:\s*(\d+):(\d+):([\d.]+)/);
+        if (m) {
+          totalDurationMs = (parseInt(m[1]) * 3600 + parseInt(m[2]) * 60 + parseFloat(m[3])) * 1000;
+        }
+      };
+
+      // ffmpeg -progress pipe:1 output → parse out_time_ms for real percentage
+      let stdoutBuf = '';
+      proc.stdout.on('data', (chunk) => {
+        stdoutBuf += chunk.toString();
+        const lines = stdoutBuf.split('\n');
+        stdoutBuf = lines.pop(); // keep incomplete last line
+
+        for (const line of lines) {
+          const [key, val] = line.split('=');
+          if (key === 'out_time_ms' && val) {
+            const posMs = parseInt(val) / 1000; // microseconds → ms
+            let pct = totalDurationMs > 0
+              ? Math.min(99, (posMs / totalDurationMs) * 100)
+              : 0;
+            // Map to the 82–99% window so it follows yt-dlp's 0-82% download progress
+            const scaled = Math.round(82 + pct * 0.17);
+            if (jobId && this.mainWindow && !this.mainWindow.isDestroyed()) {
+              this.mainWindow.webContents.send('dl:progress', {
+                jobId,
+                progress: scaled,
+                status: 'Remuxing...'
+              });
+            }
+          }
+        }
+      });
+
+      proc.stderr.on('data', (chunk) => {
+        const text = chunk.toString();
+        stderr += text;
+        if (!totalDurationMs) parseDuration(text);
+      });
+
+      proc.on('close', (code) => {
+        if (code === 0) {
+          try { fs.unlinkSync(inputPath); } catch (_) {}
+          // Final 99% before caller sends 'complete'
+          if (jobId && this.mainWindow && !this.mainWindow.isDestroyed()) {
+            this.mainWindow.webContents.send('dl:progress', { jobId, progress: 99, status: 'Remuxing...' });
+          }
+          resolve(outputPath);
+        } else {
+          reject(new Error('ffmpeg remux failed (code ' + code + '): ' + stderr.slice(-300)));
+        }
+      });
+
+      proc.on('error', (err) => {
+        reject(new Error('ffmpeg spawn error: ' + err.message));
+      });
+    });
+  }
+
+  /**
+   * Convert any audio file to MP3 using ffmpeg with libmp3lame.
+   * Fallback for when yt-dlp's internal -x --audio-format mp3 conversion fails.
+   * Reports real-time progress via dl:progress events (82–99% window).
+   *
+   * quality: 'high'|'320' → VBR q:a 0 (~320kbps)
+   *          'standard'|'192' → VBR q:a 5 (~192kbps)
+   *          'low'|'128' → VBR q:a 9 (~128kbps)
+   */
+  convertToMp3WithFfmpeg(inputPath, outputPath, jobId = null, quality = 'high') {
+    const ffmpegPath = this.getFfmpegPath();
+    if (!ffmpegPath) return Promise.reject(new Error('ffmpeg not found for MP3 conversion'));
+
+    const vbrQ = (quality === 'standard' || quality === '192') ? '5'
+                : (quality === 'low'      || quality === '128') ? '9'
+                : '0'; // high/320/default
+
+    return new Promise((resolve, reject) => {
+      const { spawn } = require('child_process');
+
+      const args = [
+        '-y',
+        '-i', inputPath,
+        '-vn',                    // strip video stream if any
+        '-codec:a', 'libmp3lame',
+        '-q:a', vbrQ,
+        '-progress', 'pipe:1',
+        '-nostats',
+        outputPath
+      ];
+
+      console.log('[yt-dlp Handler] Converting to MP3:', [ffmpegPath, ...args].join(' '));
+
+      const proc = spawn(ffmpegPath, args);
+      let stderr = '';
+      let totalDurationMs = 0;
+
+      const parseDuration = (text) => {
+        const m = text.match(/Duration:\s*(\d+):(\d+):([\d.]+)/);
+        if (m) totalDurationMs = (parseInt(m[1]) * 3600 + parseInt(m[2]) * 60 + parseFloat(m[3])) * 1000;
+      };
+
+      let stdoutBuf = '';
+      proc.stdout.on('data', (chunk) => {
+        stdoutBuf += chunk.toString();
+        const lines = stdoutBuf.split('\n');
+        stdoutBuf = lines.pop();
+        for (const line of lines) {
+          const [key, val] = line.split('=');
+          if (key === 'out_time_ms' && val) {
+            const posMs = parseInt(val) / 1000;
+            const pct = totalDurationMs > 0 ? Math.min(99, (posMs / totalDurationMs) * 100) : 0;
+            const scaled = Math.round(82 + pct * 0.17);
+            if (jobId && this.mainWindow && !this.mainWindow.isDestroyed()) {
+              this.mainWindow.webContents.send('dl:progress', { jobId, progress: scaled, status: 'Converting to MP3...' });
+            }
+          }
+        }
+      });
+
+      proc.stderr.on('data', (chunk) => {
+        const text = chunk.toString();
+        stderr += text;
+        if (!totalDurationMs) parseDuration(text);
+      });
+
+      proc.on('close', (code) => {
+        if (code === 0) {
+          try { fs.unlinkSync(inputPath); } catch (_) {}
+          if (jobId && this.mainWindow && !this.mainWindow.isDestroyed()) {
+            this.mainWindow.webContents.send('dl:progress', { jobId, progress: 99, status: 'Converting to MP3...' });
+          }
+          resolve(outputPath);
+        } else {
+          reject(new Error('ffmpeg MP3 conversion failed (code ' + code + '): ' + stderr.slice(-300)));
+        }
+      });
+
+      proc.on('error', (err) => {
+        reject(new Error('ffmpeg spawn error: ' + err.message));
+      });
+    });
+  }
+
+  /**
+   * Validate that the output file actually exists and is not a stub/empty file.
+   */
+  validateOutputFile(outputPath) {
+    if (!outputPath || !fs.existsSync(outputPath)) return false;
+    try {
+      const stat = fs.statSync(outputPath);
+      return stat.size > 4096; // anything under 4KB is certainly wrong
+    } catch (_) {
+      return false;
+    }
   }
 
   /**

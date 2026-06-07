@@ -449,7 +449,10 @@ class DownloaderManager {
         } else if (updates.status === 'failed') {
           progressText.textContent = 'Failed';
         } else if (updates.status === 'downloading') {
-          progressText.textContent = `${Math.round(updates.progress)}%`;
+          // Show a phase label ('Finalizing...', 'Remuxing...') when provided, otherwise show %
+          progressText.textContent = updates.label
+            ? `${Math.round(updates.progress)}% — ${updates.label}`
+            : `${Math.round(updates.progress)}%`;
         } else {
           progressText.textContent = 'Pending';
         }
@@ -481,7 +484,8 @@ class DownloaderManager {
 
     this.updateJobUI(data.jobId, {
       status: 'downloading',
-      progress: data.progress
+      progress: data.progress,
+      label: data.status || null  // optional label: 'Finalizing...', 'Remuxing...', etc.
     });
   }
 

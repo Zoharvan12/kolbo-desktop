@@ -2060,6 +2060,7 @@ class FileExplorerManager {
 
       // Immediately show playhead at click position
       this.previewMediaEl.currentTime = time;
+      this.updatePreviewProgress(); // don't wait for async timeupdate
     });
 
     // Make the selection area draggable for export (using mousedown, not HTML5 drag)
@@ -2276,10 +2277,12 @@ class FileExplorerManager {
             // Move playhead to current mouse position
             if (this.previewMediaEl) {
               this.previewMediaEl.currentTime = time;
+              this.updatePreviewProgress();
             }
           } else if (isJustSeeking && this.previewMediaEl) {
             // Still just seeking (small movement)
             this.previewMediaEl.currentTime = time;
+            this.updatePreviewProgress();
           }
         }
       });
@@ -2301,6 +2304,7 @@ class FileExplorerManager {
         // If user just clicked (didn't drag), seek to that position
         if (isJustSeeking && !hasMoved && dragStartTime !== null && this.previewMediaEl) {
           this.previewMediaEl.currentTime = dragStartTime;
+          this.updatePreviewProgress();
         }
 
         dragStartTime = null;

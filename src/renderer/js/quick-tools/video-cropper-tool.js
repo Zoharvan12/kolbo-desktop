@@ -680,14 +680,13 @@ class VideoCropperTool {
 
     progressContainer?.classList.remove('hidden');
     if (exportBtn) exportBtn.disabled = true;
+    // Image export is near-instant — use an indeterminate shimmer instead of fake %
+    if (progressFill) progressFill.classList.add('indeterminate');
+    if (progressPercent) progressPercent.textContent = '';
 
     try {
       const outputFolder = this.manager.getOutputFolder('cropper');
       const cropParams = this.getCropParams();
-
-      // Update progress
-      if (progressFill) progressFill.style.width = '30%';
-      if (progressPercent) progressPercent.textContent = '30%';
 
       // Create canvas and crop
       const canvas = document.createElement('canvas');
@@ -695,15 +694,11 @@ class VideoCropperTool {
       canvas.height = cropParams.height;
       const ctx = canvas.getContext('2d');
 
-      // Draw cropped portion of image
       ctx.drawImage(
         this.mediaEl,
         cropParams.x, cropParams.y, cropParams.width, cropParams.height,
         0, 0, cropParams.width, cropParams.height
       );
-
-      if (progressFill) progressFill.style.width = '60%';
-      if (progressPercent) progressPercent.textContent = '60%';
 
       // Determine output format based on original file
       const ext = this.manager.getFileExtension(this.file.name).toLowerCase();
@@ -712,9 +707,6 @@ class VideoCropperTool {
 
       // Convert canvas to blob
       const blob = await new Promise(resolve => canvas.toBlob(resolve, mimeType, 0.95));
-
-      if (progressFill) progressFill.style.width = '80%';
-      if (progressPercent) progressPercent.textContent = '80%';
 
       // Generate filename
       const baseName = this.file.name.replace(/\.[^/.]+$/, '');
@@ -727,9 +719,7 @@ class VideoCropperTool {
         blob: blob
       });
 
-      if (progressFill) progressFill.style.width = '100%';
-      if (progressPercent) progressPercent.textContent = '100%';
-
+      if (progressFill) progressFill.classList.remove('indeterminate');
       this.isProcessing = false;
       progressContainer?.classList.add('hidden');
       if (exportBtn) exportBtn.disabled = false;
@@ -744,6 +734,7 @@ class VideoCropperTool {
 
     } catch (error) {
       console.error('[MediaCropperTool] Image crop failed:', error);
+      if (progressFill) progressFill.classList.remove('indeterminate');
       this.isProcessing = false;
       progressContainer?.classList.add('hidden');
       if (exportBtn) exportBtn.disabled = false;

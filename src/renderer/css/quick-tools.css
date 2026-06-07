@@ -300,6 +300,18 @@
   transition: width 0.3s ease;
 }
 
+/* Indeterminate shimmer — used when real progress isn't available (e.g. canvas image export) */
+.qt-progress-fill.indeterminate {
+  width: 40% !important;
+  transition: none;
+  animation: qt-indeterminate 1.4s ease-in-out infinite;
+}
+
+@keyframes qt-indeterminate {
+  0%   { transform: translateX(-150%); }
+  100% { transform: translateX(350%); }
+}
+
 /* ===== SECTION HEADERS ===== */
 .qt-section-header {
   display: flex;
