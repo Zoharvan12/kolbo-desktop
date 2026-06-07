@@ -213,6 +213,6 @@ The **Synci** tab (after "My Media") is the licensed-music browser ported from t
 - **i18n**: nested `synci.*` block (+ `tabs.synci`) in `src/renderer/i18n/locales/*.json` (en full; others get the literal brand `tabs.synci` — `SynciManager.FALLBACK` covers English strings until translated). Brand "Synci" is never translated.
 
 ## Last Updated
-- **Date**: June 6, 2026
-- **Version**: 1.5.1
-- **Status**: Synci music library ported as a tab after "My Media" (browse/search/favorites/downloads/AI-suggest; downloads to disk). Video Studio sub-app vendored from LTX-Desktop (scaffold only — API adapter pending)
+- **Date**: June 8, 2026
+- **Version**: 1.6.0
+- **Status**: Synci music library shipped as a tab after "My Media" — browse/search/favorites/downloads/AI-suggest, FFmpeg waveforms, now-playing dock with in/out selection + drag-to-timeline + download. Video Studio sub-app vendored from LTX-Desktop (scaffold only — API adapter pending)
