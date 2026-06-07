@@ -54,7 +54,8 @@
     "newTab": "Neuer Tab",
     "splitView": "Geteilte Ansicht",
     "loadingFileBridge": "File Bridge wird geladen...",
-    "loadingKolbo": "Kolbo Web App wird geladen..."
+    "loadingKolbo": "Kolbo Web App wird geladen...",
+    "synci": "Synci"
   },
   "webapp": {
     "back": "Zurück",
@@ -375,5 +376,21 @@
   "language": {
     "selectLanguage": "Sprache auswählen",
     "current": "Sprache"
+  },
+  "synci": {
+    "download": "Herunterladen",
+    "downloadTrim": "Herunterladen & zuschneiden",
+    "dock": {
+      "close": "Schließen",
+      "in": "Start",
+      "out": "Ende",
+      "download": "Herunterladen",
+      "downloadTrim": "Herunterladen & zuschneiden",
+      "dragHint": "Auf die Timeline deines Editors ziehen",
+      "actionHint": "Zum Herunterladen klicken · Auf die Timeline ziehen",
+      "preparing": "Datei wird vorbereitet…",
+      "preparingShort": "Wird vorbereitet…",
+      "ready": "Bereit – auf die Timeline ziehen."
+    }
   }
 }

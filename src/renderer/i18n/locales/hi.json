@@ -54,7 +54,8 @@
     "newTab": "नया टैब",
     "splitView": "स्प्लिट व्यू",
     "loadingFileBridge": "फ़ाइल ब्रिज लोड हो रहा है...",
-    "loadingKolbo": "Kolbo वेब ऐप लोड हो रहा है..."
+    "loadingKolbo": "Kolbo वेब ऐप लोड हो रहा है...",
+    "synci": "Synci"
   },
   "webapp": {
     "back": "वापस जाओ",
@@ -375,5 +376,21 @@
   "language": {
     "selectLanguage": "भाषा चुनें",
     "current": "भाषा"
+  },
+  "synci": {
+    "download": "डाउनलोड",
+    "downloadTrim": "डाउनलोड और ट्रिम",
+    "dock": {
+      "close": "बंद करें",
+      "in": "इन",
+      "out": "आउट",
+      "download": "डाउनलोड",
+      "downloadTrim": "डाउनलोड और ट्रिम",
+      "dragHint": "अपने एडिटर की टाइमलाइन पर खींचें",
+      "actionHint": "डाउनलोड के लिए क्लिक करें · टाइमलाइन पर खींचें",
+      "preparing": "फ़ाइल तैयार की जा रही है…",
+      "preparingShort": "तैयार किया जा रहा है…",
+      "ready": "तैयार — इसे टाइमलाइन पर खींचें।"
+    }
   }
 }

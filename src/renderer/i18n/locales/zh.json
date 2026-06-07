@@ -54,7 +54,8 @@
     "newTab": "新标签页",
     "splitView": "分屏视图",
     "loadingFileBridge": "正在加载文件桥接...",
-    "loadingKolbo": "正在加载 Kolbo Web App..."
+    "loadingKolbo": "正在加载 Kolbo Web App...",
+    "synci": "Synci"
   },
   "webapp": {
     "back": "返回",
@@ -375,5 +376,21 @@
   "language": {
     "selectLanguage": "选择语言",
     "current": "语言"
+  },
+  "synci": {
+    "download": "下载",
+    "downloadTrim": "下载并裁剪",
+    "dock": {
+      "close": "关闭",
+      "in": "入点",
+      "out": "出点",
+      "download": "下载",
+      "downloadTrim": "下载并裁剪",
+      "dragHint": "拖到编辑器时间线上",
+      "actionHint": "点击下载 · 拖到时间线上",
+      "preparing": "正在准备文件…",
+      "preparingShort": "准备中…",
+      "ready": "已就绪 — 拖到时间线上。"
+    }
   }
 }

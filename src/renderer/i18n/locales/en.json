@@ -64,7 +64,8 @@
     "newTab": "New Tab",
     "splitView": "Split View",
     "loadingFileBridge": "Loading File Bridge...",
-    "loadingKolbo": "Loading Kolbo Web App..."
+    "loadingKolbo": "Loading Kolbo Web App...",
+    "synci": "Synci"
   },
   "webapp": {
     "back": "Go Back",
@@ -389,5 +390,92 @@
   "language": {
     "selectLanguage": "Select Language",
     "current": "Language"
+  },
+  "synci": {
+    "tagline": "Licensed music library",
+    "tab": {
+      "browse": "Browse",
+      "favorites": "Favorites",
+      "downloaded": "Downloaded"
+    },
+    "search": {
+      "placeholder": "Search music…",
+      "go": "Search"
+    },
+    "filter": {
+      "mood": "Mood",
+      "genre": "Genre",
+      "more": "Filters",
+      "bpm": "BPM",
+      "duration": "Duration",
+      "hasLyrics": "Has lyrics",
+      "apply": "Apply",
+      "reset": "Reset"
+    },
+    "fromScript": "From script",
+    "suggest": "AI suggest",
+    "suggestMenu": {
+      "script": "From a script",
+      "frame": "Current timeline frame",
+      "image": "Upload image",
+      "video": "Upload video",
+      "audio": "From timeline audio"
+    },
+    "analyze": {
+      "capturing": "Capturing frame…",
+      "exporting": "Exporting audio…",
+      "analyzing": "Analyzing…",
+      "tooLarge": "That file is too large (max 50 MB).",
+      "audioTooLong": "Audio is too long. Set In/Out points to a shorter range (≤10 min)."
+    },
+    "quality": {
+      "label": "Quality",
+      "default": "Default download quality"
+    },
+    "chip": {
+      "search": "Search"
+    },
+    "projectScope": "Project",
+    "allProjects": "All projects",
+    "loadMore": "Load more",
+    "loading": "Loading…",
+    "endOfResults": "End of results",
+    "empty": {
+      "browse": "No tracks found. Try a shorter keyword or clear some filters.",
+      "favorites": "No favorites yet. Tap the heart on any track to save it.",
+      "downloaded": "Nothing downloaded from Synci yet."
+    },
+    "preview": "Preview",
+    "favorite": "Favorite",
+    "addToTimeline": "Download",
+    "added": "Saved to your downloads",
+    "script": {
+      "title": "Find music from a script",
+      "placeholder": "Paste your script or voiceover here…",
+      "analyze": "Find music",
+      "analyzing": "Analyzing…",
+      "cancel": "Cancel"
+    },
+    "error": {
+      "generic": "Something went wrong. Please try again.",
+      "noAudio": "No audio available for this track.",
+      "import": "Could not download the track.",
+      "frame": "Could not capture the timeline frame.",
+      "audioExport": "Could not export the timeline audio."
+    },
+    "download": "Download",
+    "downloadTrim": "Download & Trim",
+    "dock": {
+      "close": "Close",
+      "in": "In",
+      "out": "Out",
+      "download": "Download",
+      "downloadTrim": "Download & Trim",
+      "dragHint": "Drag onto your editor timeline",
+      "actionHint": "Click to download · Drag onto your timeline",
+      "preparing": "Preparing file…",
+      "preparingShort": "Preparing…",
+      "ready": "Ready — drag it to your timeline."
+    }
   }
 }

@@ -54,7 +54,8 @@
     "newTab": "לשונית חדשה",
     "splitView": "תצוגה מפוצלת",
     "loadingFileBridge": "טוען File Bridge...",
-    "loadingKolbo": "טוען את אפליקציית האינטרנט של Kolbo..."
+    "loadingKolbo": "טוען את אפליקציית האינטרנט של Kolbo...",
+    "synci": "Synci"
   },
   "webapp": {
     "back": "חזור",
@@ -375,5 +376,21 @@
   "language": {
     "selectLanguage": "בחר שפה",
     "current": "שפה"
+  },
+  "synci": {
+    "download": "הורדה",
+    "downloadTrim": "הורדה וחיתוך",
+    "dock": {
+      "close": "סגור",
+      "in": "כניסה",
+      "out": "יציאה",
+      "download": "הורדה",
+      "downloadTrim": "הורדה וחיתוך",
+      "dragHint": "גרור אל ציר הזמן בעורך",
+      "actionHint": "לחץ להורדה · גרור אל ציר הזמן",
+      "preparing": "מכין קובץ…",
+      "preparingShort": "מכין…",
+      "ready": "מוכן — גרור אל ציר הזמן."
+    }
   }
 }

@@ -1425,6 +1425,48 @@ function setupDownloaderHandlers() {
 // SCREENSHOT HANDLERS
 // ============================================================================
 
+// Follow up to 5 redirects and resolve with the final http(s) IncomingMessage.
+// Shared by the Synci download/cache/peak handlers (signed CDN urls 30x often).
+function synciHttpGetFollow(url, depth = 0) {
+  return new Promise((resolve, reject) => {
+    if (depth > 5) return reject(new Error('Too many redirects'));
+    const mod = url.indexOf('https:') === 0 ? require('https') : require('http');
+    mod.get(url, (res) => {
+      if (res.statusCode >= 300 && res.statusCode < 400 && res.headers.location) {
+        res.resume();
+        let next = res.headers.location;
+        if (next.indexOf('http') !== 0) next = new URL(next, url).toString();
+        return synciHttpGetFollow(next, depth + 1).then(resolve, reject);
+      }
+      if (res.statusCode !== 200) { res.resume(); return reject(new Error('HTTP ' + res.statusCode)); }
+      resolve(res);
+    }).on('error', reject);
+  });
+}
+
+// Stream a URL to a file (follows redirects); cleans up a partial file on error.
+async function synciDownloadToFile(url, destPath) {
+  const fs = require('fs');
+  const res = await synciHttpGetFollow(url);
+  await new Promise((resolve, reject) => {
+    const file = fs.createWriteStream(destPath);
+    res.pipe(file);
+    file.on('finish', () => file.close(() => resolve()));
+    file.on('error', (err) => { try { fs.unlinkSync(destPath); } catch (e) {} reject(err); });
+  });
+}
+
+// Buffer a URL fully into memory (follows redirects).
+async function synciFetchToBuffer(url) {
+  const res = await synciHttpGetFollow(url);
+  return new Promise((resolve, reject) => {
+    const chunks = [];
+    res.on('data', (c) => chunks.push(c));
+    res.on('end', () => resolve(Buffer.concat(chunks)));
+    res.on('error', reject);
+  });
+}
+
 function setupScreenshotHandlers() {
   const { ipcMain, dialog, clipboard, nativeImage } = require('electron');
   const fs = require('fs').promises;
@@ -1652,6 +1694,162 @@ function setupScreenshotHandlers() {
         });
       }
 
+      return { success: false, error: error.message };
+    }
+  });
+
+  // ── Synci: download a licensed track to disk ──────────────────────────────
+  // SynciManager's desktop bridge calls this in place of "add to timeline".
+  // Saves to the user's configured download folder (or the OS Downloads dir).
+  ipcMain.handle('synci:download-to-disk', async (event, { url, filename }) => {
+    try {
+      if (!url) return { success: false, error: 'No URL provided' };
+
+      let downloadFolder = store.get('defaultDownloadFolder');
+      if (!downloadFolder) downloadFolder = app.getPath('downloads');
+
+      // Sanitize the filename and guarantee an extension.
+      let safeName = String(filename || 'Synci Track')
+        .replace(/[\\/:*?"<>|]/g, '')
+        .trim() || 'Synci Track';
+      if (!/\.[a-z0-9]{2,4}$/i.test(safeName)) safeName += '.mp3';
+      const savePath = path.join(downloadFolder, safeName);
+
+      await synciDownloadToFile(url, savePath);
+
+      console.log('[Synci] Downloaded to:', savePath);
+
+      // Reuse the existing download banner in the renderer.
+      const targetWindow = BrowserWindow.getFocusedWindow() || mainWindow;
+      if (targetWindow && !targetWindow.isDestroyed()) {
+        targetWindow.webContents.send('download-complete', {
+          fileName: safeName,
+          filePath: savePath,
+          folderPath: downloadFolder
+        });
+      }
+
+      return { success: true, filePath: savePath };
+    } catch (error) {
+      console.error('[Synci] Download failed:', error);
+      const targetWindow = BrowserWindow.getFocusedWindow() || mainWindow;
+      if (targetWindow && !targetWindow.isDestroyed()) {
+        targetWindow.webContents.send('download-failed', {
+          fileName: filename || 'track',
+          error: error.message
+        });
+      }
+      return { success: false, error: error.message };
+    }
+  });
+
+  // ── Synci: cache a track to a local file (for drag-to-timeline) ───────────
+  // Native OS drag (startFileDrag) and ffmpeg trim both need a real local file.
+  // We download the chosen-quality audio into a hidden SynciCache dir, keyed by
+  // url hash so repeated plays/drags reuse the same file.
+  ipcMain.handle('synci:cache-track', async (event, { url, filename }) => {
+    const fsSync = require('fs');
+    const crypto = require('crypto');
+
+    try {
+      if (!url) return { success: false, error: 'No URL' };
+      const cacheDir = path.join(app.getPath('userData'), 'SynciCache');
+      if (!fsSync.existsSync(cacheDir)) fsSync.mkdirSync(cacheDir, { recursive: true });
+
+      const hash = crypto.createHash('md5').update(url).digest('hex').slice(0, 16);
+      let safe = String(filename || 'synci-track').replace(/[\\/:*?"<>|]/g, '').trim() || 'synci-track';
+      if (!/\.[a-z0-9]{2,4}$/i.test(safe)) safe += '.mp3';
+      const savePath = path.join(cacheDir, hash + '_' + safe);
+
+      // Already cached?
+      if (fsSync.existsSync(savePath) && fsSync.statSync(savePath).size > 0) {
+        return { success: true, filePath: savePath, cached: true };
+      }
+
+      await synciDownloadToFile(url, savePath);
+
+      return { success: true, filePath: savePath, cached: false };
+    } catch (error) {
+      console.warn('[Synci] cache-track failed:', error.message);
+      return { success: false, error: error.message };
+    }
+  });
+
+  // ── Synci: copy an already-local file (cached/trimmed) into Downloads ─────
+  ipcMain.handle('synci:save-to-downloads', async (event, { filePath, filename }) => {
+    const fsSync = require('fs');
+    try {
+      if (!filePath || !fsSync.existsSync(filePath)) return { success: false, error: 'File not found' };
+      const folder = store.get('defaultDownloadFolder') || app.getPath('downloads');
+      let safe = String(filename || path.basename(filePath)).replace(/[\\/:*?"<>|]/g, '').trim() || path.basename(filePath);
+      const ext = path.extname(safe);
+      const base = path.basename(safe, ext);
+      let dest = path.join(folder, safe);
+      let i = 1;
+      while (fsSync.existsSync(dest)) { dest = path.join(folder, base + ' (' + i + ')' + ext); i++; }
+      fsSync.copyFileSync(filePath, dest);
+
+      const win = BrowserWindow.getFocusedWindow() || mainWindow;
+      if (win && !win.isDestroyed()) {
+        win.webContents.send('download-complete', { fileName: path.basename(dest), filePath: dest, folderPath: folder });
+      }
+      return { success: true, savedPath: dest };
+    } catch (error) {
+      console.warn('[Synci] save-to-downloads failed:', error.message);
+      return { success: false, error: error.message };
+    }
+  });
+
+  // ── Synci: compute waveform peaks in the main process (FFmpeg) ────────────
+  // Web Audio decodeAudioData crashes the renderer natively (access violation
+  // 0xC0000005) from a file:// origin. So we fetch the audio here, pipe it
+  // through the bundled FFmpeg to mono f32 PCM, and return normalized RMS peaks
+  // for the canvas waveform. Renderer never touches Web Audio.
+  ipcMain.handle('synci:waveform-peaks', async (event, { url, numPeaks }) => {
+    const { spawn } = require('child_process');
+    let ffmpegPath = require('@ffmpeg-installer/ffmpeg').path;
+    if (ffmpegPath.includes('app.asar')) ffmpegPath = ffmpegPath.replace('app.asar', 'app.asar.unpacked');
+
+    const N = Math.max(32, Math.min(800, numPeaks || 400));
+    const SR = 8000; // mono @ 8 kHz is plenty of detail for a thin waveform
+
+    try {
+      if (!url) return { success: false, error: 'No URL' };
+      const audioBuf = await synciFetchToBuffer(url);
+
+      const pcm = await new Promise((resolve, reject) => {
+        const proc = spawn(ffmpegPath, ['-hide_banner', '-loglevel', 'error', '-i', 'pipe:0', '-ac', '1', '-ar', String(SR), '-f', 'f32le', 'pipe:1']);
+        const out = []; let size = 0; const MAX = 80 * 1024 * 1024; let err = '';
+        proc.stdout.on('data', (c) => { size += c.length; if (size > MAX) { try { proc.kill('SIGKILL'); } catch (e) {} } else out.push(c); });
+        proc.stderr.on('data', (c) => { err += c.toString(); });
+        proc.on('error', reject);
+        proc.on('close', (code) => {
+          if (code === 0 && out.length) resolve(Buffer.concat(out));
+          else reject(new Error('ffmpeg exit ' + code + ' ' + err.slice(0, 200)));
+        });
+        proc.stdin.on('error', () => {}); // ignore EPIPE if ffmpeg bails early
+        proc.stdin.write(audioBuf);
+        proc.stdin.end();
+      });
+
+      const usable = pcm.length - (pcm.length % 4);
+      const f32 = new Float32Array(pcm.buffer, pcm.byteOffset, usable / 4);
+      const sampleCount = f32.length;
+      if (!sampleCount) return { success: false, error: 'No PCM decoded' };
+
+      const block = Math.max(1, Math.floor(sampleCount / N));
+      const peaks = new Array(N); let max = 0;
+      for (let i = 0; i < N; i++) {
+        const s = i * block, e = Math.min(s + block, sampleCount); let sum = 0;
+        for (let j = s; j < e; j++) { const v = f32[j]; sum += v * v; }
+        const rms = Math.sqrt(sum / Math.max(1, e - s));
+        peaks[i] = rms; if (rms > max) max = rms;
+      }
+      if (max > 0) for (let k = 0; k < N; k++) peaks[k] = peaks[k] / max;
+
+      return { success: true, peaks, duration: sampleCount / SR };
+    } catch (error) {
+      console.warn('[Synci] waveform-peaks failed:', error.message);
       return { success: false, error: error.message };
     }
   });

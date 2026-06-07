@@ -54,7 +54,8 @@
     "newTab": "Новая вкладка",
     "splitView": "Разделенный вид",
     "loadingFileBridge": "Загрузка File Bridge...",
-    "loadingKolbo": "Загрузка Kolbo Web App..."
+    "loadingKolbo": "Загрузка Kolbo Web App...",
+    "synci": "Synci"
   },
   "webapp": {
     "back": "Назад",
@@ -375,5 +376,21 @@
   "language": {
     "selectLanguage": "Выберите язык",
     "current": "Язык"
+  },
+  "synci": {
+    "download": "Скачать",
+    "downloadTrim": "Скачать и обрезать",
+    "dock": {
+      "close": "Закрыть",
+      "in": "Начало",
+      "out": "Конец",
+      "download": "Скачать",
+      "downloadTrim": "Скачать и обрезать",
+      "dragHint": "Перетащите на таймлайн редактора",
+      "actionHint": "Нажмите, чтобы скачать · Перетащите на таймлайн",
+      "preparing": "Подготовка файла…",
+      "preparingShort": "Подготовка…",
+      "ready": "Готово — перетащите на таймлайн."
+    }
   }
 }

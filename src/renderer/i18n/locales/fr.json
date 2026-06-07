@@ -54,7 +54,8 @@
     "newTab": "Nouvel onglet",
     "splitView": "Affichage fractionné",
     "loadingFileBridge": "Chargement de File Bridge...",
-    "loadingKolbo": "Chargement de l'application Web Kolbo..."
+    "loadingKolbo": "Chargement de l'application Web Kolbo...",
+    "synci": "Synci"
   },
   "webapp": {
     "back": "Retour",
@@ -375,5 +376,21 @@
   "language": {
     "selectLanguage": "Sélectionner la langue",
     "current": "Langue"
+  },
+  "synci": {
+    "download": "Télécharger",
+    "downloadTrim": "Télécharger et rogner",
+    "dock": {
+      "close": "Fermer",
+      "in": "Entrée",
+      "out": "Sortie",
+      "download": "Télécharger",
+      "downloadTrim": "Télécharger et rogner",
+      "dragHint": "Glissez sur la timeline de votre éditeur",
+      "actionHint": "Cliquez pour télécharger · Glissez sur votre timeline",
+      "preparing": "Préparation du fichier…",
+      "preparingShort": "Préparation…",
+      "ready": "Prêt — glissez-le sur votre timeline."
+    }
   }
 }

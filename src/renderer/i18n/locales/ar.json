@@ -54,7 +54,8 @@
     "newTab": "علامة تبويب جديدة",
     "splitView": "عرض مقسم",
     "loadingFileBridge": "جاري تحميل File Bridge...",
-    "loadingKolbo": "جاري تحميل تطبيق Kolbo على الويب..."
+    "loadingKolbo": "جاري تحميل تطبيق Kolbo على الويب...",
+    "synci": "Synci"
   },
   "webapp": {
     "back": "رجوع",
@@ -375,5 +376,21 @@
   "language": {
     "selectLanguage": "اختر اللغة",
     "current": "اللغة"
+  },
+  "synci": {
+    "download": "تنزيل",
+    "downloadTrim": "تنزيل وقص",
+    "dock": {
+      "close": "إغلاق",
+      "in": "بداية",
+      "out": "نهاية",
+      "download": "تنزيل",
+      "downloadTrim": "تنزيل وقص",
+      "dragHint": "اسحب إلى المخطط الزمني في المحرر",
+      "actionHint": "انقر للتنزيل · اسحب إلى المخطط الزمني",
+      "preparing": "جارٍ تجهيز الملف…",
+      "preparingShort": "جارٍ التجهيز…",
+      "ready": "جاهز — اسحبه إلى المخطط الزمني."
+    }
   }
 }

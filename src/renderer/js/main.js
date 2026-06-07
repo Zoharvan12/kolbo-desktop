@@ -513,6 +513,10 @@ class KolboApp {
     if (quickToolsTab) {
       quickToolsTab.addEventListener('click', () => this.switchView('quick-tools'));
     }
+    const synciTab = document.getElementById('synci-tab');
+    if (synciTab) {
+      synciTab.addEventListener('click', () => this.switchView('synci'));
+    }
     const fileExplorerTab = document.getElementById('file-explorer-tab');
     if (fileExplorerTab) {
       fileExplorerTab.addEventListener('click', () => this.switchView('file-explorer'));
@@ -783,6 +787,7 @@ class KolboApp {
     const fileExplorerView = document.getElementById('file-explorer-view');
     const agentView = document.getElementById('agent-view');
     const videoStudioView = document.getElementById('video-studio-view');
+    const synciView = document.getElementById('synci-view');
     const mediaCount = document.getElementById('media-count');
 
     // Hide all views first
@@ -804,6 +809,8 @@ class KolboApp {
     agentView?.classList.remove('active');
     videoStudioView?.classList.add('hidden');
     videoStudioView?.classList.remove('active');
+    synciView?.classList.add('hidden');
+    synciView?.classList.remove('active');
 
     if (view === 'media') {
       mediaView?.classList.remove('hidden');
@@ -935,6 +942,20 @@ class KolboApp {
 
       if (this.DEBUG_MODE) {
         console.log('[View] Agent view shown');
+      }
+    } else if (view === 'synci') {
+      synciView?.classList.remove('hidden');
+      synciView?.classList.add('active');
+      if (mediaCount) mediaCount.style.display = 'none';
+
+      // Lazy-init the Synci music library on first open.
+      if (!this.synciManager && window.SynciManager) {
+        this.synciManager = new window.SynciManager(window.kolboDesktopSynciBridge, window.kolboAPI);
+      }
+      this.synciManager?.activate();
+
+      if (this.DEBUG_MODE) {
+        console.log('[View] Synci view shown');
       }
     }
   }
@@ -3436,6 +3457,10 @@ ${Icons.get('check', 16)}
     const waveform = mediaItem.querySelector('.audio-waveform');
     if (!waveform) return;
 
+    // Update the progress fill overlay so it tracks playback position
+    const progressFill = waveform.querySelector('.waveform-progress');
+    if (progressFill) progressFill.style.width = `${progress * 100}%`;
+
     const bars = waveform.querySelectorAll('.waveform-bar');
     const playedCount = Math.floor(bars.length * progress);
 
@@ -3541,11 +3566,18 @@ ${Icons.get('check', 16)}
           const rect = waveform.getBoundingClientRect();
           const clickX = e.clientX - rect.left;
           const progress = Math.max(0, Math.min(1, clickX / rect.width));
+
           if (audio.duration) {
             audio.currentTime = progress * audio.duration;
+
+            // Immediately sync visuals — don't wait for the async timeupdate event.
+            // This makes the waveform bars, progress fill, and time display respond
+            // to the click instantly rather than lagging until the next timeupdate.
+            this.updateWaveformProgress(audioId, progress);
+            if (currentTimeEl) currentTimeEl.textContent = this.formatAudioTime(audio.currentTime);
           }
 
-          // If not playing, start playback
+          // If not playing, start playback from the new position
           if (audio.paused) {
             this.handleAudioPlay(audio, audioId);
             audio.play();

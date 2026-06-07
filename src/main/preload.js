@@ -60,11 +60,15 @@ console.log('[Preload] Final detected environment:', detectedEnvironment);
 // process. __dirname is a string in CommonJS preloads, so manual join is
 // portable across Win (\) and Unix (/).
 let webviewPreloadPath = '';
-try {
-  const sep = __dirname.includes('\\') ? '\\' : '/';
-  webviewPreloadPath = `${__dirname}${sep}..${sep}renderer${sep}webview-preload.js`;
-} catch (e) {
-  console.error('[Preload] Failed to resolve webview preload path:', e.message);
+// `__dirname` is undefined in Electron 28+ sandboxed preloads. Guard for it so
+// we don't throw on every launch. (This value is currently unused downstream.)
+if (typeof __dirname !== 'undefined') {
+  try {
+    const sep = __dirname.includes('\\') ? '\\' : '/';
+    webviewPreloadPath = `${__dirname}${sep}..${sep}renderer${sep}webview-preload.js`;
+  } catch (e) {
+    console.error('[Preload] Failed to resolve webview preload path:', e.message);
+  }
 }
 
 // Expose safe API to renderer process
@@ -77,6 +81,31 @@ contextBridge.exposeInMainWorld('kolboDesktop', {
 
   // Signal main process that renderer UI is ready (dismiss splash)
   signalReady: () => ipcRenderer.send('renderer-ready'),
+
+  // Synci: download a licensed track to the user's download folder
+  synciDownloadToDisk: (url, filename) =>
+    ipcRenderer.invoke('synci:download-to-disk', { url, filename }),
+
+  // Synci: compute waveform peaks via FFmpeg in main (renderer Web Audio
+  // decodeAudioData crashes natively from file://)
+  synciWaveformPeaks: (url, numPeaks) =>
+    ipcRenderer.invoke('synci:waveform-peaks', { url, numPeaks }),
+
+  // Synci: cache a track to a local file (for drag-to-timeline / trim)
+  synciCacheTrack: (url, filename) =>
+    ipcRenderer.invoke('synci:cache-track', { url, filename }),
+
+  // Synci: native OS drag-out of a local file (file → NLE timeline)
+  synciStartDrag: (filePath) =>
+    ipcRenderer.send('file:start-drag', [filePath]),
+
+  // Synci: trim a local file to an in/out segment (reuses ffmpeg export)
+  synciExportTrimmed: (job) =>
+    ipcRenderer.invoke('ff:export-trimmed', job),
+
+  // Synci: copy a prepared local file (full or trimmed) into Downloads
+  synciSaveToDownloads: (filePath, filename) =>
+    ipcRenderer.invoke('synci:save-to-downloads', { filePath, filename }),
 
   // Authentication
   login: (email, password) =>

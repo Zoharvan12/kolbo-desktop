@@ -54,7 +54,8 @@
     "newTab": "Nova Aba",
     "splitView": "Visualização Dividida",
     "loadingFileBridge": "Carregando File Bridge...",
-    "loadingKolbo": "Carregando Kolbo Web App..."
+    "loadingKolbo": "Carregando Kolbo Web App...",
+    "synci": "Synci"
   },
   "webapp": {
     "back": "Voltar",
@@ -375,5 +376,21 @@
   "language": {
     "selectLanguage": "Selecione o Idioma",
     "current": "Idioma"
+  },
+  "synci": {
+    "download": "Baixar",
+    "downloadTrim": "Baixar e cortar",
+    "dock": {
+      "close": "Fechar",
+      "in": "Início",
+      "out": "Fim",
+      "download": "Baixar",
+      "downloadTrim": "Baixar e cortar",
+      "dragHint": "Arraste para a linha do tempo do seu editor",
+      "actionHint": "Clique para baixar · Arraste para a linha do tempo",
+      "preparing": "Preparando arquivo…",
+      "preparingShort": "Preparando…",
+      "ready": "Pronto — arraste para a linha do tempo."
+    }
   }
 }

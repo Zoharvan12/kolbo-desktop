@@ -395,6 +395,136 @@ class KolboAPI {
       sort: '-created'
     });
   }
+
+  // ==========================================================================
+  // Synci licensed-music library
+  // ==========================================================================
+  // Thin client over the shared /synci/* backend endpoints. Read endpoints are
+  // public (work for guests); favorites/downloads/analyze-script require auth.
+  // Unlike the rest of KolboAPI (which proxies via IPC), these use direct
+  // fetch() — the renderer is a normal Chromium context and the Synci endpoints
+  // accept the same file://-origin requests the Adobe (CEP) plugin already makes.
+  // Method names + request/response shapes mirror the plugin's api.js so the
+  // ported SynciManager runs unchanged.
+
+  _synciHeaders(json = true) {
+    const h = {};
+    if (json) h['Content-Type'] = 'application/json';
+    if (this.token) h['Authorization'] = `Bearer ${this.token}`;
+    return h;
+  }
+
+  _synciQuery(params) {
+    const usp = new URLSearchParams();
+    Object.keys(params || {}).forEach((key) => {
+      const value = params[key];
+      if (value !== undefined && value !== null && value !== '') usp.set(key, value);
+    });
+    const qs = usp.toString();
+    return qs ? '?' + qs : '';
+  }
+
+  async _synciGet(path) {
+    const r = await fetch(`${this.getApiUrl()}/synci${path}`, { headers: this._synciHeaders(false) });
+    return r.json();
+  }
+
+  async _synciPost(path, body) {
+    const r = await fetch(`${this.getApiUrl()}/synci${path}`, {
+      method: 'POST',
+      headers: this._synciHeaders(),
+      body: JSON.stringify(body || {})
+    });
+    return r.json();
+  }
+
+  /** POST /synci/search — relevance search with optional filters. */
+  synciSearch(params = {}) {
+    return this._synciPost('/search', params || {});
+  }
+
+  /** GET /synci/catalog — paginated browse (no query). */
+  synciCatalog(params = {}) {
+    return this._synciGet('/catalog' + this._synciQuery({ limit: params.limit, offset: params.offset, sort: params.sort }));
+  }
+
+  /** GET /synci/facets — distinct genres/moods + bpm/duration ranges. */
+  synciFacets() {
+    return this._synciGet('/facets');
+  }
+
+  /** GET /synci/audio/:id — fresh signed urls { "128","320","wav" }. */
+  synciAudioById(id) {
+    return this._synciGet('/audio/' + encodeURIComponent(id));
+  }
+
+  /** POST /synci/analyze-script (auth) — script → { query, mood, genre, keywords }. */
+  synciAnalyzeScript(script) {
+    return this._synciPost('/analyze-script', { script: String(script || '').slice(0, 8000) });
+  }
+
+  /** GET /synci/favorites (auth) — favorites list, optional project scope. */
+  synciListFavorites(params = {}) {
+    return this._synciGet('/favorites' + this._synciQuery({ limit: params.limit, offset: params.offset, projectId: params.projectId }));
+  }
+
+  /** GET /synci/favorites/ids (auth) — array of favorited track ids. */
+  async synciListFavoriteIds() {
+    try {
+      const res = await this._synciGet('/favorites/ids');
+      return Array.isArray(res && res.trackIds) ? res.trackIds : [];
+    } catch (err) {
+      console.warn('[API] synciListFavoriteIds failed:', err && err.message);
+      return [];
+    }
+  }
+
+  /** POST /synci/favorites (auth) — favorite a track. */
+  synciAddFavorite(track, projectId) {
+    return this._synciPost('/favorites', { trackId: track.id, track, projectId: projectId || undefined });
+  }
+
+  /** DELETE /synci/favorites/:trackId (auth) — unfavorite a track. */
+  async synciRemoveFavorite(trackId) {
+    const r = await fetch(`${this.getApiUrl()}/synci/favorites/${encodeURIComponent(trackId)}`, {
+      method: 'DELETE',
+      headers: this._synciHeaders(false)
+    });
+    return r.json();
+  }
+
+  /** GET /synci/downloads (auth) — download history, optional project scope. */
+  synciListDownloads(params = {}) {
+    return this._synciGet('/downloads' + this._synciQuery({ limit: params.limit, offset: params.offset, projectId: params.projectId }));
+  }
+
+  /** POST /synci/downloads (auth) — log a download. Fire-and-forget. */
+  async synciLogDownload(track, quality, projectId) {
+    try {
+      return await this._synciPost('/downloads', { trackId: track.id, track, quality, projectId: projectId || undefined });
+    } catch (err) {
+      console.warn('[API] synciLogDownload failed (non-fatal):', err && err.message);
+      return { status: false };
+    }
+  }
+
+  /**
+   * POST /musicGeneration/analyze-media (auth) — analyze an image/video/audio
+   * file and return music descriptors. Multipart upload (no JSON Content-Type).
+   * @returns {{ mood, genre, style, tempo, energy, prompt, suggestedTitle, mediaType }}
+   */
+  async analyzeMediaForMusic(file, guidance) {
+    const fd = new FormData();
+    fd.append('media', file);
+    if (guidance) fd.append('userGuidance', String(guidance).slice(0, 500));
+    const r = await fetch(`${this.getApiUrl()}/musicGeneration/analyze-media`, {
+      method: 'POST',
+      headers: this.token ? { Authorization: `Bearer ${this.token}` } : {},
+      body: fd
+    });
+    const res = await r.json();
+    return (res && res.data) || res;
+  }
 }
 
 // Global instance

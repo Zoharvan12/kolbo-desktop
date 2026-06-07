@@ -54,7 +54,8 @@
     "newTab": "新しいタブ",
     "splitView": "分割表示",
     "loadingFileBridge": "ファイルブリッジを読み込んでいます...",
-    "loadingKolbo": "Kolbo Web Appを読み込んでいます..."
+    "loadingKolbo": "Kolbo Web Appを読み込んでいます...",
+    "synci": "Synci"
   },
   "webapp": {
     "back": "戻る",
@@ -375,5 +376,21 @@
   "language": {
     "selectLanguage": "言語を選択",
     "current": "言語"
+  },
+  "synci": {
+    "download": "ダウンロード",
+    "downloadTrim": "ダウンロードしてトリム",
+    "dock": {
+      "close": "閉じる",
+      "in": "イン",
+      "out": "アウト",
+      "download": "ダウンロード",
+      "downloadTrim": "ダウンロードしてトリム",
+      "dragHint": "エディターのタイムラインにドラッグ",
+      "actionHint": "クリックでダウンロード · タイムラインにドラッグ",
+      "preparing": "ファイルを準備中…",
+      "preparingShort": "準備中…",
+      "ready": "準備完了 — タイムラインにドラッグしてください。"
+    }
   }
 }
