@@ -20,7 +20,7 @@ class TabManager {
     this.activeTabId = null;
     this.nextTabId = 1;
     this.MAX_TABS = 10;
-    this.MAX_LOADED_TABS = 5; // Maximum number of tabs to keep loaded in memory
+    this.MAX_LOADED_TABS = 2; // Max iframes kept live at once (active + 1 warm). Fewer concurrent SPAs = less GPU/main-thread contention → smoother animations. LRU unloads the rest to about:blank.
     this.DEBUG_MODE = window.KOLBO_CONFIG ? window.KOLBO_CONFIG.debug : false;
     this.initialized = false; // Track initialization state
     this.isRestoring = false; // Flag to indicate we're restoring tabs from saved state

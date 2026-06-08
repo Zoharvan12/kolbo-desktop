@@ -214,5 +214,5 @@ The **Synci** tab (after "My Media") is the licensed-music browser ported from t
 
 ## Last Updated
 - **Date**: June 8, 2026
-- **Version**: 1.6.1
-- **Status**: Synci music library — browse/search/favorites/downloads/AI-suggest, FFmpeg waveforms, now-playing dock with in/out selection + drag-to-timeline + download. v1.6.1: row waveforms sync with dock playback; 401 handling on Synci direct fetch. Video Studio sub-app vendored from LTX-Desktop (scaffold only — API adapter pending)
+- **Version**: 1.6.2
+- **Status**: v1.6.2 — embedded-webapp performance: inactive iframe tabs no longer hold permanent GPU compositor layers (`will-change` scoped to the active iframe in `styles.css`) and `MAX_LOADED_TABS` lowered 5→2 (`tab-manager.js`) to cut GPU/main-thread contention. Pairs with the kolbo-map service worker (network-first HTML + cache-first hashed assets) now live on app.kolbo.ai/sapir — the embedded view, Adobe-plugin webapp area, and web all get cached repeat loads (mobile Capacitor excluded). Prior: Synci music library (browse/search/favorites/downloads/AI-suggest, FFmpeg waveforms, now-playing dock with in/out selection + drag-to-timeline). Video Studio sub-app vendored from LTX-Desktop (scaffold only — API adapter pending)
