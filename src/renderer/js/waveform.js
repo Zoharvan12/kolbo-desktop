@@ -240,6 +240,9 @@ var KolboWaveform = (function () {
     if (!canvas || !audio) return { destroy: function () {} };
 
     var peaks = null, destroyed = false, raf = null, io = null, ro = null;
+    // When set (0..1), progress is driven externally (e.g. a row waveform
+    // mirroring the now-playing dock) instead of from this element's <audio>.
+    var progressOverride = null;
     var dpr = window.devicePixelRatio || 1;
     var pendingSeek = null;   // pct to apply once duration is known (preload="none")
 
@@ -249,7 +252,10 @@ var KolboWaveform = (function () {
       canvas.width = Math.max(1, Math.round(_cssW() * dpr));
       canvas.height = Math.max(1, Math.round(_cssH() * dpr));
     }
-    function _progress() { return (audio && audio.duration) ? (audio.currentTime / audio.duration) : 0; }
+    function _progress() {
+      if (progressOverride != null) return progressOverride;
+      return (audio && audio.duration) ? (audio.currentTime / audio.duration) : 0;
+    }
 
     function _draw() {
       if (destroyed) return;
@@ -360,6 +366,11 @@ var KolboWaveform = (function () {
 
     return {
       redraw: _draw,
+      // Drive progress externally (0..1), or pass null to revert to the <audio>.
+      setProgress: function (p) {
+        progressOverride = (p == null) ? null : Math.max(0, Math.min(1, p));
+        _draw();
+      },
       destroy: function () {
         destroyed = true;
         if (raf) cancelAnimationFrame(raf);

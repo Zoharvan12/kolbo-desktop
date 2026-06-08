@@ -53,6 +53,8 @@ class KolboAPI {
     this.apiBaseUrl = API_BASE_URL;
     this.DEBUG_MODE = localStorage.getItem('KOLBO_DEBUG') === 'true';
     this._syncPromise = null;
+    // Set by main.js to handle 401 responses from direct fetch() calls (Synci).
+    this.onUnauthorized = null;
   }
 
   // Sync token from main process (electron-store) to renderer (localStorage)
@@ -426,6 +428,7 @@ class KolboAPI {
 
   async _synciGet(path) {
     const r = await fetch(`${this.getApiUrl()}/synci${path}`, { headers: this._synciHeaders(false) });
+    if (r.status === 401) { this._handleUnauthorized(); return null; }
     return r.json();
   }
 
@@ -435,7 +438,13 @@ class KolboAPI {
       headers: this._synciHeaders(),
       body: JSON.stringify(body || {})
     });
+    if (r.status === 401) { this._handleUnauthorized(); return null; }
     return r.json();
+  }
+
+  _handleUnauthorized() {
+    this.clearToken();
+    if (this.onUnauthorized) this.onUnauthorized();
   }
 
   /** POST /synci/search — relevance search with optional filters. */

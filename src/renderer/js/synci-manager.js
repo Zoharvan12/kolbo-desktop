@@ -50,6 +50,8 @@ class SynciManager {
 
     // Now-playing dock state (set on first play)
     this._dock = null;
+    this._rowRaf = null;        // rAF that mirrors dock progress onto the active row
+    this._progressWave = null;  // the row waveform currently showing progress
 
     this._built = false;
     this._openPanel = null;             // 'mood' | 'genre' | 'filters' | null
@@ -682,6 +684,9 @@ class SynciManager {
     }
     root.appendChild(frag);
     this._renderedCount = this.tracks.length;
+    // A re-rendered/scrolled-in row for the now-playing track should immediately
+    // reflect the dock's current playback progress.
+    if (this._dock && this._dock.track) this._syncActiveRowProgress();
   }
 
   _rowHtml(track) {
@@ -872,10 +877,10 @@ class SynciManager {
       loading: this._el('synci-dock-loading')
     };
 
-    audio.addEventListener('play', () => this._setDockPlaying(true));
-    audio.addEventListener('pause', () => this._setDockPlaying(false));
-    audio.addEventListener('ended', () => this._setDockPlaying(false));
-    audio.addEventListener('loadedmetadata', () => { this._updateDockTime(); this._dockSeekIfOutside(); });
+    audio.addEventListener('play', () => { this._setDockPlaying(true); this._startRowProgressLoop(); });
+    audio.addEventListener('pause', () => { this._setDockPlaying(false); this._syncActiveRowProgress(); });
+    audio.addEventListener('ended', () => { this._setDockPlaying(false); this._syncActiveRowProgress(); });
+    audio.addEventListener('loadedmetadata', () => { this._updateDockTime(); this._dockSeekIfOutside(); this._syncActiveRowProgress(); });
     audio.addEventListener('timeupdate', () => {
       this._updateDockTime();
       // When a sub-selection is set, loop playback within in→out.
@@ -885,6 +890,7 @@ class SynciManager {
         if (audio.currentTime >= outSec - LOOP_EPS_SEC) { try { audio.currentTime = inSec; } catch (e) {} }
       }
     });
+    audio.addEventListener('seeked', () => this._syncActiveRowProgress());
 
     const playBtn = this._el('synci-dock-play');
     if (playBtn) playBtn.addEventListener('click', () => this._dockTogglePlay());
@@ -1133,6 +1139,36 @@ class SynciManager {
     }
   }
 
+  /** Mirror the dock's playback progress onto the currently-playing row's
+   *  waveform (two-tone fill), so the list waveform syncs with the dock. */
+  _syncActiveRowProgress() {
+    const d = this._dock, audio = this._d && this._d.audio;
+    let wave = null, pct = 0;
+    if (d && d.track && audio && audio.duration && isFinite(audio.duration)) {
+      pct = audio.currentTime / audio.duration;
+      const row = document.querySelector('.synci-row[data-track-id="' + this._cssEsc(d.track.id) + '"]');
+      wave = (row && row._wave) || null;
+    }
+    // If the active row's waveform changed (track switch / re-render), reset the
+    // previous one back to its own (idle) audio so it stops showing progress.
+    if (this._progressWave && this._progressWave !== wave && this._progressWave.setProgress) {
+      this._progressWave.setProgress(null);
+    }
+    this._progressWave = wave;
+    if (wave && wave.setProgress) wave.setProgress(pct);
+  }
+
+  /** rAF loop that keeps the active row's waveform smooth while the dock plays. */
+  _startRowProgressLoop() {
+    if (this._rowRaf) return;
+    const tick = () => {
+      this._syncActiveRowProgress();
+      const audio = this._d && this._d.audio;
+      this._rowRaf = (audio && !audio.paused) ? requestAnimationFrame(tick) : null;
+    };
+    this._rowRaf = requestAnimationFrame(tick);
+  }
+
   _dockSeekIfOutside() {
     const audio = this._d && this._d.audio;
     const d = this._dock;
@@ -1148,6 +1184,9 @@ class SynciManager {
     if (audio) { try { audio.pause(); } catch (e) {} }
     if (this._dock && this._dock.wave) { try { this._dock.wave.destroy(); } catch (e) {} }
     if (this._dock && this._dock._prewarmTimer) clearTimeout(this._dock._prewarmTimer);
+    if (this._rowRaf) { cancelAnimationFrame(this._rowRaf); this._rowRaf = null; }
+    if (this._progressWave && this._progressWave.setProgress) this._progressWave.setProgress(null);
+    this._progressWave = null;
     this._setDockPlaying(false);
     this._showDockLoading(false);
     const dock = this._el('synci-dock'); if (dock) dock.classList.add('hidden');

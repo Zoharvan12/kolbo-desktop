@@ -354,6 +354,9 @@ class KolboApp {
     // This ensures users stay logged in across app restarts
     await kolboAPI.syncTokenFromMainProcess();
 
+    // Show auth screen when any direct fetch() call returns 401 (e.g. Synci endpoints).
+    kolboAPI.onUnauthorized = () => this.handleLogout(true);
+
     if (kolboAPI.isAuthenticated()) {
       this.showLoadingOverlay();
       Promise.all([this.loadProjects(), this.loadMedia()]).then(() => {
@@ -1919,7 +1922,7 @@ ${Icons.get('folder', 16)}
       this.fileExplorerManager = null;
     }
 
-    kolboAPI.logout();
+    await kolboAPI.logout();
     this.media = [];
     this.selectedItems.clear();
 
