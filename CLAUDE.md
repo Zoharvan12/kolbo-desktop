@@ -214,5 +214,5 @@ The **Synci** tab (after "My Media") is the licensed-music browser ported from t
 
 ## Last Updated
 - **Date**: June 8, 2026
-- **Version**: 1.6.0
-- **Status**: Synci music library shipped as a tab after "My Media" — browse/search/favorites/downloads/AI-suggest, FFmpeg waveforms, now-playing dock with in/out selection + drag-to-timeline + download. Video Studio sub-app vendored from LTX-Desktop (scaffold only — API adapter pending)
+- **Version**: 1.6.1
+- **Status**: Synci music library — browse/search/favorites/downloads/AI-suggest, FFmpeg waveforms, now-playing dock with in/out selection + drag-to-timeline + download. v1.6.1: row waveforms sync with dock playback; 401 handling on Synci direct fetch. Video Studio sub-app vendored from LTX-Desktop (scaffold only — API adapter pending)
