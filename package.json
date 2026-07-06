@@ -142,7 +142,7 @@
       ],
       "icon": "assets/icon.icns",
       "category": "public.app-category.video",
-      "x64ArchFiles": "**/node_modules/{@ffmpeg-installer,@img}/**",
+      "x64ArchFiles": "**/node_modules/{@ffmpeg-installer,@img,node-pty}/**",
       "hardenedRuntime": true,
       "gatekeeperAssess": true,
       "entitlements": "entitlements.mac.plist",
