@@ -65,7 +65,8 @@
     "splitView": "Split View",
     "loadingFileBridge": "Loading File Bridge...",
     "loadingKolbo": "Loading Kolbo Web App...",
-    "synci": "Synci"
+    "synci": "Synci",
+    "stock": "Stock Library"
   },
   "webapp": {
     "back": "Go Back",
@@ -476,6 +477,121 @@
       "preparing": "Preparing file…",
       "preparingShort": "Preparing…",
       "ready": "Ready — drag it to your timeline."
+    }
+  },
+  "stock": {
+    "title": "Stock Library",
+    "tab": {
+      "browse": "Browse",
+      "favorites": "Favorites",
+      "downloaded": "Downloaded"
+    },
+    "search": {
+      "placeholder": "Search photos, video, music, SFX, 3D…",
+      "go": "Search"
+    },
+    "allSources": "All sources",
+    "smart": {
+      "vision": "Search from an image or video",
+      "script": "Find footage from a script"
+    },
+    "mt": {
+      "image": "Photos",
+      "illustration": "Illustrations",
+      "vector": "Vectors",
+      "video": "Video",
+      "3d": "3D",
+      "music": "Music",
+      "sfx": "Sound FX"
+    },
+    "facet": {
+      "vocals": "Vocals"
+    },
+    "vocals": {
+      "all": "All",
+      "instrumental": "Instrumental",
+      "vocals": "With vocals"
+    },
+    "vision": {
+      "image": "Upload an image",
+      "video": "Upload a video",
+      "frame": "From timeline frame"
+    },
+    "script": {
+      "title": "Find footage from a script",
+      "placeholder": "Paste your script or voiceover here…",
+      "run": "Find footage",
+      "analyzing": "Analyzing…"
+    },
+    "projectScope": "Project",
+    "allProjects": "All projects",
+    "loading": "Loading…",
+    "endOfResults": "End of results",
+    "partial": "Some sources are temporarily unavailable.",
+    "partialNamed": "Some sources are unavailable ({{sources}}).",
+    "empty": {
+      "browse": "No results. Try another keyword or source.",
+      "favorites": "No favorites yet. Tap the heart on any asset to save it.",
+      "downloaded": "Nothing imported or downloaded yet."
+    },
+    "preview": "Preview",
+    "favorite": "Favorite",
+    "download": "Download",
+    "import": "Add to library",
+    "downloaded": "Saved to your downloads",
+    "placed": "Added to your timeline",
+    "imported": "Added to your media library",
+    "alreadyImported": "Already in your library",
+    "viewSource": "View source",
+    "view3d": "View 3D model",
+    "close": "Close",
+    "cancel": "Cancel",
+    "analyze": {
+      "analyzing": "Analyzing…",
+      "tooLarge": "That file is too large (max 50 MB).",
+      "capturing": "Capturing frame…"
+    },
+    "error": {
+      "generic": "Something went wrong. Please try again.",
+      "download": "Could not download that asset.",
+      "import": "Could not add that asset to your library.",
+      "frame": "Could not capture the timeline frame."
+    },
+    "sort": {
+      "label": "Sort",
+      "relevance": "Relevance",
+      "popular": "Most popular",
+      "newest": "Newest",
+      "bpmAsc": "BPM · slowest",
+      "bpmDesc": "BPM · fastest",
+      "durAsc": "Length · shortest",
+      "durDesc": "Length · longest"
+    },
+    "surprise": "Surprise me",
+    "range": {
+      "bpm": "Tempo (BPM)",
+      "duration": "Length",
+      "any": "Any"
+    },
+    "album": {
+      "tracks": "{{count}} tracks",
+      "back": "Back to library",
+      "by": "Album by {{artist}}",
+      "play": "Play",
+      "similar": "Similar albums"
+    },
+    "footer": {
+      "terms": "Stock Library Terms",
+      "poweredBy": "Powered by",
+      "termsShort": "Terms"
+    },
+    "credit": {
+      "pexels": "Photos & videos provided by Pexels",
+      "unsplash": "Photos provided by Unsplash",
+      "pixabay": "Content from Pixabay",
+      "coverr": "Videos provided by Coverr",
+      "freesound": "Sounds provided by Freesound",
+      "sketchfab": "3D models from Sketchfab"
     }
   }
 }

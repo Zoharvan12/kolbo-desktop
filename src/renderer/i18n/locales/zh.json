@@ -55,7 +55,8 @@
     "splitView": "分屏视图",
     "loadingFileBridge": "正在加载文件桥接...",
     "loadingKolbo": "正在加载 Kolbo Web App...",
-    "synci": "Synci"
+    "synci": "Synci",
+    "stock": "素材"
   },
   "webapp": {
     "back": "返回",
@@ -391,6 +392,121 @@
       "preparing": "正在准备文件…",
       "preparingShort": "准备中…",
       "ready": "已就绪 — 拖到时间线上。"
+    }
+  },
+  "stock": {
+    "title": "素材库",
+    "tab": {
+      "browse": "浏览",
+      "favorites": "收藏",
+      "downloaded": "已下载"
+    },
+    "search": {
+      "placeholder": "搜索照片、视频、音乐、音效、3D…",
+      "go": "搜索"
+    },
+    "allSources": "所有来源",
+    "smart": {
+      "vision": "通过图片或视频搜索",
+      "script": "从脚本查找素材"
+    },
+    "mt": {
+      "image": "照片",
+      "illustration": "插画",
+      "vector": "矢量图",
+      "video": "视频",
+      "3d": "3D",
+      "music": "音乐",
+      "sfx": "音效"
+    },
+    "facet": {
+      "vocals": "人声"
+    },
+    "vocals": {
+      "all": "全部",
+      "instrumental": "纯音乐",
+      "vocals": "含人声"
+    },
+    "vision": {
+      "image": "上传图片",
+      "video": "上传视频",
+      "frame": "从 Timeline 帧"
+    },
+    "script": {
+      "title": "从脚本查找素材",
+      "placeholder": "在此处粘贴您的脚本或旁白…",
+      "run": "查找素材",
+      "analyzing": "分析中…"
+    },
+    "projectScope": "项目",
+    "allProjects": "所有项目",
+    "loading": "加载中…",
+    "endOfResults": "没有更多结果",
+    "partial": "部分来源暂时不可用。",
+    "partialNamed": "部分来源不可用 ({{sources}})。",
+    "empty": {
+      "browse": "无结果。请尝试其他关键词或来源。",
+      "favorites": "暂无收藏。点击任意素材上的心形图标即可收藏。",
+      "downloaded": "尚未导入或下载任何内容。"
+    },
+    "preview": "预览",
+    "favorite": "收藏",
+    "download": "下载",
+    "import": "添加到库",
+    "downloaded": "已保存至下载内容",
+    "placed": "已添加到您的时间轴",
+    "imported": "已添加到您的媒体库",
+    "alreadyImported": "已在您的素材库中",
+    "viewSource": "查看来源",
+    "view3d": "查看 3D 模型",
+    "close": "关闭",
+    "cancel": "取消",
+    "analyze": {
+      "analyzing": "正在分析…",
+      "tooLarge": "文件过大（最大 50 MB）。",
+      "capturing": "正在捕获帧…"
+    },
+    "error": {
+      "generic": "发生错误。请重试。",
+      "download": "无法下载该素材。",
+      "import": "无法将该素材添加到您的素材库。",
+      "frame": "无法捕获 Timeline 帧。"
+    },
+    "sort": {
+      "label": "排序",
+      "relevance": "相关性",
+      "popular": "最热门",
+      "newest": "最新",
+      "bpmAsc": "BPM · 最慢",
+      "bpmDesc": "BPM · 最快",
+      "durAsc": "时长 · 最短",
+      "durDesc": "时长 · 最长"
+    },
+    "surprise": "给我惊喜",
+    "range": {
+      "bpm": "速度 (BPM)",
+      "duration": "时长",
+      "any": "任意"
+    },
+    "album": {
+      "tracks": "{{count}} 首曲目",
+      "back": "返回素材库",
+      "by": "{{artist}} 的专辑",
+      "play": "播放",
+      "similar": "相似专辑"
+    },
+    "footer": {
+      "terms": "素材库使用条款",
+      "poweredBy": "技术支持：",
+      "termsShort": "条款"
+    },
+    "credit": {
+      "pexels": "照片和视频由 Pexels 提供",
+      "unsplash": "照片由 Unsplash 提供",
+      "pixabay": "内容来自 Pixabay",
+      "coverr": "视频由 Coverr 提供",
+      "freesound": "音效由 Freesound 提供",
+      "sketchfab": "3D 模型来自 Sketchfab"
     }
   }
 }

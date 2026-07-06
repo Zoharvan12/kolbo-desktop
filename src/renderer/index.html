@@ -20,6 +20,7 @@
   <link rel="stylesheet" href="css/file-explorer.css?v=23" media="print" onload="this.media='all'">
   <link rel="stylesheet" href="css/agent.css?v=1" media="print" onload="this.media='all'">
   <link rel="stylesheet" href="css/synci.css?v=1" media="print" onload="this.media='all'">
+  <link rel="stylesheet" href="css/stock-library.css?v=2" media="print" onload="this.media='all'">
   <link rel="stylesheet" href="vendor/xterm/xterm.css" media="print" onload="this.media='all'">
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/lipis/flag-icons@7.2.3/css/flag-icons.min.css" media="print" onload="this.media='all'">
   <link rel="stylesheet" href="css/language-selector.css?v=1" media="print" onload="this.media='all'">
@@ -141,9 +142,10 @@
               <i data-lucide="menu"></i>
               <span data-i18n="tabs.myMedia">My Media</span>
             </button>
-            <button id="synci-tab" class="tab-btn" data-view="synci">
-              <img src="images/synci-symbol-white.png" class="tab-icon-img" width="16" height="16" alt="" />
-              <span data-i18n="tabs.synci">Synci</span>
+            <button id="stock-tab" class="tab-btn" data-view="stock">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="6.75" cy="6.75" r="3.25"/><rect x="13.5" y="3.5" width="7" height="7" rx="1.6"/><rect x="3.5" y="13.5" width="7" height="7" rx="1.6"/><path d="M17 13.5 L20.75 20.5 L13.25 20.5 Z"/></svg>
+              <span data-i18n="tabs.stock">Stock Library</span>
+              <span class="tab-badge">NEW</span>
             </button>
             <button id="file-explorer-tab" class="tab-btn" data-view="file-explorer">
               <i data-lucide="folder"></i>
@@ -362,6 +364,9 @@
 
       <!-- Synci Music Library View (filled by SynciManager._build()) -->
       <div id="synci-view" class="view-content hidden"></div>
+
+      <!-- Stock Media Library View (filled by StockLibraryManager._build()) -->
+      <div id="stock-view" class="view-content hidden"></div>
 
       <!-- Web App View -->
       <div id="webapp-view" class="view-content hidden">
@@ -1336,9 +1341,11 @@
   <script src="js/context-menu-manager.js?v=5"></script>
   <script src="js/tab-manager.js?v=5"></script>
   <script src="js/dropdown.js?v=1"></script>
-  <script src="js/waveform.js?v=1"></script>
+  <script src="js/waveform.js?v=2"></script>
   <script src="js/synci-desktop-bridge.js?v=1"></script>
   <script src="js/synci-manager.js?v=1"></script>
+  <script type="module" src="vendor/model-viewer/model-viewer.min.js"></script>
+  <script src="js/stock-library-manager.js?v=3"></script>
   <script src="js/main.js?v=8"></script>
 
   <!-- ── Deferred scripts (loaded after first paint via idle callback) ── -->

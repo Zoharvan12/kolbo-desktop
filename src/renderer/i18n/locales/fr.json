@@ -55,7 +55,8 @@
     "splitView": "Affichage fractionné",
     "loadingFileBridge": "Chargement de File Bridge...",
     "loadingKolbo": "Chargement de l'application Web Kolbo...",
-    "synci": "Synci"
+    "synci": "Synci",
+    "stock": "Stock"
   },
   "webapp": {
     "back": "Retour",
@@ -391,6 +392,121 @@
       "preparing": "Préparation du fichier…",
       "preparingShort": "Préparation…",
       "ready": "Prêt — glissez-le sur votre timeline."
+    }
+  },
+  "stock": {
+    "title": "Médiathèque Stock",
+    "tab": {
+      "browse": "Parcourir",
+      "favorites": "Favoris",
+      "downloaded": "Téléchargements"
+    },
+    "search": {
+      "placeholder": "Rechercher photos, vidéos, musiques, effets sonores, 3D…",
+      "go": "Rechercher"
+    },
+    "allSources": "Toutes les sources",
+    "smart": {
+      "vision": "Rechercher à partir d'une image ou d'une vidéo",
+      "script": "Trouver des séquences à partir d'un script"
+    },
+    "mt": {
+      "image": "Photos",
+      "illustration": "Illustrations",
+      "vector": "Vecteurs",
+      "video": "Vidéo",
+      "3d": "3D",
+      "music": "Musique",
+      "sfx": "Effets sonores"
+    },
+    "facet": {
+      "vocals": "Voix"
+    },
+    "vocals": {
+      "all": "Tout",
+      "instrumental": "Instrumental",
+      "vocals": "Avec voix"
+    },
+    "vision": {
+      "image": "Importer une image",
+      "video": "Importer une vidéo",
+      "frame": "Depuis l'image de la Timeline"
+    },
+    "script": {
+      "title": "Trouver des séquences à partir d'un script",
+      "placeholder": "Colle ton script ou ta voix off ici…",
+      "run": "Trouver des séquences",
+      "analyzing": "Analyse en cours…"
+    },
+    "projectScope": "Projet",
+    "allProjects": "Tous les projets",
+    "loading": "Chargement…",
+    "endOfResults": "Fin des résultats",
+    "partial": "Certaines sources sont temporairement indisponibles.",
+    "partialNamed": "Certaines sources sont indisponibles ({{sources}}).",
+    "empty": {
+      "browse": "Aucun résultat. Essaie un autre mot-clé ou une autre source.",
+      "favorites": "Aucun favori pour l'instant. Appuie sur le cœur d'un élément pour l'enregistrer.",
+      "downloaded": "Rien n'a été importé ou téléchargé pour l'instant."
+    },
+    "preview": "Aperçu",
+    "favorite": "Mettre en favori",
+    "download": "Télécharger",
+    "import": "Ajouter à la bibliothèque",
+    "downloaded": "Enregistré dans tes téléchargements",
+    "placed": "Ajouté à ta timeline",
+    "imported": "Ajouté à ta médiathèque",
+    "alreadyImported": "Déjà dans ta bibliothèque",
+    "viewSource": "Voir la source",
+    "view3d": "Voir le modèle 3D",
+    "close": "Fermer",
+    "cancel": "Annuler",
+    "analyze": {
+      "analyzing": "Analyse…",
+      "tooLarge": "Ce fichier est trop volumineux (max 50 Mo).",
+      "capturing": "Capture de l'image en cours…"
+    },
+    "error": {
+      "generic": "Une erreur est survenue. Réessaye.",
+      "download": "Impossible de télécharger cet élément.",
+      "import": "Impossible d'ajouter cet élément à ta bibliothèque.",
+      "frame": "Impossible de capturer l'image de la Timeline."
+    },
+    "sort": {
+      "label": "Trier",
+      "relevance": "Pertinence",
+      "popular": "Les plus populaires",
+      "newest": "Les plus récents",
+      "bpmAsc": "BPM · le plus lent",
+      "bpmDesc": "BPM · le plus rapide",
+      "durAsc": "Durée · la plus courte",
+      "durDesc": "Durée · la plus longue"
+    },
+    "surprise": "Surprends-moi",
+    "range": {
+      "bpm": "Tempo (BPM)",
+      "duration": "Durée",
+      "any": "N'importe"
+    },
+    "album": {
+      "tracks": "{{count}} pistes",
+      "back": "Retour à la bibliothèque",
+      "by": "Album de {{artist}}",
+      "play": "Lecture",
+      "similar": "Albums similaires"
+    },
+    "footer": {
+      "terms": "Conditions de la bibliothèque de stock",
+      "poweredBy": "Propulsé par",
+      "termsShort": "Conditions"
+    },
+    "credit": {
+      "pexels": "Photos et vidéos fournies par Pexels",
+      "unsplash": "Photos fournies par Unsplash",
+      "pixabay": "Contenu de Pixabay",
+      "coverr": "Vidéos fournies par Coverr",
+      "freesound": "Sons fournis par Freesound",
+      "sketchfab": "Modèles 3D de Sketchfab"
     }
   }
 }

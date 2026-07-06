@@ -55,7 +55,8 @@
     "splitView": "תצוגה מפוצלת",
     "loadingFileBridge": "טוען File Bridge...",
     "loadingKolbo": "טוען את אפליקציית האינטרנט של Kolbo...",
-    "synci": "Synci"
+    "synci": "Synci",
+    "stock": "מאגר"
   },
   "webapp": {
     "back": "חזור",
@@ -391,6 +392,121 @@
       "preparing": "מכין קובץ…",
       "preparingShort": "מכין…",
       "ready": "מוכן — גרור אל ציר הזמן."
+    }
+  },
+  "stock": {
+    "title": "ספריית מאגר",
+    "tab": {
+      "browse": "עיון",
+      "favorites": "מועדפים",
+      "downloaded": "הורדות"
+    },
+    "search": {
+      "placeholder": "חפש תמונות, וידאו, מוזיקה, אפקטים קוליים, תלת-ממד...",
+      "go": "חפש"
+    },
+    "allSources": "��ל המקורות",
+    "smart": {
+      "vision": "חפש לפי תמונה או וידאו",
+      "script": "מצא קטעים לפי תסריט"
+    },
+    "mt": {
+      "image": "תמונות",
+      "illustration": "איורים",
+      "vector": "וקטורים",
+      "video": "וידאו",
+      "3d": "תלת-ממד",
+      "music": "מוזיקה",
+      "sfx": "אפקטים קוליים"
+    },
+    "facet": {
+      "vocals": "שירה"
+    },
+    "vocals": {
+      "all": "הכל",
+      "instrumental": "אינסטרומנטלי",
+      "vocals": "עם שירה"
+    },
+    "vision": {
+      "image": "העלה תמונה",
+      "video": "העלה וידאו",
+      "frame": "מפריים ב-Timeline"
+    },
+    "script": {
+      "title": "מצא קטעים לפי תסריט",
+      "placeholder": "הדבק כאן את התסריט או הקריינות שלך...",
+      "run": "מצא קטעים",
+      "analyzing": "מנתח..."
+    },
+    "projectScope": "פרויקט",
+    "allProjects": "כל הפרויקטים",
+    "loading": "טוען...",
+    "endOfResults": "סוף התוצאות",
+    "partial": "חלק מהמקורות אינם זמינים זמנית.",
+    "partialNamed": "חלק מהמקורות אינם זמינים ({{sources}}).",
+    "empty": {
+      "browse": "אין תוצאות. נסה מילת מפתח או מקור אחר.",
+      "favorites": "אין עדיין מועדפים. הקש על הלב בפריט כלשהו כדי לשמור אותו.",
+      "downloaded": "שום דבר לא יובא או הורד עדיין."
+    },
+    "preview": "תצוגה מקדימה",
+    "favorite": "מועדף",
+    "download": "הורדה",
+    "import": "הוסף לספרייה",
+    "downloaded": "נשמר להורדות שלך",
+    "placed": "נוסף לציר הזמן שלך",
+    "imported": "נוסף לספריית המדיה שלך",
+    "alreadyImported": "כבר בספרייה שלך",
+    "viewSource": "הצג מקור",
+    "view3d": "הצג מודל תלת-ממד",
+    "close": "סגור",
+    "cancel": "ביטול",
+    "analyze": {
+      "analyzing": "מנתח…",
+      "tooLarge": "הקובץ גדול מדי (מקסימום 50 מ\"ב).",
+      "capturing": "לוכד פריים…"
+    },
+    "error": {
+      "generic": "משהו השתבש. נסה שוב.",
+      "download": "לא ניתן להוריד את הנכס.",
+      "import": "לא ניתן להוסיף את הנכס לספרייה שלך.",
+      "frame": "לא ניתן היה ללכוד את פריים ה-Timeline."
+    },
+    "sort": {
+      "label": "מיון",
+      "relevance": "רלוונטיות",
+      "popular": "הכי פופולריים",
+      "newest": "הכי חדשים",
+      "bpmAsc": "BPM · הכי איטי",
+      "bpmDesc": "BPM · הכי מהיר",
+      "durAsc": "אורך · הכי קצר",
+      "durDesc": "אורך · הכי ארוך"
+    },
+    "surprise": "הפתע אותי",
+    "range": {
+      "bpm": "קצב (BPM)",
+      "duration": "אורך",
+      "any": "כל"
+    },
+    "album": {
+      "tracks": "{{count}} רצועות",
+      "back": "חזרה לספרייה",
+      "by": "אלבום של {{artist}}",
+      "play": "נגן",
+      "similar": "אלבומים דומים"
+    },
+    "footer": {
+      "terms": "תנאי השימוש של ספריית הסטוק",
+      "poweredBy": "מופעל על ידי",
+      "termsShort": "תנאים"
+    },
+    "credit": {
+      "pexels": "תמונות וסרטונים באדיבות Pexels",
+      "unsplash": "תמונות באדיבות Unsplash",
+      "pixabay": "תוכן מ-Pixabay",
+      "coverr": "סרטונים באדיבות Coverr",
+      "freesound": "צלילים באדיבות Freesound",
+      "sketchfab": "מודלים תלת-ממדיים מ-Sketchfab"
     }
   }
 }

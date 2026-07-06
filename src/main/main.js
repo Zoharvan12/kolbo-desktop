@@ -41,13 +41,12 @@ app.commandLine.appendSwitch('disable-dev-shm-usage');
 // This significantly improves performance for repeat page loads
 app.commandLine.appendSwitch('disk-cache-size', '524288000'); // 500MB in bytes
 
-// Enable modern Chromium performance features
-app.commandLine.appendSwitch('enable-features', 'NetworkService,NetworkServiceInProcess,CanvasOopRasterization,VaapiVideoDecoder');
-
-// Hardware acceleration flags for better rendering performance
+// Hardware acceleration flags for better rendering performance.
+// (Former enable-features list — NetworkService, CanvasOopRasterization,
+// VaapiVideoDecoder — removed: all shipped-by-default or deleted in modern
+// Chromium, so the switches were no-ops.)
 app.commandLine.appendSwitch('enable-gpu-rasterization');
 app.commandLine.appendSwitch('enable-zero-copy');
-app.commandLine.appendSwitch('enable-accelerated-video-decode');
 
 // Legacy GPU flags (kept commented for reference - do NOT enable unless debugging)
 // app.commandLine.appendSwitch('in-process-gpu');
@@ -280,6 +279,12 @@ function createWindow() {
     console.error('[Main] Renderer process crashed:', details);
     console.error('[Main] Reason:', details.reason);
     console.error('[Main] Exit code:', details.exitCode);
+
+    if (details.reason !== 'clean-exit') {
+      try {
+        require('./crash-telemetry').reportProcessGone('main-window', details);
+      } catch {}
+    }
 
     // Show error dialog to user
     const { dialog } = require('electron');
@@ -3187,15 +3192,7 @@ function setupMediaCacheHandlers() {
   ipcMain.handle('memory:get-stats', async () => {
     try {
       const mainMem = process.memoryUsage();
-      let rendererMem = { workingSetSize: 0, private: 0 };
-
-      if (mainWindow && !mainWindow.isDestroyed()) {
-        try {
-          rendererMem = await mainWindow.webContents.getProcessMemoryInfo();
-        } catch (e) {
-          // Ignore errors
-        }
-      }
+      const rendererMem = getRendererMemoryKB();
 
       return {
         main: {
@@ -3218,6 +3215,8 @@ function setupMediaCacheHandlers() {
 
   // Clear all caches aggressively
   ipcMain.handle('memory:clear-all-caches', async () => {
+    // (storages list below: 'appcache' and the 'quotas' option were removed from
+    // Electron's clearStorageData — passing them made the whole call reject.)
     console.log('[Memory] Clearing all caches...');
     try {
       const { session } = require('electron');
@@ -3226,8 +3225,7 @@ function setupMediaCacheHandlers() {
       await defaultSession.clearCache();
       await defaultSession.clearCodeCaches({});
       await defaultSession.clearStorageData({
-        storages: ['appcache', 'shadercache', 'serviceworkers', 'cachestorage'],
-        quotas: ['temporary', 'persistent']
+        storages: ['shadercache', 'serviceworkers', 'cachestorage']
       });
 
       console.log('[Memory] All caches cleared');
@@ -3313,13 +3311,9 @@ function setupMemoryMonitoring() {
       let rendererMemoryMB = 0;
       let rendererPrivateMB = 0;
       if (windowVisible) {
-        try {
-          const rendererMemInfo = await mainWindow.webContents.getProcessMemoryInfo();
-          rendererMemoryMB = rendererMemInfo.workingSetSize / 1024; // KB to MB
-          rendererPrivateMB = rendererMemInfo.private / 1024;
-        } catch (e) {
-          // Renderer process info may not be available
-        }
+        const rendererMemInfo = getRendererMemoryKB();
+        rendererMemoryMB = rendererMemInfo.workingSetSize / 1024; // KB to MB
+        rendererPrivateMB = rendererMemInfo.private / 1024;
       }
 
       // Total memory = main RSS + renderer working set
@@ -3426,6 +3420,26 @@ function setupMemoryMonitoring() {
 }
 
 /**
+ * Memory of the main window's renderer process, in KB (same shape/units as the
+ * old webContents.getProcessMemoryInfo(), which Electron removed). Sums nothing
+ * across processes — matches the renderer by OS pid via app.getAppMetrics().
+ */
+function getRendererMemoryKB() {
+  try {
+    if (!mainWindow || mainWindow.isDestroyed()) return { workingSetSize: 0, private: 0 };
+    const pid = mainWindow.webContents.getOSProcessId();
+    const metric = app.getAppMetrics().find(m => m.pid === pid);
+    if (!metric || !metric.memory) return { workingSetSize: 0, private: 0 };
+    return {
+      workingSetSize: metric.memory.workingSetSize || 0, // already KB
+      private: metric.memory.privateBytes || 0 // already KB despite the name
+    };
+  } catch (e) {
+    return { workingSetSize: 0, private: 0 };
+  }
+}
+
+/**
  * Clean up session cache to free memory
  * @param {boolean} aggressive - If true, clear all cache. If false, only clear storage.
  */
@@ -3447,9 +3461,10 @@ async function cleanupSessionCache(aggressive = false) {
     } else {
       // Just clear storage data that's not essential
       safeLog('[Memory Monitor] 🧹 Light cache cleanup (storage data)...');
+      // No 'quotas' option: it was removed from clearStorageData, and passing it
+      // made this light cleanup silently reject every 10 minutes.
       await defaultSession.clearStorageData({
-        storages: ['shadercache', 'serviceworkers', 'cachestorage'],
-        quotas: ['temporary']
+        storages: ['shadercache', 'serviceworkers', 'cachestorage']
       });
     }
   } catch (error) {
@@ -3628,6 +3643,9 @@ app.on('render-process-gone', (event, webContents, details) => {
     // Tell the renderer to reload any iframe whose origin matches the dead one.
     // 'clean-exit' fires on normal navigation/teardown — ignore it.
     if (details?.reason && details.reason !== 'clean-exit') {
+      try {
+        require('./crash-telemetry').reportProcessGone('webapp-iframe', details, { crashed_url: url });
+      } catch {}
       mainWindow.webContents.send('iframe-renderer-crashed', { url, reason: details.reason });
     }
   } catch (err) {
@@ -3640,6 +3658,16 @@ app.on('render-process-gone', (event, webContents, details) => {
 app.on('child-process-gone', (event, details) => {
   if (details?.type === 'GPU' || details?.type === 'Utility') {
     console.warn('[Main] Child process gone:', details.type, details.reason, 'name:', details.name);
+    // GPU-process deaths are a prime suspect for "the app suddenly went grey/blank"
+    // reports — count them so we can separate GPU crashes from renderer OOMs.
+    if (details.reason && details.reason !== 'clean-exit' && details.reason !== 'killed') {
+      try {
+        require('./crash-telemetry').reportProcessGone('child-process', details, {
+          child_type: details.type,
+          child_name: details.name
+        });
+      } catch {}
+    }
   }
 });
 

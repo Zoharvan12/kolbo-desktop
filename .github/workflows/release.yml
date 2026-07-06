@@ -47,10 +47,15 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v3
         with:
-          node-version: '18'
+          node-version: '22'
 
       - name: Install dependencies
         run: npm install
+
+      # Electron >=42 no longer guarantees binary download via postinstall in CI —
+      # run the installer explicitly so node_modules/electron/dist exists.
+      - name: Ensure Electron binary is downloaded
+        run: node node_modules/electron/install.js
 
       - name: Rebuild native modules for Windows
         run: npx electron-builder install-app-deps
@@ -166,10 +171,15 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v3
         with:
-          node-version: '18'
+          node-version: '22'
 
       - name: Install dependencies
         run: npm install
+
+      # Electron >=42 no longer guarantees binary download via postinstall in CI —
+      # run the installer explicitly so node_modules/electron/dist exists.
+      - name: Ensure Electron binary is downloaded
+        run: node node_modules/electron/install.js
 
       - name: Rebuild native modules for macOS
         run: npx electron-builder install-app-deps

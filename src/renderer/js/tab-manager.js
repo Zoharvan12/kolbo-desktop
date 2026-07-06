@@ -1669,10 +1669,7 @@ class TabManager {
           // Remove ALL split-view CSS classes
           mergedData.leftIframe.classList.remove('split-left-iframe', 'split-right-iframe', 'split-active');
 
-          // Clear ALL split-view inline styles (but preserve zoom styles)
-          const currentTransform = mergedData.leftIframe.style.transform;
-          const currentTransformOrigin = mergedData.leftIframe.style.transformOrigin;
-
+          // Clear ALL split-view inline styles
           mergedData.leftIframe.style.width = '';
           mergedData.leftIframe.style.height = '';
           mergedData.leftIframe.style.left = '';
@@ -1681,16 +1678,11 @@ class TabManager {
           mergedData.leftIframe.style.bottom = '';
           mergedData.leftIframe.style.position = '';
           mergedData.leftIframe.style.display = '';
+          mergedData.leftIframe.style.transform = '';
+          mergedData.leftIframe.style.transformOrigin = '';
 
-          // Restore transform if it was set (for zoom)
-          if (currentTransform) {
-            mergedData.leftIframe.style.transform = currentTransform;
-          }
-          if (currentTransformOrigin) {
-            mergedData.leftIframe.style.transformOrigin = currentTransformOrigin;
-          }
-
-          // Reapply zoom if tab has custom zoom level
+          // Reapply zoom if tab has custom zoom level (applyZoom owns the
+          // CSS `zoom` style — no transform preservation needed anymore)
           if (leftTab.zoomLevel && leftTab.zoomLevel !== 1.0) {
             this.applyZoom(leftTab);
           }
@@ -1705,10 +1697,7 @@ class TabManager {
           // Remove ALL split-view CSS classes
           mergedData.rightIframe.classList.remove('split-left-iframe', 'split-right-iframe', 'split-active');
 
-          // Clear ALL split-view inline styles (but preserve zoom styles)
-          const currentTransform = mergedData.rightIframe.style.transform;
-          const currentTransformOrigin = mergedData.rightIframe.style.transformOrigin;
-
+          // Clear ALL split-view inline styles
           mergedData.rightIframe.style.width = '';
           mergedData.rightIframe.style.height = '';
           mergedData.rightIframe.style.left = '';
@@ -1717,16 +1706,11 @@ class TabManager {
           mergedData.rightIframe.style.bottom = '';
           mergedData.rightIframe.style.position = '';
           mergedData.rightIframe.style.display = '';
+          mergedData.rightIframe.style.transform = '';
+          mergedData.rightIframe.style.transformOrigin = '';
 
-          // Restore transform if it was set (for zoom)
-          if (currentTransform) {
-            mergedData.rightIframe.style.transform = currentTransform;
-          }
-          if (currentTransformOrigin) {
-            mergedData.rightIframe.style.transformOrigin = currentTransformOrigin;
-          }
-
-          // Reapply zoom if tab has custom zoom level
+          // Reapply zoom if tab has custom zoom level (applyZoom owns the
+          // CSS `zoom` style — no transform preservation needed anymore)
           if (rightTab.zoomLevel && rightTab.zoomLevel !== 1.0) {
             this.applyZoom(rightTab);
           }
@@ -2398,22 +2382,19 @@ class TabManager {
   applyZoom(tab) {
     if (!tab || !tab.iframe) return;
 
-    // Apply CSS transform to zoom the iframe content
-    tab.iframe.style.transform = `scale(${tab.zoomLevel})`;
-    tab.iframe.style.transformOrigin = 'top left';
+    // CSS `zoom` (NOT transform: scale). On Chromium ≥ our Electron 42, zoom
+    // propagates INTO the cross-origin iframe: the webapp re-lays-out and
+    // re-rasterizes crisply at the new size. transform:scale just stretched
+    // the already-rendered pixels, so any zoom ≠ 100% made the tab blurry —
+    // permanently, since zoomLevel persists across restarts.
+    tab.iframe.style.zoom = tab.zoomLevel === 1.0 ? '' : String(tab.zoomLevel);
 
-    // Adjust iframe dimensions to compensate for the scale
-    // This prevents content from being cut off
-    const containerWidth = this.iframeContainer.offsetWidth;
-    const containerHeight = this.iframeContainer.offsetHeight;
-
-    if (tab.zoomLevel !== 1.0) {
-      tab.iframe.style.width = `${100 / tab.zoomLevel}%`;
-      tab.iframe.style.height = `${100 / tab.zoomLevel}%`;
-    } else {
-      tab.iframe.style.width = '100%';
-      tab.iframe.style.height = '100%';
-    }
+    // Clear the legacy transform-scale styles (also restored from old saved
+    // tabs / split-view code paths).
+    tab.iframe.style.transform = '';
+    tab.iframe.style.transformOrigin = '';
+    tab.iframe.style.width = '100%';
+    tab.iframe.style.height = '100%';
 
     // Save tabs to persist zoom level
     this.saveTabs();
