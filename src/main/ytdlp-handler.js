@@ -30,6 +30,7 @@ const ERROR_TYPES = {
   INVALID_URL: 'invalid_url',
   GEO_RESTRICTED: 'geo_restricted',
   PRIVATE_CONTENT: 'private_content',
+  BOT_BLOCKED: 'bot_blocked',
   UNAVAILABLE: 'unavailable',
   FORMAT_UNAVAILABLE: 'format_unavailable',
   NETWORK_ERROR: 'network_error',
@@ -41,18 +42,28 @@ const ERROR_MESSAGES = {
   [ERROR_TYPES.INVALID_URL]: 'Please enter a valid video URL',
   [ERROR_TYPES.GEO_RESTRICTED]: 'This content is not available in your region',
   [ERROR_TYPES.PRIVATE_CONTENT]: 'This content requires sign-in or is age-restricted',
+  [ERROR_TYPES.BOT_BLOCKED]: "The site is asking us to verify we're not a bot. Sign into this site (YouTube/Instagram/etc.) in your browser (Chrome, Edge, Brave or Firefox), then try the download again.",
   [ERROR_TYPES.UNAVAILABLE]: 'This content is no longer available',
   [ERROR_TYPES.FORMAT_UNAVAILABLE]: 'Requested quality not available, downloading best alternative',
   [ERROR_TYPES.NETWORK_ERROR]: 'Connection failed. Please check your internet',
   [ERROR_TYPES.UNKNOWN]: 'An unexpected error occurred'
 };
 
-// YouTube-specific options to bypass restrictions
-// Let yt-dlp use its own defaults for player_client (changes frequently)
-const YOUTUBE_EXTRACTOR_ARGS = [
+// Shared browser-like headers help every extractor look less like a scraper.
+const COMMON_EXTRACTOR_ARGS = [
   '--no-check-certificates',
   '--user-agent', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36'
 ];
+
+// NOTE: we deliberately do NOT pin youtube:player_client. yt-dlp's own default
+// client selection is adaptive and kept current by its maintainers — hardcoding
+// clients (tv/web_safari/mweb/…) is routinely WORSE (e.g. the `tv` client is DRM-
+// poisoned as of mid-2026, ref yt-dlp#12563). We let the default pick the client and
+// solve the real blockers (bot/age/login walls) with the browser-cookie tiers below.
+
+// Platforms that increasingly require a logged-in session — they get the full
+// retry ladder (default fetch → yt-dlp update → browser cookies).
+const SOCIAL_PLATFORMS = ['youtube', 'instagram', 'facebook', 'twitter', 'tiktok'];
 
 class YtdlpHandler {
   constructor(mainWindow) {
@@ -78,12 +89,175 @@ class YtdlpHandler {
       msg.includes('nsig') ||
       msg.includes('signature') ||
       msg.includes('unable to extract') ||
+      msg.includes('failed to extract') ||
       msg.includes('no video formats') ||
       msg.includes('player_response') ||
       msg.includes('http error 403') ||
       msg.includes('http error 429') ||
       msg.includes('precondition check failed') ||
-      msg.includes('failed to extract any player response')
+      msg.includes('failed to extract any player response') ||
+      msg.includes('unable to download webpage') ||
+      // Bot / login gating — a fresh binary or the user's browser cookies usually clears these.
+      msg.includes('confirm you') ||           // "Sign in to confirm you're not a bot"
+      msg.includes('not a bot') ||
+      msg.includes('sign in to confirm') ||
+      msg.includes('login required') ||
+      msg.includes('requires authentication') ||
+      msg.includes('rate-limit') ||
+      msg.includes('rate limit') ||
+      // Instagram/TikTok "login" walls and generic "temporarily unavailable"
+      msg.includes('login') ||
+      msg.includes('empty media response') ||
+      msg.includes('this video is unavailable') ||
+      msg.includes('video is unavailable') ||
+      msg.includes('content isn') ||            // "content isn't available"
+      msg.includes('temporarily')
+    );
+  }
+
+  /**
+   * A genuinely dead video — no client rotation or cookie will bring it back.
+   * We stop the retry ladder early on these to fail fast with an honest message.
+   */
+  isPermanentlyUnavailable(errorMessage) {
+    const msg = (errorMessage || '').toLowerCase();
+    return (
+      msg.includes('has been removed') ||
+      msg.includes('removed by the uploader') ||
+      msg.includes('this video has been removed') ||
+      msg.includes('account associated with this video has been terminated') ||
+      msg.includes('account has been terminated') ||
+      msg.includes('video does not exist') ||
+      msg.includes('this video is no longer available') ||
+      msg.includes('post may have been deleted') ||
+      msg.includes('page not found') ||
+      msg.includes('http error 404')
+    );
+  }
+
+  isSocialPlatform(platform) {
+    return SOCIAL_PLATFORMS.includes(platform);
+  }
+
+  /**
+   * Detect which browsers have a profile on this machine so we can pull the user's
+   * logged-in session for the cookie fallback tier. Ordered by how reliably yt-dlp
+   * can read the cookie store on each OS (Firefox is unencrypted; Chromium on
+   * Windows uses App-Bound Encryption which can fail if the browser is running).
+   */
+  detectInstalledCookieBrowsers() {
+    if (this._cookieBrowsersCache) return this._cookieBrowsersCache;
+
+    const home = app.getPath('home');
+    const local = process.env.LOCALAPPDATA || path.join(home, 'AppData', 'Local');
+    const roaming = process.env.APPDATA || path.join(home, 'AppData', 'Roaming');
+
+    // name = yt-dlp browser identifier, probe = a path that exists when it's installed
+    let candidates;
+    if (process.platform === 'win32') {
+      candidates = [
+        { name: 'firefox', probe: path.join(roaming, 'Mozilla', 'Firefox', 'Profiles') },
+        { name: 'brave',   probe: path.join(local, 'BraveSoftware', 'Brave-Browser', 'User Data') },
+        { name: 'edge',    probe: path.join(local, 'Microsoft', 'Edge', 'User Data') },
+        { name: 'chrome',  probe: path.join(local, 'Google', 'Chrome', 'User Data') },
+      ];
+    } else if (process.platform === 'darwin') {
+      const appSup = path.join(home, 'Library', 'Application Support');
+      candidates = [
+        { name: 'firefox', probe: path.join(appSup, 'Firefox', 'Profiles') },
+        { name: 'brave',   probe: path.join(appSup, 'BraveSoftware', 'Brave-Browser') },
+        { name: 'chrome',  probe: path.join(appSup, 'Google', 'Chrome') },
+        { name: 'edge',    probe: path.join(appSup, 'Microsoft Edge') },
+        { name: 'safari',  probe: path.join(home, 'Library', 'Cookies') },
+      ];
+    } else {
+      candidates = [
+        { name: 'firefox', probe: path.join(home, '.mozilla', 'firefox') },
+        { name: 'brave',   probe: path.join(home, '.config', 'BraveSoftware', 'Brave-Browser') },
+        { name: 'chrome',  probe: path.join(home, '.config', 'google-chrome') },
+      ];
+    }
+
+    const found = [];
+    for (const c of candidates) {
+      try { if (fs.existsSync(c.probe)) found.push(c.name); } catch (_) {}
+    }
+    console.log('[yt-dlp Handler] Cookie-capable browsers detected:', found.join(', ') || '(none)');
+    this._cookieBrowsersCache = found;
+    return found;
+  }
+
+  /**
+   * Build the ordered retry ladder for a URL:
+   *   1. robust extractor args (no cookies)  — fast path, fixes most cases
+   *   2. same, but with each installed browser's logged-in session (cookies)
+   * Non-social platforms get a single plain attempt.
+   */
+  buildAttempts(platform) {
+    const base = [...COMMON_EXTRACTOR_ARGS];
+
+    const attempts = [{ label: 'default', args: base }];
+
+    if (this.isSocialPlatform(platform)) {
+      for (const browser of this.detectInstalledCookieBrowsers()) {
+        attempts.push({
+          label: `cookies:${browser}`,
+          args: [...base, '--cookies-from-browser', browser]
+        });
+      }
+    }
+
+    return attempts;
+  }
+
+  /**
+   * Fetch media info through the retry ladder (used for social platforms).
+   * Refreshes yt-dlp once on the first extractor breakage, then keeps escalating.
+   */
+  async getInfoWithLadder(url, platform) {
+    const attempts = this.buildAttempts(platform);
+    let i = 0;
+    let updated = false;
+    let primaryError = null;  // the first (genuine content-access) failure — best for messaging
+
+    while (i < attempts.length) {
+      const attempt = attempts[i];
+      try {
+        console.log(`[yt-dlp Handler] Info attempt ${i + 1}/${attempts.length}: ${attempt.label}`);
+        return await this.getVideoInfoWithOptions(url, attempt.args);
+      } catch (err) {
+        const msg = (err && err.message) || String(err);
+        // A cookie tier that can't even read the cookie store (e.g. Windows DPAPI) is an
+        // infra failure — don't let it mask the real reason tier 1 failed.
+        if (!primaryError || !this.isCookieInfraFailure(msg)) {
+          if (!primaryError) primaryError = err;
+        }
+        console.warn(`[yt-dlp Handler] Info attempt "${attempt.label}" failed:`, msg.substring(0, 200));
+
+        if (this.isPermanentlyUnavailable(msg)) break;
+
+        if (!updated && this.isExtractionFailure(msg)) {
+          updated = true;
+          try { await this.ensureUpdate(); } catch (_) {}
+          continue; // retry the SAME tier against the fresh binary
+        }
+        i++;
+      }
+    }
+
+    throw primaryError || new Error('Unable to fetch media info');
+  }
+
+  /** A failure to READ a browser's cookie store (not a content problem). */
+  isCookieInfraFailure(errorMessage) {
+    const msg = (errorMessage || '').toLowerCase();
+    return (
+      msg.includes('dpapi') ||
+      msg.includes('could not copy') ||
+      msg.includes('failed to decrypt') ||
+      msg.includes('unable to open') && msg.includes('cookie') ||
+      msg.includes('could not find') && msg.includes('cookie') ||
+      msg.includes('no such') && msg.includes('cookie')
     );
   }
 
@@ -454,17 +628,31 @@ class YtdlpHandler {
     if (msg.includes('is not a valid url') || msg.includes('unsupported url')) {
       return ERROR_TYPES.INVALID_URL;
     }
-    if (msg.includes('geo') || msg.includes('not available in your country') || msg.includes('blocked')) {
+    // Bot / "confirm you're not a bot" gating — check BEFORE private/unavailable so it
+    // isn't mislabeled "no longer available". This is fixable by the user's browser session.
+    if (msg.includes('not a bot') || msg.includes('confirm you') || msg.includes('sign in to confirm') ||
+        msg.includes('rate-limit') || msg.includes('rate limit') || msg.includes('too many requests')) {
+      return ERROR_TYPES.BOT_BLOCKED;
+    }
+    if (msg.includes('geo') || msg.includes('not available in your country') || msg.includes('blocked in your')) {
       return ERROR_TYPES.GEO_RESTRICTED;
     }
-    // YouTube-specific auth/age errors
+    // Genuinely removed/dead content (checked before the softer auth wall so a truly
+    // deleted video reports honestly rather than "please sign in").
+    if (msg.includes('has been removed') || msg.includes('removed by the uploader') ||
+        msg.includes('account associated') || msg.includes('account has been terminated') ||
+        msg.includes('does not exist') || msg.includes('no longer available') ||
+        msg.includes('deleted') || msg.includes('http error 404')) {
+      return ERROR_TYPES.UNAVAILABLE;
+    }
+    // Auth/age walls — often clearable with a logged-in browser session.
     if (msg.includes('private') || msg.includes('sign in') || msg.includes('login') ||
         msg.includes('authentication') || msg.includes('age') || msg.includes('confirm your age') ||
-        msg.includes('members only') || msg.includes('join this channel')) {
+        msg.includes('members only') || msg.includes('join this channel') ||
+        msg.includes('log in') || msg.includes('requires authentication')) {
       return ERROR_TYPES.PRIVATE_CONTENT;
     }
-    if (msg.includes('deleted') || msg.includes('removed') || msg.includes('unavailable') ||
-        msg.includes('does not exist') || msg.includes('video is unavailable')) {
+    if (msg.includes('unavailable') || msg.includes('video is unavailable')) {
       return ERROR_TYPES.UNAVAILABLE;
     }
     if (msg.includes('format') || msg.includes('quality')) {
@@ -483,15 +671,19 @@ class YtdlpHandler {
    */
   getDetailedErrorMessage(errorMessage, url) {
     const errorType = this.classifyError(errorMessage);
-    let baseMessage = this.getErrorMessage(errorType);
+    const baseMessage = this.getErrorMessage(errorType);
+    const platform = this.detectPlatform(url);
 
-    // Add YouTube-specific hints
-    if (this.detectPlatform(url) === 'youtube') {
+    // Bot-block is the most common social-download failure — give a clear next step.
+    if (errorType === ERROR_TYPES.BOT_BLOCKED) {
+      return baseMessage;
+    }
+
+    if (this.isSocialPlatform(platform)) {
       if (errorType === ERROR_TYPES.UNKNOWN) {
-        // If unknown error on YouTube, likely needs yt-dlp update
-        if (errorMessage.includes('unable to extract') || errorMessage.includes('no video formats') ||
-            errorMessage.includes('nsig') || errorMessage.includes('signature')) {
-          return 'YouTube extraction failed. The app will auto-update shortly, please try again.';
+        const lower = (errorMessage || '').toLowerCase();
+        if (this.isExtractionFailure(lower)) {
+          return "We couldn't reach this content. Try again in a moment — if it keeps failing, sign into the site in your browser (Chrome/Edge/Brave/Firefox) and retry.";
         }
       }
     }
@@ -530,10 +722,11 @@ class YtdlpHandler {
     try {
       let info;
 
-      // Use custom options for YouTube to bypass restrictions
-      if (platform === 'youtube') {
-        console.log('[yt-dlp Handler] Using YouTube-specific options');
-        info = await this.getVideoInfoWithOptions(url, YOUTUBE_EXTRACTOR_ARGS);
+      // Social platforms (YouTube/Instagram/TikTok/…) run the full retry ladder:
+      // robust extractor args → yt-dlp self-update → the user's browser session.
+      if (this.isSocialPlatform(platform)) {
+        console.log('[yt-dlp Handler] Using retry ladder for', platform);
+        info = await this.getInfoWithLadder(url, platform);
       } else {
         info = await this.ytdlp.getVideoInfo(url);
       }
@@ -570,8 +763,9 @@ class YtdlpHandler {
       const errorMessage = error.message || error.toString();
       const errorType = this.classifyError(errorMessage);
 
-      // Self-heal: looks like extractor breakage → update yt-dlp and retry once
-      if (!_retried && this.isExtractionFailure(errorMessage)) {
+      // Self-heal: extractor breakage → update yt-dlp and retry once.
+      // Social platforms already updated inside the ladder, so only do this for the rest.
+      if (!_retried && !this.isSocialPlatform(platform) && this.isExtractionFailure(errorMessage)) {
         console.log('[yt-dlp Handler] Extraction failure detected, updating yt-dlp and retrying...');
         try {
           const updated = await this.ensureUpdate();
@@ -803,59 +997,126 @@ class YtdlpHandler {
     return null;
   }
 
+  /** Notify the renderer that we're escalating to another download strategy. */
+  _sendRetry(jobId, reason) {
+    if (this.mainWindow && !this.mainWindow.isDestroyed()) {
+      this.mainWindow.webContents.send('dl:retry', { jobId, reason });
+    }
+  }
+
   /**
-   * Download media
+   * Download media through the retry ladder.
+   *   Tier 1: robust extractor args (no cookies)
+   *   Tier 2: first extractor breakage → refresh yt-dlp once, retry same tier
+   *   Tier 3+: the user's logged-in browser session (one tier per installed browser)
+   * The direct-HTTP fallback and genuine-removal fast-fail are handled around the ladder.
    */
-  async downloadMedia(job, _retried = false) {
-    const { id, url, outputFormat, quality, outputFolder, title } = job;
+  async downloadMedia(job) {
+    const { id, url, outputFolder, title } = job;
 
     console.log('[yt-dlp Handler] Starting download:', {
-      id,
-      url,
-      format: outputFormat,
-      quality,
-      outputFolder,
-      retry: _retried
+      id, url, format: job.outputFormat, quality: job.quality, outputFolder
     });
 
-    // Check if this is a direct media URL - try direct download first for efficiency
+    // Direct media URL — try a plain HTTP download first for efficiency
     if (this.isDirectMediaUrl(url)) {
       console.log('[yt-dlp Handler] Direct media URL detected, using direct download');
       try {
         return await this.downloadDirectUrl(job);
       } catch (directError) {
         console.warn('[yt-dlp Handler] Direct download failed, falling back to yt-dlp:', directError.message);
-        // Fall through to yt-dlp
       }
     }
 
-    // Try yt-dlp
     if (!this.initialized || !this.ytdlp) {
       await this.initialize();
       if (!this.initialized || !this.ytdlp) {
-        // If yt-dlp not available and it's a direct URL, try direct download
-        if (this.isDirectMediaUrl(url)) {
-          return this.downloadDirectUrl(job);
-        }
+        if (this.isDirectMediaUrl(url)) return this.downloadDirectUrl(job);
         throw new Error('yt-dlp is not initialized');
       }
     }
 
-    // Build output template
-    const sanitizedTitle = title ? title.replace(/[<>:"/\\|?*]/g, '_').substring(0, 100) : '%(title)s';
-    const outputTemplate = path.join(
-      outputFolder,
-      `${sanitizedTitle}.%(ext)s`
-    );
-
-    // Build yt-dlp options
-    const options = this.buildDownloadOptions(outputFormat, quality, outputTemplate);
-
-    // Add platform-specific options (YouTube needs special handling)
     const platform = this.detectPlatform(url);
-    if (platform === 'youtube') {
-      options.push(...YOUTUBE_EXTRACTOR_ARGS);
+    const attempts = this.buildAttempts(platform);
+
+    let i = 0;
+    let updated = false;
+    let primaryError = null;  // first genuine failure — best for the final user message
+
+    while (i < attempts.length) {
+      const attempt = attempts[i];
+      try {
+        if (i > 0) {
+          this._sendRetry(id, attempt.label.startsWith('cookies')
+            ? 'Trying with your browser sign-in…'
+            : 'Retrying with a more robust method…');
+        }
+        console.log(`[yt-dlp Handler] Download attempt ${i + 1}/${attempts.length} [${id}]: ${attempt.label}`);
+
+        const outputPath = await this._runDownloadAttempt(job, attempt.args);
+
+        if (this.mainWindow && !this.mainWindow.isDestroyed()) {
+          this.mainWindow.webContents.send('dl:complete', { jobId: id, outputPath });
+        }
+        return outputPath;
+      } catch (err) {
+        if (err && err.aborted) throw err; // cancelled — dl:cancelled already sent
+        const msg = (err && (err.originalError || err.message)) || String(err);
+        // Ignore cookie-store read failures (e.g. Windows DPAPI) for messaging — keep the
+        // first real content-access error as the reported cause.
+        if (!primaryError && !this.isCookieInfraFailure(msg)) primaryError = err;
+        console.warn(`[yt-dlp Handler] Attempt "${attempt.label}" failed [${id}]:`, msg.substring(0, 200));
+
+        // Direct-HTTP fallback for simple media URLs
+        if (this.isDirectMediaUrl(url)) {
+          try {
+            const outputPath = await this.downloadDirectUrl(job);
+            return outputPath; // downloadDirectUrl sends its own dl:complete
+          } catch (_) {}
+        }
+
+        // Genuinely removed → no tier will help, fail fast
+        if (this.isPermanentlyUnavailable(msg)) break;
+
+        // First extractor breakage → refresh yt-dlp once, retry the SAME tier
+        if (!updated && this.isExtractionFailure(msg)) {
+          updated = true;
+          this._sendRetry(id, 'Updating extractor and retrying…');
+          try { await this.ensureUpdate(); } catch (_) {}
+          continue;
+        }
+        i++;
+      }
     }
+
+    // Ladder exhausted — report an honest, actionable error
+    const finalMsg = (primaryError && (primaryError.originalError || primaryError.message)) || 'Download failed';
+    const errorType = this.classifyError(finalMsg);
+    const userMsg = this.getDetailedErrorMessage(finalMsg, url);
+
+    const sanitizedTitle = title ? title.replace(/[<>:"/\\|?*]/g, '_').substring(0, 100) : '';
+    if (sanitizedTitle) this.cleanupTempFiles(outputFolder, sanitizedTitle);
+
+    if (this.mainWindow && !this.mainWindow.isDestroyed()) {
+      this.mainWindow.webContents.send('dl:error', { jobId: id, error: userMsg, errorType });
+    }
+    throw { type: errorType, message: userMsg, originalError: finalMsg };
+  }
+
+  /**
+   * Run a single download attempt with the given extra yt-dlp args.
+   * Resolves with the finished output path, or rejects with { message, originalError }
+   * (or { aborted:true } if the user cancelled). Does NOT send dl:complete/dl:error —
+   * the ladder in downloadMedia owns final success/failure reporting.
+   */
+  _runDownloadAttempt(job, extraArgs = []) {
+    const { id, url, outputFormat, quality, outputFolder, title } = job;
+
+    const sanitizedTitle = title ? title.replace(/[<>:"/\\|?*]/g, '_').substring(0, 100) : '%(title)s';
+    const outputTemplate = path.join(outputFolder, `${sanitizedTitle}.%(ext)s`);
+
+    const options = this.buildDownloadOptions(outputFormat, quality, outputTemplate);
+    if (extraArgs && extraArgs.length) options.push(...extraArgs);
 
     return new Promise((resolve, reject) => {
       try {
@@ -866,37 +1127,19 @@ class YtdlpHandler {
         // yt-dlp downloads separate streams sequentially (e.g. video then audio).
         // Each stream resets the percentage from 0. We detect resets and scale the
         // reported progress across all phases so the bar never jumps backward.
-        //
-        //  Video-only (single stream or audio extract):
-        //    download  → 0–80 %
-        //    merge/convert → 80–99 %  (reported in 'close' handler)
-        //
-        //  Two-stream (4K / 1440p / 1080p):
-        //    video stream  → 0–60 %
-        //    audio stream  → 60–80 %
-        //    merge          → 80–99 %
         const isAudioOnly = outputFormat === 'mp3';
         let downloadPhase = 0;    // increments when we detect a reset
         let prevRawPercent = -1;
 
         const scalePercent = (rawPercent) => {
-          if (isAudioOnly) {
-            // download occupies 0-80%, conversion happens silently after
-            return Math.round(rawPercent * 0.80);
-          }
-          if (downloadPhase === 0) {
-            return Math.round(rawPercent * 0.60);      // video  → 0-60%
-          }
-          return Math.round(60 + rawPercent * 0.20);   // audio  → 60-80%
+          if (isAudioOnly) return Math.round(rawPercent * 0.80);   // download 0-80%, convert after
+          if (downloadPhase === 0) return Math.round(rawPercent * 0.60);  // video → 0-60%
+          return Math.round(60 + rawPercent * 0.20);               // audio → 60-80%
         };
 
         const sendProgress = (scaledPercent, extra = {}) => {
           if (this.mainWindow && !this.mainWindow.isDestroyed()) {
-            this.mainWindow.webContents.send('dl:progress', {
-              jobId: id,
-              progress: scaledPercent,
-              ...extra
-            });
+            this.mainWindow.webContents.send('dl:progress', { jobId: id, progress: scaledPercent, ...extra });
           }
         };
 
@@ -905,7 +1148,6 @@ class YtdlpHandler {
             if (downloadState.aborted || hasError) return;
 
             const rawPercent = progress.percent || 0;
-
             // Detect stream reset: a big drop in percentage means a new stream started
             if (prevRawPercent > 10 && rawPercent < prevRawPercent - 10) {
               downloadPhase++;
@@ -914,8 +1156,6 @@ class YtdlpHandler {
             prevRawPercent = rawPercent;
 
             const scaledPercent = scalePercent(rawPercent);
-            console.log(`[yt-dlp Handler] Progress [${id}]: raw=${rawPercent}% phase=${downloadPhase} scaled=${scaledPercent}%`);
-
             sendProgress(scaledPercent, {
               downloadedBytes: this.parseSize(progress.totalSize),
               speed: progress.currentSpeed || null,
@@ -925,66 +1165,20 @@ class YtdlpHandler {
           .on('ytDlpEvent', (eventType, eventData) => {
             console.log(`[yt-dlp Handler] Event [${id}]:`, eventType, eventData);
           })
-          .on('error', async (error) => {
-            if (downloadState.aborted) return;
+          .on('error', (error) => {
+            if (downloadState.aborted) { reject({ aborted: true }); return; }
             hasError = true;
 
-            console.error('[yt-dlp Handler] Download error:', error);
+            console.error('[yt-dlp Handler] Download attempt error:', error);
             this.activeDownloads.delete(id);
             this.cleanupTempFiles(outputFolder, sanitizedTitle);
 
             const errorMessage = error.message || error.toString();
-            const errorType = this.classifyError(errorMessage);
-
-            // Self-heal: extractor breakage → update yt-dlp + retry once
-            if (!_retried && this.isExtractionFailure(errorMessage)) {
-              console.log('[yt-dlp Handler] Extraction failure, updating yt-dlp and retrying...');
-              if (this.mainWindow && !this.mainWindow.isDestroyed()) {
-                this.mainWindow.webContents.send('dl:retry', {
-                  jobId: id,
-                  reason: 'Updating extractor and retrying...'
-                });
-              }
-              try {
-                const updated = await this.ensureUpdate();
-                if (updated) {
-                  const result = await this.downloadMedia(job, true);
-                  resolve(result);
-                  return;
-                }
-              } catch (retryError) {
-                console.error('[yt-dlp Handler] Auto-retry failed:', retryError);
-              }
-            }
-
-            // Fallback: direct HTTP for simple media URLs
-            if (this.isDirectMediaUrl(url)) {
-              console.log('[yt-dlp Handler] yt-dlp failed, trying direct download fallback');
-              try {
-                const result = await this.downloadDirectUrl(job);
-                resolve(result);
-                return;
-              } catch (directError) {
-                console.error('[yt-dlp Handler] Direct download fallback also failed:', directError);
-              }
-            }
-
-            if (this.mainWindow && !this.mainWindow.isDestroyed()) {
-              this.mainWindow.webContents.send('dl:error', {
-                jobId: id,
-                error: this.getErrorMessage(errorType),
-                errorType: errorType
-              });
-            }
-
-            reject({
-              type: errorType,
-              message: this.getErrorMessage(errorType),
-              originalError: error.message
-            });
+            reject({ message: errorMessage, originalError: errorMessage });
           })
           .on('close', async () => {
-            if (downloadState.aborted || hasError) return;
+            if (downloadState.aborted) { reject({ aborted: true }); return; }
+            if (hasError) return;
 
             console.log('[yt-dlp Handler] yt-dlp process closed:', id);
             this.activeDownloads.delete(id);
@@ -996,25 +1190,20 @@ class YtdlpHandler {
             let outputPath = this.findOutputFile(outputFolder, sanitizedTitle, outputFormat);
 
             if (outputFormat === 'mp3') {
-              // ── Audio path ───────────────────────────────────────────────────────
-              // yt-dlp normally handles m4a→mp3 conversion internally (via our
-              // --ffmpeg-location). If it left a non-mp3 file, convert it ourselves.
+              // yt-dlp normally handles m4a→mp3 internally; if it left a non-mp3, convert it.
               if (outputPath && !outputPath.endsWith('.mp3') && fs.existsSync(outputPath)) {
                 const mp3Target = path.join(outputFolder, `${sanitizedTitle}.mp3`);
                 try {
-                  console.log('[yt-dlp Handler] Converting to MP3:', outputPath, '→', mp3Target);
                   outputPath = await this.convertToMp3WithFfmpeg(outputPath, mp3Target, id, quality);
                 } catch (convErr) {
                   console.warn('[yt-dlp Handler] ffmpeg MP3 conversion failed, keeping original:', convErr.message);
                 }
               }
             } else {
-              // ── Video path ───────────────────────────────────────────────────────
-              // If yt-dlp left a .webm or .mkv (e.g. merge failed internally), remux to mp4.
+              // If yt-dlp left a .webm/.mkv (merge failed internally), remux to mp4.
               if (outputPath && !outputPath.endsWith('.mp4') && fs.existsSync(outputPath)) {
                 const remuxTarget = path.join(outputFolder, `${sanitizedTitle}.mp4`);
                 try {
-                  console.log('[yt-dlp Handler] Non-mp4 output detected, remuxing:', outputPath, '→', remuxTarget);
                   outputPath = await this.remuxWithFfmpeg(outputPath, remuxTarget, id);
                 } catch (remuxErr) {
                   console.warn('[yt-dlp Handler] ffmpeg remux failed, keeping original:', remuxErr.message);
@@ -1022,39 +1211,22 @@ class YtdlpHandler {
               }
             }
 
-            // Validate: if the file doesn't exist or is suspiciously small, report an error
+            // Validate the produced file; a missing/tiny file is a failed attempt.
             if (!this.validateOutputFile(outputPath)) {
               console.error('[yt-dlp Handler] Output file missing or invalid:', outputPath);
               this.cleanupTempFiles(outputFolder, sanitizedTitle);
-              if (this.mainWindow && !this.mainWindow.isDestroyed()) {
-                this.mainWindow.webContents.send('dl:error', {
-                  jobId: id,
-                  error: 'Download finished but output file is missing or corrupt. Please try again.',
-                  errorType: ERROR_TYPES.UNKNOWN
-                });
-              }
-              reject({ type: ERROR_TYPES.UNKNOWN, message: 'Output file missing after download' });
+              reject({ message: 'Output file missing after download', originalError: 'output file missing or corrupt' });
               return;
-            }
-
-            if (this.mainWindow && !this.mainWindow.isDestroyed()) {
-              this.mainWindow.webContents.send('dl:complete', {
-                jobId: id,
-                outputPath: outputPath
-              });
             }
 
             resolve(outputPath);
           });
 
-        this.activeDownloads.set(id, {
-          process: downloadProcess,
-          state: downloadState
-        });
+        this.activeDownloads.set(id, { process: downloadProcess, state: downloadState });
 
       } catch (error) {
         console.error('[yt-dlp Handler] Setup error:', error);
-        reject(error);
+        reject({ message: error.message || String(error), originalError: error.message || String(error) });
       }
     });
   }

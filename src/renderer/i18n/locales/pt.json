@@ -55,7 +55,8 @@
     "splitView": "Visualização Dividida",
     "loadingFileBridge": "Carregando File Bridge...",
     "loadingKolbo": "Carregando Kolbo Web App...",
-    "synci": "Synci"
+    "synci": "Synci",
+    "stock": "Acervo"
   },
   "webapp": {
     "back": "Voltar",
@@ -391,6 +392,121 @@
       "preparing": "Preparando arquivo…",
       "preparingShort": "Preparando…",
       "ready": "Pronto — arraste para a linha do tempo."
+    }
+  },
+  "stock": {
+    "title": "Biblioteca de Acervo",
+    "tab": {
+      "browse": "Explorar",
+      "favorites": "Favoritos",
+      "downloaded": "Baixados"
+    },
+    "search": {
+      "placeholder": "Buscar fotos, vídeos, músicas, SFX, 3D…",
+      "go": "Buscar"
+    },
+    "allSources": "Todas as fontes",
+    "smart": {
+      "vision": "Buscar por imagem ou vídeo",
+      "script": "Encontrar cenas por roteiro"
+    },
+    "mt": {
+      "image": "Fotos",
+      "illustration": "Ilustrações",
+      "vector": "Vetores",
+      "video": "Vídeos",
+      "3d": "3D",
+      "music": "Músicas",
+      "sfx": "SFX"
+    },
+    "facet": {
+      "vocals": "Vocais"
+    },
+    "vocals": {
+      "all": "Todos",
+      "instrumental": "Instrumental",
+      "vocals": "Com vocais"
+    },
+    "vision": {
+      "image": "Fazer upload de imagem",
+      "video": "Fazer upload de vídeo",
+      "frame": "Do frame da Timeline"
+    },
+    "script": {
+      "title": "Encontrar cenas por roteiro",
+      "placeholder": "Cole seu roteiro ou narração aqui…",
+      "run": "Encontrar cenas",
+      "analyzing": "Analisando…"
+    },
+    "projectScope": "Projeto",
+    "allProjects": "Todos os projetos",
+    "loading": "Carregando…",
+    "endOfResults": "Fim dos resultados",
+    "partial": "Algumas fontes estão temporariamente indisponíveis.",
+    "partialNamed": "Algumas fontes estão indisponíveis ({{sources}}).",
+    "empty": {
+      "browse": "Sem resultados. Tente outra palavra-chave ou fonte.",
+      "favorites": "Nenhum favorito ainda. Toque no coração em qualquer item para salvá-lo.",
+      "downloaded": "Nada importado ou baixado ainda."
+    },
+    "preview": "Prévia",
+    "favorite": "Favoritar",
+    "download": "Baixar",
+    "import": "Adicionar à biblioteca",
+    "downloaded": "Salvo nos seus downloads",
+    "placed": "Adicionado à sua linha do tempo",
+    "imported": "Adicionado à sua biblioteca de mídia",
+    "alreadyImported": "Já está na sua biblioteca",
+    "viewSource": "Ver fonte",
+    "view3d": "Ver modelo 3D",
+    "close": "Fechar",
+    "cancel": "Cancelar",
+    "analyze": {
+      "analyzing": "Analisando…",
+      "tooLarge": "Esse arquivo é muito grande (máx. 50 MB).",
+      "capturing": "Capturando frame…"
+    },
+    "error": {
+      "generic": "Algo deu errado. Tente novamente.",
+      "download": "Não foi possível baixar esse recurso.",
+      "import": "Não foi possível adicionar esse recurso à sua biblioteca.",
+      "frame": "Não foi possível capturar o frame da Timeline."
+    },
+    "sort": {
+      "label": "Ordenar",
+      "relevance": "Relevância",
+      "popular": "Mais populares",
+      "newest": "Mais recentes",
+      "bpmAsc": "BPM · mais lento",
+      "bpmDesc": "BPM · mais rápido",
+      "durAsc": "Duração · menor",
+      "durDesc": "Duração · maior"
+    },
+    "surprise": "Me surpreenda",
+    "range": {
+      "bpm": "Tempo (BPM)",
+      "duration": "Duração",
+      "any": "Qualquer"
+    },
+    "album": {
+      "tracks": "{{count}} faixas",
+      "back": "Voltar para a biblioteca",
+      "by": "Álbum de {{artist}}",
+      "play": "Tocar",
+      "similar": "Álbuns similares"
+    },
+    "footer": {
+      "terms": "Termos da biblioteca de stock",
+      "poweredBy": "Fornecido por",
+      "termsShort": "Termos"
+    },
+    "credit": {
+      "pexels": "Fotos e vídeos fornecidos por Pexels",
+      "unsplash": "Fotos fornecidas por Unsplash",
+      "pixabay": "Conteúdo do Pixabay",
+      "coverr": "Vídeos fornecidos por Coverr",
+      "freesound": "Sons fornecidos por Freesound",
+      "sketchfab": "Modelos 3D do Sketchfab"
     }
   }
 }

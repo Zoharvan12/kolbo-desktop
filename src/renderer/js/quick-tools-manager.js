@@ -223,6 +223,15 @@ class QuickToolsManager {
   handleFilesDropped(toolId, files) {
     console.log(`[Quick Tools] Files received for ${toolId}:`, files.length);
 
+    // File.path was removed from Electron — the tools all read file.path, so
+    // re-attach it here (the single entry point for drops + browse pickers).
+    files.forEach(file => {
+      if (!file.path) {
+        const p = window.kolboDesktop?.getPathForFile?.(file);
+        if (p) { try { file.path = p; } catch {} }
+      }
+    });
+
     // Validate file types
     const validFiles = files.filter(file => this.isValidFile(toolId, file));
     if (validFiles.length === 0) {

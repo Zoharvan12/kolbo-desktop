@@ -520,6 +520,10 @@ class KolboApp {
     if (synciTab) {
       synciTab.addEventListener('click', () => this.switchView('synci'));
     }
+    const stockTab = document.getElementById('stock-tab');
+    if (stockTab) {
+      stockTab.addEventListener('click', () => this.switchView('stock'));
+    }
     const fileExplorerTab = document.getElementById('file-explorer-tab');
     if (fileExplorerTab) {
       fileExplorerTab.addEventListener('click', () => this.switchView('file-explorer'));
@@ -791,6 +795,7 @@ class KolboApp {
     const agentView = document.getElementById('agent-view');
     const videoStudioView = document.getElementById('video-studio-view');
     const synciView = document.getElementById('synci-view');
+    const stockView = document.getElementById('stock-view');
     const mediaCount = document.getElementById('media-count');
 
     // Hide all views first
@@ -814,6 +819,8 @@ class KolboApp {
     videoStudioView?.classList.remove('active');
     synciView?.classList.add('hidden');
     synciView?.classList.remove('active');
+    stockView?.classList.add('hidden');
+    stockView?.classList.remove('active');
 
     if (view === 'media') {
       mediaView?.classList.remove('hidden');
@@ -959,6 +966,21 @@ class KolboApp {
 
       if (this.DEBUG_MODE) {
         console.log('[View] Synci view shown');
+      }
+    } else if (view === 'stock') {
+      stockView?.classList.remove('hidden');
+      stockView?.classList.add('active');
+      if (mediaCount) mediaCount.style.display = 'none';
+
+      // Lazy-init the Stock Media Library on first open. No host bridge on
+      // desktop → the manager saves downloads to disk + imports to the library.
+      if (!this.stockManager && window.StockLibraryManager) {
+        this.stockManager = new window.StockLibraryManager(null, window.kolboAPI);
+      }
+      this.stockManager?.activate();
+
+      if (this.DEBUG_MODE) {
+        console.log('[View] Stock view shown');
       }
     }
   }

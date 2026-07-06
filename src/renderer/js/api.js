@@ -534,6 +534,173 @@ class KolboAPI {
     const res = await r.json();
     return (res && res.data) || res;
   }
+
+  // ==========================================================================
+  // Stock Media Library
+  // ==========================================================================
+  // Thin client over the shared /stock/* backend endpoints (multi-source:
+  // Pexels / Unsplash / Pixabay / Coverr / Freesound / Sketchfab / Kolbo AI /
+  // Synci). Browse/search/asset/download are public (work for guests);
+  // favorites, downloads, import, and analyze require auth. Same direct-fetch
+  // transport + Bearer-token pattern as the Synci client above; method names
+  // and response shapes mirror the plugin so a ported StockLibraryManager runs
+  // unchanged. NOTE: stock search is GET (not POST like Synci search).
+
+  async _stockGet(path) {
+    const r = await fetch(`${this.getApiUrl()}/stock${path}`, { headers: this._synciHeaders(false) });
+    if (r.status === 401) { this._handleUnauthorized(); return null; }
+    return r.json();
+  }
+
+  async _stockPost(path, body) {
+    const r = await fetch(`${this.getApiUrl()}/stock${path}`, {
+      method: 'POST',
+      headers: this._synciHeaders(),
+      body: JSON.stringify(body || {})
+    });
+    if (r.status === 401) { this._handleUnauthorized(); return null; }
+    return r.json();
+  }
+
+  /** GET /stock/sources — enabled providers + supported media types. */
+  stockSources() {
+    return this._stockGet('/sources');
+  }
+
+  /** GET /stock/categories — dynamic category chips for a source/mediaType. */
+  stockCategories(params = {}) {
+    return this._stockGet('/categories' + this._synciQuery({ source: params.source, mediaType: params.mediaType }));
+  }
+
+  /** GET /stock/collections — Kolbo-owned collections/packs (sfx/music). */
+  stockCollections(params = {}) {
+    return this._stockGet('/collections' + this._synciQuery({ mediaType: params.mediaType, kind: params.kind }));
+  }
+
+  /** GET /stock/search — unified multi-source search (page-based; cursor for 3D). */
+  stockSearch(params = {}) {
+    return this._stockGet('/search' + this._synciQuery({
+      query: params.query, source: params.source, mediaType: params.mediaType,
+      page: params.page, perPage: params.perPage, category: params.category,
+      subcategory: params.subcategory, genre: params.genre, mood: params.mood,
+      theme: params.theme, instrument: params.instrument, vocals: params.vocals,
+      color: params.color, orientation: params.orientation, order: params.order,
+      collectionId: params.collectionId, packId: params.packId,
+      bpmMin: params.bpmMin, bpmMax: params.bpmMax,
+      durationMin: params.durationMin, durationMax: params.durationMax,
+      lengthBucket: params.lengthBucket, seed: params.seed, cursor: params.cursor,
+      smart: params.smart ? 'true' : undefined
+    }));
+  }
+
+  /** GET /stock/music-bounds — real [min,max] BPM + duration across the catalog (drives the sliders). */
+  async stockMusicBounds() {
+    try {
+      const res = await this._stockGet('/music-bounds');
+      const pair = (v, fb) => (Array.isArray(v) && v.length === 2 && isFinite(+v[0]) && isFinite(+v[1])) ? [+v[0], +v[1]] : fb;
+      return { bpm: pair(res && res.bpm, [40, 200]), duration: pair(res && res.duration, [0, 360]) };
+    } catch (err) {
+      console.warn('[API] stockMusicBounds failed (non-fatal):', err && err.message);
+      return { bpm: [40, 200], duration: [0, 360] };
+    }
+  }
+
+  /** GET /stock/collection/:slug — one album (header + tracks + similar). */
+  async stockGetCollection(slug) {
+    const res = await this._stockGet('/collection/' + encodeURIComponent(slug));
+    return (res && res.status) ? { collection: res.collection, tracks: res.tracks || [], similar: res.similar || [] } : null;
+  }
+
+  /** POST /stock/track-play — fire-and-forget play beacon (feeds the "popular" sort). Never throws. */
+  stockTrackPlay(source, sourceId, mediaType) {
+    try {
+      const p = this._stockPost('/track-play', { source, id: sourceId, mediaType });
+      if (p && typeof p.catch === 'function') p.catch(() => { /* fire-and-forget */ });
+    } catch (err) { /* ignore */ }
+  }
+
+  /** GET /stock/asset/:source/:id — single asset + all download variants. */
+  stockAssetById(source, id, mediaType) {
+    return this._stockGet('/asset/' + encodeURIComponent(source) + '/' + encodeURIComponent(id) + this._synciQuery({ mediaType }));
+  }
+
+  /** Streamed download URL through Kolbo (no CORS, SSRF-checked). */
+  stockDownloadUrl(source, id, variant, mediaType) {
+    return `${this.getApiUrl()}/stock/download/${encodeURIComponent(source)}/${encodeURIComponent(id)}` +
+      this._synciQuery({ variant, mediaType });
+  }
+
+  /** POST /stock/analyze-script (auth) — script → { queries[], keywords[] }. */
+  stockAnalyzeScript(script, mediaType) {
+    return this._stockPost('/analyze-script', { script: String(script || '').slice(0, 8000), mediaType });
+  }
+
+  /** POST /stock/analyze-media (auth, multipart) — image/video → visual keywords. */
+  async stockAnalyzeMedia(file, hint) {
+    const fd = new FormData();
+    fd.append('media', file);
+    if (hint) fd.append('hint', String(hint).slice(0, 500));
+    const r = await fetch(`${this.getApiUrl()}/stock/analyze-media`, {
+      method: 'POST',
+      headers: this.token ? { Authorization: `Bearer ${this.token}` } : {},
+      body: fd
+    });
+    if (r.status === 401) { this._handleUnauthorized(); return null; }
+    return r.json();
+  }
+
+  /** POST /stock/import (auth) — copy asset → CDN → Kolbo media library. */
+  stockImport(params = {}) {
+    return this._stockPost('/import', {
+      source: params.source, id: params.id, mediaType: params.mediaType,
+      variant: params.variant, projectId: params.projectId || undefined
+    });
+  }
+
+  /** GET /stock/favorites (auth) — favorites list, optional source/project scope. */
+  stockListFavorites(params = {}) {
+    return this._stockGet('/favorites' + this._synciQuery({ limit: params.limit, offset: params.offset, source: params.source, projectId: params.projectId }));
+  }
+
+  /** GET /stock/favorites/ids (auth) — array of "source:sourceId" keys. */
+  async stockListFavoriteIds() {
+    try {
+      const res = await this._stockGet('/favorites/ids');
+      return Array.isArray(res && res.ids) ? res.ids : (Array.isArray(res && res.favoriteIds) ? res.favoriteIds : []);
+    } catch (err) {
+      console.warn('[API] stockListFavoriteIds failed:', err && err.message);
+      return [];
+    }
+  }
+
+  /** POST /stock/favorites (auth) — favorite an asset. */
+  stockAddFavorite(asset, projectId) {
+    return this._stockPost('/favorites', { source: asset.source, id: asset.sourceId, mediaType: asset.mediaType, asset, projectId: projectId || undefined });
+  }
+
+  /** DELETE /stock/favorites/:source/:id (auth) — unfavorite an asset. */
+  async stockRemoveFavorite(source, id) {
+    const r = await fetch(`${this.getApiUrl()}/stock/favorites/${encodeURIComponent(source)}/${encodeURIComponent(id)}`, {
+      method: 'DELETE',
+      headers: this._synciHeaders(false)
+    });
+    return r.json();
+  }
+
+  /** GET /stock/downloads (auth) — download/import history. */
+  stockListDownloads(params = {}) {
+    return this._stockGet('/downloads' + this._synciQuery({ limit: params.limit, offset: params.offset, source: params.source, projectId: params.projectId }));
+  }
+
+  /** POST /stock/downloads (auth) — log a download. Fire-and-forget. */
+  async stockLogDownload(asset, variant, projectId) {
+    try {
+      return await this._stockPost('/downloads', { source: asset.source, id: asset.sourceId, mediaType: asset.mediaType, variant, asset, projectId: projectId || undefined });
+    } catch (err) {
+      console.warn('[API] stockLogDownload failed (non-fatal):', err && err.message);
+      return { status: false };
+    }
+  }
 }
 
 // Global instance

@@ -1146,19 +1146,17 @@ body.is-mac .window-controls {
   pointer-events: none; /* Prevent interaction when hidden */
   z-index: 0; /* Keep inactive iframes below active ones */
 
-  transform: translateZ(0);
-  backface-visibility: hidden;
+  /* No transform/will-change GPU hints here: forcing the iframe onto a
+     compositor layer makes Chromium scale a cached texture instead of
+     re-rasterizing — the embedded webapp renders blurry, and page zoom
+     magnifies the blur. Cross-origin iframes composite in their own
+     process anyway, so the hints bought nothing. */
 }
 
 .iframe-container iframe.active {
   visibility: visible;
   pointer-events: auto; /* Re-enable interaction for active iframe */
   z-index: 1; /* Bring active iframe to front */
-
-  /* Only the visible iframe gets a dedicated GPU compositor layer. Previously
-     will-change was on every iframe, permanently promoting all of them and
-     wasting GPU memory. */
-  will-change: transform;
 }
 
 /* Split View Layout */

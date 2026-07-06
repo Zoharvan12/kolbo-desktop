@@ -55,7 +55,8 @@
     "splitView": "分割表示",
     "loadingFileBridge": "ファイルブリッジを読み込んでいます...",
     "loadingKolbo": "Kolbo Web Appを読み込んでいます...",
-    "synci": "Synci"
+    "synci": "Synci",
+    "stock": "ストック"
   },
   "webapp": {
     "back": "戻る",
@@ -391,6 +392,121 @@
       "preparing": "ファイルを準備中…",
       "preparingShort": "準備中…",
       "ready": "準備完了 — タイムラインにドラッグしてください。"
+    }
+  },
+  "stock": {
+    "title": "ストックライブラリ",
+    "tab": {
+      "browse": "閲覧",
+      "favorites": "お気に入り",
+      "downloaded": "ダウンロード済み"
+    },
+    "search": {
+      "placeholder": "写真、動画、音楽、効果音、3Dを検索…",
+      "go": "検索"
+    },
+    "allSources": "すべてのソース",
+    "smart": {
+      "vision": "画像または動画から検索",
+      "script": "スクリプトから素材を検索"
+    },
+    "mt": {
+      "image": "写真",
+      "illustration": "イラスト",
+      "vector": "ベクター",
+      "video": "動画",
+      "3d": "3D",
+      "music": "音楽",
+      "sfx": "効果音"
+    },
+    "facet": {
+      "vocals": "ボーカル"
+    },
+    "vocals": {
+      "all": "すべて",
+      "instrumental": "インストゥルメンタル",
+      "vocals": "ボーカルあり"
+    },
+    "vision": {
+      "image": "画像をアップロード",
+      "video": "動画をアップロード",
+      "frame": "タイムラインフレームから"
+    },
+    "script": {
+      "title": "スクリプトから素材を検索",
+      "placeholder": "スクリプトまたはナレーションをここに貼り付け…",
+      "run": "素材を検索",
+      "analyzing": "分析中…"
+    },
+    "projectScope": "プロジェクト",
+    "allProjects": "すべてのプロジェクト",
+    "loading": "読み込み中…",
+    "endOfResults": "検索結果の最後です",
+    "partial": "一部のソースは一時的に利用できません。",
+    "partialNamed": "一部のソース ({{sources}}) は利用できません。",
+    "empty": {
+      "browse": "結果がありません。別のキーワードまた��ソースをお試しください。",
+      "favorites": "お気に入りはまだありません。アセットのハートをタップして保存してください。",
+      "downloaded": "まだ何もインポートまたはダウンロードされていません。"
+    },
+    "preview": "プレビュー",
+    "favorite": "お気に入りに追加",
+    "download": "ダウンロード",
+    "import": "ライブラリに追加",
+    "downloaded": "ダウンロードに保存されました",
+    "placed": "タイムラインに追加されました",
+    "imported": "メディアライブラリに追加されました",
+    "alreadyImported": "すでにライブラリにあります",
+    "viewSource": "ソースを表示",
+    "view3d": "3Dモデルを表示",
+    "close": "閉じる",
+    "cancel": "キャンセル",
+    "analyze": {
+      "analyzing": "分析中…",
+      "tooLarge": "ファイルが大きすぎます (最大50 MB)。",
+      "capturing": "フレームをキャプチャ中…"
+    },
+    "error": {
+      "generic": "エラーが発生しました。もう一度お試しください。",
+      "download": "アセットをダウンロードできませんでした。",
+      "import": "アセットをライブラリに追加できませんでした。",
+      "frame": "タイムラインフレームをキャプチャできませんでした。"
+    },
+    "sort": {
+      "label": "並べ替え",
+      "relevance": "関連性",
+      "popular": "人気順",
+      "newest": "新しい順",
+      "bpmAsc": "BPM · 遅い順",
+      "bpmDesc": "BPM · 速い順",
+      "durAsc": "長さ · 短い順",
+      "durDesc": "長さ · 長い順"
+    },
+    "surprise": "おまかせ",
+    "range": {
+      "bpm": "テンポ (BPM)",
+      "duration": "長さ",
+      "any": "すべて"
+    },
+    "album": {
+      "tracks": "{{count}} 曲",
+      "back": "ライブラリに戻る",
+      "by": "{{artist}}のアルバム",
+      "play": "再生",
+      "similar": "類似アルバム"
+    },
+    "footer": {
+      "terms": "ストックライブラリ利用規約",
+      "poweredBy": "提供：",
+      "termsShort": "規約"
+    },
+    "credit": {
+      "pexels": "写真・動画提供：Pexels",
+      "unsplash": "写真提供：Unsplash",
+      "pixabay": "コンテンツ提供：Pixabay",
+      "coverr": "動画提供：Coverr",
+      "freesound": "サウンド提供：Freesound",
+      "sketchfab": "3Dモデル提供：Sketchfab"
     }
   }
 }

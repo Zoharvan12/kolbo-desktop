@@ -1,7 +1,7 @@
 // Kolbo Studio - Preload Script
 console.log('[Preload] Script starting...');
 
-const { contextBridge, ipcRenderer } = require('electron');
+const { contextBridge, ipcRenderer, webUtils } = require('electron');
 console.log('[Preload] Electron loaded');
 
 // Detect environment from app executable name
@@ -81,6 +81,12 @@ contextBridge.exposeInMainWorld('kolboDesktop', {
 
   // Signal main process that renderer UI is ready (dismiss splash)
   signalReady: () => ipcRenderer.send('renderer-ready'),
+
+  // Absolute filesystem path of a dropped File object (File.path was removed
+  // from Electron; webUtils.getPathForFile is only callable from the preload)
+  getPathForFile: (file) => {
+    try { return webUtils.getPathForFile(file); } catch { return ''; }
+  },
 
   // Synci: download a licensed track to the user's download folder
   synciDownloadToDisk: (url, filename) =>

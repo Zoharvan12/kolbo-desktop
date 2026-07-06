@@ -399,6 +399,15 @@ class FormatFactoryManager {
 
     console.log('[Format Factory] Files received:', files.length);
 
+    // File.path was removed from Electron — downstream conversion reads it,
+    // so re-attach it via the preload webUtils bridge.
+    Array.from(files).forEach(file => {
+      if (!file.path) {
+        const p = window.kolboDesktop?.getPathForFile?.(file);
+        if (p) { try { file.path = p; } catch {} }
+      }
+    });
+
     // Store files temporarily
     this.pendingFiles = files;
 

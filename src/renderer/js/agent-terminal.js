@@ -199,12 +199,12 @@ class AgentTerminal {
       const files = e.dataTransfer?.files;
       if (!files || files.length === 0) return;
 
-      // Collect all paths
+      // Collect all paths (File.path was removed from Electron — resolve via
+      // the preload's webUtils bridge, with the legacy property as fallback)
       const paths = [];
       for (let i = 0; i < files.length; i++) {
-        if (files[i].path) {
-          paths.push(files[i].path);
-        }
+        const p = window.kolboDesktop?.getPathForFile?.(files[i]) || files[i].path;
+        if (p) paths.push(p);
       }
 
       if (paths.length === 0) return;

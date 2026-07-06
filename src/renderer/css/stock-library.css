@@ -1,0 +1,373 @@
+/* ==========================================================================
+   Stock Media Library — desktop styles (matches the Synci panel + kolbo-map)
+   ==========================================================================
+   Scoped to #stock-view. Reuses the desktop design tokens + the same glass/blue
+   tokens synci.css uses, so the panel reads as a sibling of Synci. Dark-only.
+   ========================================================================== */
+#stock-view {
+  --glass-subtle-bg: rgba(255, 255, 255, 0.02);
+  --glass-subtle-border: rgba(255, 255, 255, 0.06);
+  --glass-medium-bg: rgba(255, 255, 255, 0.04);
+  --glass-medium-border: rgba(255, 255, 255, 0.08);
+  --glass-strong-bg: rgba(255, 255, 255, 0.08);
+  --glass-strong-border: rgba(255, 255, 255, 0.12);
+  --glass-blue-bg: rgba(59, 130, 246, 0.25);
+  --glass-blue-bg-hover: rgba(59, 130, 246, 0.35);
+  --glass-blue-border: rgba(59, 130, 246, 0.40);
+  --radius-sm: 6px;
+  --radius-md: 12px;
+  --radius-full: 9999px;
+}
+
+/* "NEW" badge on the sidebar Stock Library tab (global, outside #stock-view) -- */
+.tab-badge { display: inline-block; margin-left: 5px; padding: 1px 5px; border-radius: 999px; background: linear-gradient(90deg, #f43f5e, #fb923c); color: #fff; font-size: 8px; font-weight: 700; letter-spacing: 0.3px; vertical-align: middle; line-height: 1.4; }
+
+/* Special Stock Library tab — a distinct warm accent so the new feature pops
+   apart from the purple/blue AI tabs. Overrides .tab-ai's icon-tile gradient. */
+.tab-btn.tab-stock { background: linear-gradient(90deg, rgba(244,63,94,0.16), rgba(251,146,60,0.04)) !important; box-shadow: inset 3px 0 0 #f43f5e !important; }
+.tab-btn.tab-stock:hover { background: linear-gradient(90deg, rgba(244,63,94,0.28), rgba(251,146,60,0.08)) !important; }
+.tab-btn.tab-stock.active { background: linear-gradient(90deg, rgba(244,63,94,0.32), rgba(251,146,60,0.10)) !important; border-color: rgba(244,63,94,0.6) !important; }
+.tab-btn.tab-stock svg { background: linear-gradient(135deg, #fb923c, #f43f5e) !important; box-shadow: 0 2px 10px rgba(244,63,94,0.55) !important; color: #fff !important; padding: 4px !important; border-radius: 7px !important; box-sizing: border-box !important; }
+
+.stock-panel { position: relative; display: flex; flex-direction: column; height: 100%; padding: 12px 12px 0; box-sizing: border-box; color: rgb(var(--foreground)); font-size: 13px; }
+.stock-i { flex-shrink: 0; vertical-align: middle; }
+
+/* Header ------------------------------------------------------------------ */
+.stock-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; gap: 12px; }
+.stock-title { font-size: 16px; font-weight: 700; letter-spacing: 0.2px; }
+.stock-grid-density { display: flex; align-items: center; gap: 6px; color: rgb(var(--muted-foreground)); }
+.stock-grid-density input[type="range"] { width: 90px; accent-color: rgb(59, 130, 246); }
+
+/* Tabs (Synci pill container) --------------------------------------------- */
+.stock-tabs { display: flex; gap: 4px; margin-bottom: 8px; background: var(--glass-subtle-bg); border: 1px solid var(--glass-subtle-border); border-radius: var(--radius-md); padding: 3px; }
+.stock-tab { flex: 1; padding: 6px 8px; border: 1px solid transparent; border-radius: var(--radius-sm); background: transparent; color: rgb(var(--muted-foreground)); font-size: 12px; font-weight: 600; cursor: pointer; transition: var(--transition-base); }
+.stock-tab:hover { color: rgb(var(--foreground)); background: var(--glass-subtle-bg); }
+.stock-tab.active { color: #fff; background: var(--glass-blue-bg); border-color: var(--glass-blue-border); }
+
+/* Search bar -------------------------------------------------------------- */
+.stock-searchbar { display: flex; align-items: center; gap: 6px; padding: 4px 6px 4px 10px; margin-bottom: 8px; background: var(--glass-medium-bg); border: 1px solid var(--glass-medium-border); border-radius: var(--radius-md); }
+.stock-search-icon { color: rgb(var(--muted-foreground)); display: flex; flex-shrink: 0; }
+.stock-search-input { flex: 1; min-width: 0; background: transparent; border: none; outline: none; color: rgb(var(--foreground)); font-size: 13px; }
+.stock-search-input::placeholder { color: rgb(var(--muted-foreground)); }
+.stock-smart-btn { display: flex; align-items: center; justify-content: center; width: 30px; height: 30px; border: 1px solid var(--glass-medium-border); border-radius: var(--radius-sm); background: var(--glass-subtle-bg); color: rgb(var(--muted-foreground)); cursor: pointer; flex-shrink: 0; transition: var(--transition-base); }
+.stock-smart-btn:hover { background: var(--glass-strong-bg); color: rgb(var(--foreground)); border-color: var(--glass-blue-border); }
+.stock-search-btn { padding: 7px 14px; border: 0; border-radius: var(--radius-sm); background: linear-gradient(135deg, hsl(217 91% 56%), hsl(245 82% 62%)); color: #fff; font-size: 12px; font-weight: 600; cursor: pointer; flex-shrink: 0; box-shadow: 0 4px 16px hsla(217, 91%, 56%, 0.32); transition: var(--transition-base); }
+.stock-search-btn:hover { filter: brightness(1.08); box-shadow: 0 6px 20px hsla(217, 91%, 56%, 0.45); }
+
+/* AI search hint ---------------------------------------------------------- */
+.stock-ai-hint { display: flex; align-items: center; gap: 5px; margin-bottom: 8px; font-size: 11px; color: rgb(167, 139, 250); }
+.stock-ai-hint.hidden { display: none; }
+
+/* Chip rows --------------------------------------------------------------- */
+.stock-chiprow { display: flex; gap: 6px; overflow-x: auto; padding-bottom: 8px; margin-bottom: 2px; scrollbar-width: thin; }
+.stock-chiprow::-webkit-scrollbar { height: 4px; }
+.stock-chiprow::-webkit-scrollbar-thumb { background: var(--glass-strong-border); border-radius: 2px; }
+.stock-categories:empty { display: none; }
+.stock-chip { display: inline-flex; align-items: center; gap: 5px; white-space: nowrap; padding: 5px 12px; border: 1px solid var(--glass-subtle-border); border-radius: var(--radius-full); background: var(--glass-subtle-bg); color: rgb(var(--muted-foreground)); font-size: 12px; cursor: pointer; transition: var(--transition-base); flex-shrink: 0; }
+.stock-chip:hover { color: rgb(var(--foreground)); border-color: var(--glass-medium-border); }
+.stock-chip.active { color: #fff; background: var(--glass-blue-bg); border-color: var(--glass-blue-border); }
+.stock-chip-sm { padding: 4px 10px; font-size: 11px; }
+.stock-chip-icon .stock-i { opacity: 0.85; }
+.stock-brand { object-fit: contain; vertical-align: middle; flex-shrink: 0; border-radius: 3px; }
+.stock-mediatypes { margin-bottom: 4px; }
+.stock-mediatypes .stock-chip { font-weight: 600; }
+
+/* Collections rail (cover art) -------------------------------------------- */
+.stock-rail { display: flex; gap: 8px; overflow-x: auto; padding-bottom: 8px; margin-bottom: 4px; scrollbar-width: thin; }
+.stock-rail.hidden { display: none; }
+.stock-rail::-webkit-scrollbar { height: 4px; }
+.stock-rail::-webkit-scrollbar-thumb { background: var(--glass-strong-border); border-radius: 2px; }
+.stock-coll { position: relative; width: 92px; height: 92px; flex-shrink: 0; border: 1px solid var(--glass-medium-border); border-radius: var(--radius-md); overflow: hidden; background: var(--glass-medium-bg); cursor: pointer; padding: 0; transition: transform 0.26s cubic-bezier(.22,1,.36,1), box-shadow 0.26s ease; }
+.stock-coll img { width: 100%; height: 100%; object-fit: cover; display: block; transition: transform 0.3s ease; }
+.stock-coll:hover { transform: translateY(-4px); box-shadow: 0 10px 24px rgba(0,0,0,0.45); }
+.stock-coll:hover img { transform: scale(1.06); }
+.stock-coll.active { outline: 2px solid rgb(59, 130, 246); outline-offset: -2px; }
+.stock-coll-title { position: absolute; left: 0; right: 0; bottom: 0; padding: 12px 6px 5px; font-size: 10px; font-weight: 600; color: #fff; text-align: left; background: linear-gradient(to top, rgba(0,0,0,0.85), transparent); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+/* Music/SFX facets -------------------------------------------------------- */
+.stock-facets { margin-bottom: 8px; }
+.stock-facets.hidden { display: none; }
+.stock-facet-bar { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+.stock-facet-toggle { display: inline-flex; align-items: center; gap: 4px; padding: 5px 10px; border: 1px solid var(--glass-subtle-border); border-radius: var(--radius-full); background: var(--glass-subtle-bg); color: rgb(var(--muted-foreground)); font-size: 11px; cursor: pointer; }
+.stock-facet-toggle:hover { color: rgb(var(--foreground)); }
+.stock-facet-toggle.has, .stock-facet-toggle.open { color: #fff; background: var(--glass-blue-bg); border-color: var(--glass-blue-border); }
+.stock-facet-toggle.open .stock-i { transform: rotate(180deg); }
+.stock-seg-group { display: inline-flex; border: 1px solid var(--glass-medium-border); border-radius: var(--radius-full); overflow: hidden; }
+.stock-seg { padding: 4px 10px; border: none; background: transparent; color: rgb(var(--muted-foreground)); font-size: 11px; cursor: pointer; }
+.stock-seg.active { background: var(--glass-blue-bg); color: #fff; }
+.stock-facet-clear { display: inline-flex; align-items: center; gap: 3px; padding: 4px 8px; border: none; background: transparent; color: rgb(var(--muted-foreground)); font-size: 11px; cursor: pointer; }
+.stock-facet-clear:hover { color: rgb(var(--foreground)); }
+.stock-facet-panel { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; padding: 8px; max-height: 140px; overflow-y: auto; background: var(--glass-subtle-bg); border: 1px solid var(--glass-subtle-border); border-radius: var(--radius-md); }
+
+/* Project bar ------------------------------------------------------------- */
+.stock-project-bar { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; font-size: 12px; }
+.stock-project-bar.hidden { display: none; }
+.stock-dd-trigger { display: inline-flex; align-items: center; gap: 4px; padding: 5px 10px; border: 1px solid var(--glass-medium-border); border-radius: var(--radius-sm); background: var(--glass-subtle-bg); color: rgb(var(--foreground)); font-size: 12px; cursor: pointer; }
+
+/* Partial notice ---------------------------------------------------------- */
+.stock-partial { display: flex; align-items: center; gap: 6px; padding: 6px 10px; margin-bottom: 8px; border-radius: var(--radius-sm); background: rgba(234, 179, 8, 0.12); border: 1px solid rgba(234, 179, 8, 0.3); color: rgb(234, 179, 8); font-size: 11px; }
+.stock-partial.hidden { display: none; }
+
+/* Results — flexbox column-bucket masonry (vertical scroll) --------------- */
+.stock-results-wrap { position: relative; flex: 1; min-height: 0; }
+.stock-results { height: 100%; overflow-y: auto; overflow-x: hidden; display: flex; gap: 8px; align-items: flex-start; padding-bottom: 16px; }
+/* Audio mode: stack rows in a column and STRETCH each to full panel width
+   (the base align-items:flex-start above is for the visual masonry columns;
+   without this reset, rows shrink to content width and the waveform can't fill). */
+.stock-results.stock-audio-mode { flex-direction: column; gap: 6px; align-items: stretch; }
+.stock-audio-row { width: 100%; box-sizing: border-box; }
+.stock-col { flex: 1 1 0; min-width: 0; display: flex; flex-direction: column; gap: 8px; }
+.stock-sentinel { height: 1px; }
+
+/* Visual cards ------------------------------------------------------------ */
+.stock-card { border-radius: var(--radius-md); overflow: hidden; background: var(--glass-subtle-bg); border: 1px solid var(--glass-subtle-border); cursor: pointer; transition: var(--transition-base); }
+.stock-card:hover { border-color: var(--glass-strong-border); }
+.stock-card-media { position: relative; width: 100%; outline: none; }
+.stock-card-media::before { content: ''; display: block; padding-top: var(--stock-pad, 70%); }
+.stock-card-img, .stock-card-video { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; display: block; transition: transform 0.25s; }
+.stock-card:hover .stock-card-img { transform: scale(1.03); }
+.stock-card-video { opacity: 0; }
+.stock-card.playing .stock-card-video { opacity: 1; }
+.stock-card-empty { display: flex; align-items: center; justify-content: center; background: var(--glass-medium-bg); color: rgb(var(--muted-foreground)); }
+.stock-card-play { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; color: rgba(255,255,255,0.85); pointer-events: none; }
+.stock-card.playing .stock-card-play { opacity: 0; }
+.stock-badge { position: absolute; bottom: 6px; left: 6px; display: inline-flex; align-items: center; gap: 3px; padding: 2px 6px; border-radius: var(--radius-sm); background: rgba(0,0,0,0.7); color: #fff; font-size: 9px; font-weight: 600; }
+.stock-card-actions { position: absolute; top: 6px; right: 6px; display: flex; gap: 4px; opacity: 0; transition: opacity 0.15s; }
+.stock-card:hover .stock-card-actions, .stock-card-media:focus-visible .stock-card-actions { opacity: 1; }
+.stock-act { display: flex; align-items: center; justify-content: center; width: 30px; height: 30px; border: 1px solid rgba(255,255,255,0.16); border-radius: var(--radius-full); background: rgba(0,0,0,0.5); -webkit-backdrop-filter: blur(6px); backdrop-filter: blur(6px); color: #fff; cursor: pointer; transition: var(--transition-base); }
+.stock-act:hover { background: rgba(0,0,0,0.78); transform: translateY(-1px); }
+.stock-act.stock-fav.active { color: rgb(244,63,94); }
+.stock-act.stock-fav.active .stock-i { fill: rgb(244,63,94); }
+.stock-act.busy { opacity: 0.5; pointer-events: none; }
+.stock-act.done { background: rgb(16,185,129); border-color: transparent; }
+.stock-card-foot { padding: 6px 8px; }
+.stock-card-title { font-size: 11px; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.stock-card-attr { display: flex; align-items: center; gap: 4px; margin-top: 2px; font-size: 9px; color: rgb(var(--muted-foreground)); }
+.stock-card-attr span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+/* Audio rows (full-width waveform, Synci layout) -------------------------- */
+/* Rows need to read as cards on the near-black app bg — the shared --glass-subtle
+   tokens (2%/6% white) are too faint here, so they get explicit stronger surfaces. */
+.stock-audio-row { position: relative; display: flex; align-items: center; gap: 12px; padding: 9px 12px; border-radius: var(--radius-md); background: rgba(255,255,255,0.045); border: 1px solid rgba(255,255,255,0.10); transition: var(--transition-base); }
+.stock-audio-row:hover { background: rgba(255,255,255,0.07); border-color: rgba(255,255,255,0.16); }
+.stock-audio-row.playing { border-color: var(--glass-blue-border); }
+.stock-audio-art { width: 44px; height: 44px; border-radius: var(--radius-sm); object-fit: cover; flex-shrink: 0; background: var(--glass-medium-bg); }
+.stock-audio-art-empty { display: flex; align-items: center; justify-content: center; background: linear-gradient(135deg, rgba(59,130,246,0.25), rgba(139,92,246,0.25)); color: #fff; }
+.stock-audio-play { width: 30px; height: 30px; display: flex; align-items: center; justify-content: center; flex-shrink: 0; border: 1px solid rgba(255,255,255,0.16); border-radius: var(--radius-full); background: rgba(255,255,255,0.07); color: rgb(var(--foreground)); cursor: pointer; }
+.stock-audio-play:hover { border-color: var(--glass-blue-border); color: #fff; }
+.stock-audio-play.disabled { opacity: 0.4; pointer-events: none; }
+.stock-pp { display: flex; }
+/* Fixed-cap title column (kolbo-map: 220px) so the waveform starts right after it
+   instead of stranding a huge gap on wide windows; still shrinks in narrow panels. */
+.stock-audio-main { flex: 0 1 280px; min-width: 120px; }
+.stock-audio-title { font-size: 13px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.stock-audio-sub { font-size: 10px; color: rgb(var(--muted-foreground)); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.stock-tag { display: inline-block; padding: 1px 6px; margin-left: 4px; border-radius: var(--radius-full); background: rgba(255,255,255,0.08); color: rgba(255,255,255,0.75); font-size: 9.5px; }
+.stock-audio-wave-wrap { flex: 1 1 auto; min-width: 60px; display: flex; align-items: center; }
+.stock-audio-wave { display: block; width: 100%; height: 32px; cursor: pointer; }
+.stock-audio-time { flex-shrink: 0; width: 34px; text-align: right; font-size: 10px; color: rgb(var(--muted-foreground)); font-variant-numeric: tabular-nums; }
+.stock-audio-actions { display: flex; align-items: center; gap: 4px; flex-shrink: 0; }
+.stock-audio-actions .stock-act { width: 28px; height: 28px; background: rgba(255,255,255,0.06); border-color: rgba(255,255,255,0.14); color: rgb(var(--muted-foreground)); }
+.stock-audio-actions .stock-act:hover { background: var(--glass-strong-bg); color: rgb(var(--foreground)); }
+.stock-audio-actions .stock-act.stock-fav.active { color: rgb(244,63,94); }
+.stock-audio-actions .stock-act.stock-fav.active .stock-i { fill: rgb(244,63,94); }
+
+/* "Loading more…" pill (infinite scroll) — floats above the dock ---------- */
+/* z-index ABOVE the dock (30) so it's never occluded even if the height math is
+   momentarily off (e.g. video dock still resizing). */
+.stock-more { position: absolute; left: 50%; transform: translateX(-50%); bottom: 44px; z-index: 31; display: flex; align-items: center; gap: 8px; padding: 7px 14px; border-radius: var(--radius-full); background: rgba(18,18,22,0.94); border: 1px solid var(--glass-strong-border); font-size: 11px; color: rgb(var(--muted-foreground)); box-shadow: 0 4px 16px rgba(0,0,0,0.4); pointer-events: none; }
+.stock-more.hidden { display: none; }
+
+/* Full-tile processing overlay (download / add-to-timeline) --------------- */
+.stock-processing { position: absolute; inset: 0; z-index: 7; display: flex; align-items: center; justify-content: center; background: rgba(0,0,0,0.55); -webkit-backdrop-filter: blur(2px); backdrop-filter: blur(2px); border-radius: inherit; }
+
+/* Loading / status / footer ----------------------------------------------- */
+.stock-loading { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 10px; background: rgba(8,8,12,0.55); color: rgb(var(--muted-foreground)); font-size: 12px; z-index: 5; }
+.stock-loading.hidden { display: none; }
+.stock-spinner { width: 14px; height: 14px; border: 2px solid var(--glass-strong-border); border-top-color: rgb(59,130,246); border-radius: 50%; animation: stock-spin 0.7s linear infinite; }
+.stock-spinner-lg { width: 28px; height: 28px; border-width: 3px; }
+@keyframes stock-spin { to { transform: rotate(360deg); } }
+.stock-status { padding: 6px 0; text-align: center; font-size: 11px; color: rgb(var(--muted-foreground)); }
+/* Footer — mirrors kolbo-map's StockFooter: [Terms chip] | [Powered by X]
+   (single source) OR the full descriptive credits row (All sources). */
+.stock-footer { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 12px; padding: 8px 2px 10px; border-top: 1px solid var(--glass-subtle-border); margin-top: 2px; }
+.stock-footer a { display: inline-flex; align-items: center; gap: 4px; font-size: 10px; color: rgb(var(--muted-foreground)); text-decoration: none; }
+.stock-footer a:hover { color: rgb(var(--foreground)); }
+.stock-footer a .stock-i:last-child { opacity: 0.6; }
+.stock-footer-terms { padding: 2px 8px; border: 1px solid var(--glass-medium-border); border-radius: var(--radius-sm); background: var(--glass-subtle-bg); font-weight: 600; color: rgb(var(--foreground)) !important; opacity: 0.85; transition: var(--transition-base); }
+.stock-footer-terms:hover { opacity: 1; background: var(--glass-medium-bg); }
+.stock-footer-div { width: 1px; height: 14px; background: var(--glass-medium-border); flex-shrink: 0; }
+.stock-footer-credit { display: inline-flex; align-items: center; gap: 6px; font-size: 10px; color: rgb(var(--muted-foreground)); }
+.stock-footer-powered { font-weight: 500; }
+.stock-footer-mark { display: inline-flex; align-items: center; gap: 4px; color: rgb(var(--foreground)); opacity: 0.8; }
+.stock-footer-tos a { text-decoration: underline; text-underline-offset: 2px; opacity: 0.7; }
+.stock-footer-tos a:hover { opacity: 1; }
+
+/* Dialogs ----------------------------------------------------------------- */
+.stock-dialog { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; background: rgba(0,0,0,0.6); z-index: 20; }
+.stock-dialog.hidden { display: none; }
+.stock-dialog-box { width: 86%; max-width: 460px; max-height: 80%; overflow: auto; padding: 16px; border-radius: var(--radius-md); background: rgb(var(--popover, 24 24 27)); border: 1px solid var(--glass-strong-border); }
+.stock-dialog-title { font-size: 14px; font-weight: 600; margin-bottom: 10px; }
+.stock-dialog-text { width: 100%; box-sizing: border-box; padding: 8px; border-radius: var(--radius-sm); background: var(--glass-subtle-bg); border: 1px solid var(--glass-medium-border); color: rgb(var(--foreground)); font-size: 12px; resize: vertical; }
+.stock-lyrics-body { white-space: pre-wrap; font-size: 12px; line-height: 1.6; color: rgb(var(--foreground)); margin: 0; font-family: inherit; }
+.stock-dialog-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 12px; }
+.stock-btn-ghost { display: inline-flex; align-items: center; gap: 5px; padding: 7px 14px; border: 1px solid var(--glass-medium-border); border-radius: var(--radius-sm); background: transparent; color: rgb(var(--foreground)); font-size: 12px; cursor: pointer; }
+.stock-btn-primary { display: inline-flex; align-items: center; gap: 5px; padding: 7px 14px; border: 1px solid var(--glass-blue-border); border-radius: var(--radius-sm); background: var(--glass-blue-bg); color: #fff; font-size: 12px; font-weight: 600; cursor: pointer; }
+.stock-btn-primary:disabled { opacity: 0.6; cursor: default; }
+
+/* Preview modal ----------------------------------------------------------- */
+.stock-preview { position: fixed; inset: 0; display: flex; align-items: center; justify-content: center; z-index: 1000; }
+.stock-preview.hidden { display: none; }
+.stock-preview-backdrop { position: absolute; inset: 0; background: rgba(0,0,0,0.8); }
+.stock-preview-box { position: relative; z-index: 1; display: flex; flex-direction: column; max-width: 80vw; max-height: 86vh; background: rgb(var(--popover, 24 24 27)); border: 1px solid var(--glass-strong-border); border-radius: var(--radius-md); overflow: hidden; }
+.stock-preview-close { position: absolute; top: 8px; right: 10px; z-index: 2; display: flex; align-items: center; justify-content: center; width: 30px; height: 30px; border: none; border-radius: var(--radius-full); background: rgba(0,0,0,0.55); color: #fff; cursor: pointer; }
+.stock-preview-media { position: relative; display: flex; align-items: center; justify-content: center; max-height: 70vh; background: #000; }
+.stock-preview-media img, .stock-preview-media video { max-width: 80vw; max-height: 70vh; object-fit: contain; display: block; }
+.stock-preview-info { display: flex; align-items: center; flex-wrap: wrap; gap: 10px; padding: 12px 14px; }
+.stock-preview-attr { font-size: 12px; }
+.stock-preview-link { display: inline-flex; align-items: center; gap: 3px; font-size: 11px; color: rgb(96,165,250); text-decoration: none; }
+.stock-preview-lic { font-size: 10px; color: rgb(var(--muted-foreground)); padding: 2px 8px; border-radius: var(--radius-full); background: var(--glass-medium-bg); }
+.stock-preview-buttons { margin-left: auto; display: flex; gap: 8px; }
+
+/* 3D viewer (Sketchfab embed) --------------------------------------------- */
+.stock-3d-frame { width: 80vw; max-width: 900px; height: 70vh; border: 0; display: block; background: #000; }
+.stock-3d-viewer { width: 80vw; max-width: 900px; height: 70vh; display: block; background: radial-gradient(circle at 50% 40%, #1c1c22, #0c0c0f); --poster-color: transparent; }
+
+/* Draggable affordance ---------------------------------------------------- */
+.stock-card-media[draggable="true"], .stock-audio-row[draggable="true"] { cursor: grab; }
+.stock-card-media[draggable="true"]:active, .stock-audio-row[draggable="true"]:active { cursor: grabbing; }
+
+/* Now-playing / trim dock ------------------------------------------------- */
+.stock-dock { position: absolute; left: 8px; right: 8px; bottom: 6px; z-index: 30; padding: 8px 10px; background: rgba(18,18,22,0.97); border: 1px solid var(--glass-strong-border); border-radius: var(--radius-md); box-shadow: 0 -6px 24px rgba(0,0,0,0.4); }
+.stock-dock.hidden { display: none; }
+.stock-dock-close { position: absolute; top: 4px; right: 6px; z-index: 6; display: flex; align-items: center; justify-content: center; width: 22px; height: 22px; border-radius: var(--radius-full); background: rgba(18,18,22,0.9); color: rgb(var(--muted-foreground)); border: none; cursor: pointer; }
+.stock-dock-close:hover { color: rgb(var(--foreground)); background: var(--glass-strong-bg); }
+.stock-dock-video { display: block; width: 100%; max-height: 180px; margin-bottom: 8px; border-radius: var(--radius-sm); background: #000; object-fit: contain; }
+.stock-dock-video.hidden { display: none; }
+.stock-dock-bar { display: flex; align-items: center; gap: 10px; padding-right: 22px; }
+.stock-dock-art { width: 40px; height: 40px; border-radius: var(--radius-sm); object-fit: cover; flex-shrink: 0; background: var(--glass-medium-bg); }
+.stock-dock-play { width: 34px; height: 34px; display: flex; align-items: center; justify-content: center; flex-shrink: 0; border: 1px solid var(--glass-blue-border); border-radius: var(--radius-full); background: var(--glass-blue-bg); color: #fff; cursor: pointer; }
+.stock-dock-meta { width: 150px; flex-shrink: 0; min-width: 0; }
+.stock-dock-title { font-size: 12px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.stock-dock-sub { font-size: 10px; color: rgb(var(--muted-foreground)); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.stock-dock-track { position: relative; flex: 1; min-width: 80px; height: 40px; cursor: pointer; background: var(--glass-subtle-bg); border-radius: var(--radius-sm); overflow: hidden; }
+.stock-dock-wave { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
+.stock-dock-wave.hidden { display: none; }
+.stock-dock-played { position: absolute; top: 0; bottom: 0; left: 0; width: 0; background: rgba(59,130,246,0.30); pointer-events: none; }
+.stock-dock-played.hidden { display: none; }
+.stock-dock-mask { position: absolute; top: 0; bottom: 0; background: rgba(0,0,0,0.55); pointer-events: none; }
+.stock-dock-handle { position: absolute; top: 0; bottom: 0; width: 8px; margin-left: -4px; background: rgb(59,130,246); cursor: ew-resize; border-radius: 2px; z-index: 4; }
+/* Draggable selection region — drag it out to export the trimmed clip. */
+.stock-dock-region { position: absolute; top: 0; bottom: 0; z-index: 3; cursor: grab; display: flex; align-items: center; justify-content: center; background: rgba(59,130,246,0.12); border-left: 1px solid rgba(59,130,246,0.7); border-right: 1px solid rgba(59,130,246,0.7); }
+.stock-dock-region:hover { background: rgba(59,130,246,0.2); }
+.stock-dock-region:active { cursor: grabbing; }
+.stock-region-grip { display: inline-flex; align-items: center; gap: 3px; padding: 2px 7px; border-radius: var(--radius-full); background: rgba(0,0,0,0.6); color: #fff; font-size: 9px; font-weight: 600; white-space: nowrap; pointer-events: none; }
+.stock-3d-open { position: absolute; bottom: 14px; left: 50%; transform: translateX(-50%); display: inline-flex; align-items: center; gap: 6px; padding: 8px 14px; border-radius: var(--radius-md); background: var(--glass-blue-bg); border: 1px solid var(--glass-blue-border); color: #fff; font-size: 12px; font-weight: 600; text-decoration: none; z-index: 4; }
+.stock-3d-open:hover { background: var(--glass-blue-bg-hover); }
+.stock-dock-handle::after { content: ''; position: absolute; top: 50%; left: 50%; transform: translate(-50%,-50%); width: 2px; height: 14px; background: #fff; opacity: 0.8; border-radius: 1px; }
+.stock-dock-time { flex-shrink: 0; font-size: 10px; color: rgb(var(--muted-foreground)); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.stock-dock-inout { flex-shrink: 0; font-size: 10px; color: rgb(96,165,250); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.stock-dock-actions { display: flex; gap: 4px; flex-shrink: 0; }
+.stock-dock-actions .stock-act { width: 30px; height: 30px; background: var(--glass-medium-bg); border-color: var(--glass-medium-border); color: rgb(var(--foreground)); }
+.stock-dock-drag { cursor: grab; }
+.stock-dock-drag:active { cursor: grabbing; }
+.stock-dock-loading { display: flex; align-items: center; gap: 6px; padding-top: 6px; font-size: 11px; color: rgb(var(--muted-foreground)); }
+.stock-dock-loading.hidden { display: none; }
+
+/* Loading states + animations (busy spinner / done check on every action) -- */
+.stock-act { position: relative; }
+.stock-act.busy .stock-i, .stock-act.done .stock-i { opacity: 0; }
+.stock-act.busy::after { content: ''; position: absolute; top: 50%; left: 50%; width: 13px; height: 13px; margin: -6.5px 0 0 -6.5px; border: 2px solid rgba(255,255,255,0.35); border-top-color: #fff; border-radius: 50%; animation: stock-spin 0.7s linear infinite; }
+.stock-act.done::after { content: '✓'; position: absolute; top: 50%; left: 50%; transform: translate(-50%,-50%); font-size: 13px; font-weight: 700; color: #fff; }
+.stock-btn-ghost.busy, .stock-btn-primary.busy { color: transparent; position: relative; pointer-events: none; }
+.stock-btn-ghost.busy .stock-i, .stock-btn-primary.busy .stock-i { opacity: 0; }
+.stock-btn-ghost.busy::after, .stock-btn-primary.busy::after { content: ''; position: absolute; top: 50%; left: 50%; width: 14px; height: 14px; margin: -7px 0 0 -7px; border: 2px solid rgba(255,255,255,0.4); border-top-color: #fff; border-radius: 50%; animation: stock-spin 0.7s linear infinite; }
+
+/* Thumbnail shimmer — ONLY while the image is still loading. Once loaded the
+   card gets .img-loaded and the animation stops (no perpetual CPU/pulsing). */
+@keyframes stock-shimmer { 0% { background-position: -200% 0; } 100% { background-position: 200% 0; } }
+.stock-card-media { background-color: var(--glass-medium-bg); background-image: linear-gradient(100deg, transparent 20%, rgba(255,255,255,0.05) 40%, rgba(255,255,255,0.05) 60%, transparent 80%); background-size: 200% 100%; animation: stock-shimmer 1.4s linear infinite; }
+.stock-card.img-loaded .stock-card-media { animation: none; background-image: none; background-color: transparent; }
+.stock-audio-art { background-color: var(--glass-medium-bg); }
+
+/* Preview popup loading spinner ------------------------------------------- */
+.stock-preview-spin { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; z-index: 3; }
+
+/* Video trim row inside the popup ----------------------------------------- */
+.stock-pv-trim { flex-basis: 100%; display: flex; align-items: center; gap: 10px; order: 5; }
+.stock-pv-trim #stock-pv-track { flex: 1; min-width: 120px; }
+.stock-preview-buttons .stock-act { width: 34px; height: 34px; border: 1px solid var(--glass-medium-border); background: var(--glass-medium-bg); color: rgb(var(--foreground)); }
+
+/* Sort + surprise controls ------------------------------------------------ */
+.stock-controls { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin-bottom: 8px; }
+.stock-controls.hidden { display: none; }
+.stock-sort .stock-i:first-child { color: rgb(var(--muted-foreground)); }
+.stock-ctl-btn { display: inline-flex; align-items: center; gap: 4px; padding: 5px 10px; border: 1px solid var(--glass-subtle-border); border-radius: var(--radius-full); background: var(--glass-subtle-bg); color: rgb(var(--muted-foreground)); font-size: 11px; cursor: pointer; }
+.stock-ctl-btn:hover { color: rgb(var(--foreground)); }
+.stock-ctl-btn.active { color: #fff; background: var(--glass-blue-bg); border-color: var(--glass-blue-border); }
+
+/* Music range sliders (BPM + length) -------------------------------------- */
+.stock-ranges { display: flex; flex-wrap: wrap; gap: 14px; margin-bottom: 10px; }
+.stock-ranges.hidden { display: none; }
+/* Capped — a BPM slider spanning a full desktop window is unusable. */
+.stock-range { flex: 0 1 260px; min-width: 150px; max-width: 300px; }
+.stock-range-head { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 6px; }
+.stock-range-label { font-size: 11px; color: rgb(var(--muted-foreground)); }
+.stock-range-val { font-size: 11px; color: rgb(var(--foreground)); font-variant-numeric: tabular-nums; }
+.stock-range-track { position: relative; height: 20px; }
+.stock-range-rail { position: absolute; top: 8px; left: 0; right: 0; height: 4px; border-radius: 2px; background: var(--glass-medium-border); }
+.stock-range-fill { position: absolute; top: 8px; height: 4px; border-radius: 2px; background: rgb(59,130,246); }
+.stock-range-track input[type=range] { position: absolute; top: 0; left: 0; width: 100%; height: 20px; margin: 0; background: none; pointer-events: none; -webkit-appearance: none; appearance: none; }
+.stock-range-track input[type=range]::-webkit-slider-runnable-track { background: none; }
+.stock-range-track input[type=range]::-webkit-slider-thumb { -webkit-appearance: none; appearance: none; pointer-events: auto; width: 14px; height: 14px; margin-top: 0; border-radius: 50%; background: #fff; border: 2px solid rgb(59,130,246); cursor: pointer; box-shadow: 0 1px 3px rgba(0,0,0,0.4); }
+
+/* Album view (dedicated page: hero + tracks + similar) -------------------- */
+/* In album mode, hide the normal browse chrome so the hero + track list own
+   the panel (mirrors kolbo-map's StockAlbumPage route). */
+.stock-album-mode .stock-tabs,
+.stock-album-mode .stock-searchbar,
+.stock-album-mode .stock-ai-hint,
+.stock-album-mode .stock-mediatypes,
+.stock-album-mode .stock-sources,
+.stock-album-mode .stock-collections,
+.stock-album-mode .stock-facets,
+.stock-album-mode .stock-controls,
+.stock-album-mode .stock-ranges,
+.stock-album-mode .stock-categories,
+.stock-album-mode .stock-project-bar { display: none !important; }
+
+.stock-albumview.hidden { display: none; }
+.stock-album-load, .stock-album-empty { display: flex; align-items: center; justify-content: center; padding: 40px 12px; color: rgb(var(--muted-foreground)); font-size: 12px; }
+.stock-album-back { display: inline-flex; align-items: center; gap: 4px; margin-bottom: 10px; padding: 5px 10px 5px 7px; border: 1px solid var(--glass-medium-border); border-radius: var(--radius-full); background: var(--glass-subtle-bg); color: rgb(var(--muted-foreground)); font-size: 12px; font-weight: 600; cursor: pointer; transition: var(--transition-base); }
+.stock-album-back:hover { color: rgb(var(--foreground)); background: var(--glass-medium-bg); }
+/* Hero — cover + blurred ambient backdrop + gradient scrim (kolbo-map signature) */
+.stock-album-hero { position: relative; border-radius: var(--radius-md); overflow: hidden; margin-bottom: 12px; box-shadow: 0 8px 28px rgba(0,0,0,0.35); }
+.stock-album-hero-bg { position: absolute; inset: 0; background-size: cover; background-position: center; filter: blur(40px) saturate(1.25); transform: scale(1.4); }
+.stock-album-hero-scrim { position: absolute; inset: 0; background: linear-gradient(90deg, rgba(0,0,0,0.85), rgba(0,0,0,0.55) 55%, rgba(0,0,0,0.35)), linear-gradient(to top, rgba(0,0,0,0.7), transparent); }
+.stock-album-hero-row { position: relative; display: flex; align-items: flex-end; gap: 14px; padding: 18px 16px; min-height: 150px; }
+.stock-album-hero-cover { width: 96px; height: 96px; flex-shrink: 0; border-radius: var(--radius-md); object-fit: cover; box-shadow: 0 6px 20px rgba(0,0,0,0.5); }
+.stock-album-hero-cover-empty { display: flex; align-items: center; justify-content: center; background: linear-gradient(135deg, rgba(59,130,246,0.4), rgba(139,92,246,0.4)); color: #fff; }
+.stock-album-hero-meta { min-width: 0; flex: 1; color: #fff; }
+.stock-album-hero-title { font-size: 22px; font-weight: 800; line-height: 1.15; overflow: hidden; text-overflow: ellipsis; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
+.stock-album-hero-sub { margin-top: 6px; font-size: 12px; color: rgba(255,255,255,0.8); }
+.stock-album-hero-desc { margin-top: 6px; font-size: 11px; color: rgba(255,255,255,0.65); overflow: hidden; text-overflow: ellipsis; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
+.stock-album-hero-actions { display: flex; gap: 8px; margin-top: 12px; }
+.stock-album-hero-actions .stock-btn-primary, .stock-album-hero-actions .stock-btn-ghost { padding: 7px 16px; border-radius: var(--radius-full); }
+.stock-album-hero-actions .stock-btn-ghost { background: rgba(255,255,255,0.12); border-color: rgba(255,255,255,0.25); color: #fff; }
+.stock-album-hero-actions .stock-btn-ghost:hover { background: rgba(255,255,255,0.22); }
+/* Similar rail */
+.stock-album-similar { margin-bottom: 12px; }
+.stock-album-similar-title { font-size: 13px; font-weight: 700; margin-bottom: 8px; }
+.stock-album-similar-rail { display: flex; gap: 10px; overflow-x: auto; padding-bottom: 6px; scrollbar-width: thin; }
+.stock-album-similar-rail::-webkit-scrollbar { height: 4px; }
+.stock-album-similar-rail::-webkit-scrollbar-thumb { background: var(--glass-strong-border); border-radius: 2px; }
+.stock-sim { width: 96px; flex-shrink: 0; border: none; background: transparent; padding: 0; cursor: pointer; text-align: left; }
+.stock-sim img, .stock-sim-empty { width: 96px; height: 96px; border-radius: var(--radius-md); object-fit: cover; display: block; box-shadow: 0 2px 8px rgba(0,0,0,0.3); transition: transform 0.26s cubic-bezier(.22,1,.36,1); }
+.stock-sim-empty { display: flex; align-items: center; justify-content: center; background: var(--glass-medium-bg); color: rgb(var(--muted-foreground)); }
+.stock-sim:hover img { transform: translateY(-4px) scale(1.03); }
+.stock-sim-title { display: block; margin-top: 6px; font-size: 11px; color: rgb(var(--foreground)); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+/* Accessibility ----------------------------------------------------------- */
+#stock-view button:focus-visible, #stock-view input:focus-visible, #stock-view .stock-card-media:focus-visible, #stock-view a:focus-visible { outline: 2px solid rgb(59,130,246); outline-offset: 2px; border-radius: var(--radius-sm); }
+#stock-view .stock-card-media:focus-visible { outline-offset: -2px; }
+@media (prefers-reduced-motion: reduce) { #stock-view * { transition: none !important; animation: none !important; } }

@@ -1,6 +1,6 @@
 {
   "name": "kolbo-desktop",
-  "version": "1.6.2",
+  "version": "1.6.3",
   "description": "Kolbo Studio - AI Creative Platform for Video Editors",
   "main": "src/main/main.js",
   "author": {
@@ -39,12 +39,14 @@
   },
   "dependencies": {
     "@ffmpeg-installer/ffmpeg": "^1.1.0",
+    "@google/model-viewer": "^4.3.1",
     "check-disk-space": "^3.4.0",
     "electron-store": "^8.1.0",
-    "electron-updater": "^6.6.2",
+    "electron-updater": "^6.8.9",
     "fluent-ffmpeg": "^2.1.3",
     "lucide": "^1.8.0",
     "node-pty": "^1.1.0",
+    "sharp": "^0.34.5",
     "systeminformation": "^5.30.3",
     "xterm": "^5.3.0",
     "xterm-addon-fit": "^0.8.0",
@@ -54,11 +56,10 @@
   "devDependencies": {
     "@electron/notarize": "^3.1.1",
     "cross-env": "^10.1.0",
-    "electron": "^28.0.0",
-    "electron-builder": "^24.9.1",
+    "electron": "^42.6.0",
+    "electron-builder": "^26.15.3",
     "jimp": "^1.6.0",
-    "png2icons": "^2.0.1",
-    "sharp": "^0.34.5"
+    "png2icons": "^2.0.1"
   },
   "build": {
     "appId": "com.kolbo.studio",
@@ -109,7 +110,6 @@
         }
       ],
       "icon": "assets/icon.ico",
-      "publisherName": "Kolbo.AI",
       "artifactName": "${productName}-Setup-${version}.${ext}",
       "verifyUpdateCodeSignature": false
     },
@@ -150,14 +150,11 @@
         "NSCameraUsageDescription": "Kolbo Studio needs camera access for video recording and file uploads.",
         "NSMicrophoneUsageDescription": "Kolbo Studio needs microphone access for audio recording and file uploads."
       },
-      "notarize": {
-        "teamId": "DPVW9Z2L9Y"
-      }
+      "notarize": true
     },
     "dmg": {
       "title": "${productName} ${version}",
-      "icon": "assets/icon.icns",
-      "background": null
+      "icon": "assets/icon.icns"
     }
   }
 }

@@ -240,6 +240,16 @@ var KolboWaveform = (function () {
     if (!canvas || !audio) return { destroy: function () {} };
 
     var peaks = null, destroyed = false, raf = null, io = null, ro = null;
+    // Precomputed peaks (e.g. the stock backend ships ~64 gain-normalized floats in
+    // asset.meta.waveform, same data kolbo-map draws) — use them directly, no decode.
+    if (Array.isArray(opts.peaks) && opts.peaks.length) {
+      var pmax = 0, pi;
+      for (pi = 0; pi < opts.peaks.length; pi++) { var pv = +opts.peaks[pi] || 0; if (pv > pmax) pmax = pv; }
+      if (pmax > 0) {
+        peaks = new Array(opts.peaks.length);
+        for (pi = 0; pi < opts.peaks.length; pi++) peaks[pi] = Math.max(0, (+opts.peaks[pi] || 0) / pmax);
+      }
+    }
     // When set (0..1), progress is driven externally (e.g. a row waveform
     // mirroring the now-playing dock) instead of from this element's <audio>.
     var progressOverride = null;

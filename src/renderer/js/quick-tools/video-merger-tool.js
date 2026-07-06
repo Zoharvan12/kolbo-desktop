@@ -380,6 +380,14 @@ class VideoMergerTool {
         clipsContainer.classList.remove('drop-highlight');
 
         const files = Array.from(e.dataTransfer.files);
+        // File.path was removed from Electron — re-attach it (this drop handler
+        // bypasses the quick-tools-manager entry point that normally does this).
+        files.forEach(file => {
+          if (!file.path) {
+            const p = window.kolboDesktop?.getPathForFile?.(file);
+            if (p) { try { file.path = p; } catch {} }
+          }
+        });
         // Filter for video files only
         const videoFiles = files.filter(file => this.manager.isVideoFile(file));
 

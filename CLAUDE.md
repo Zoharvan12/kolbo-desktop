@@ -14,10 +14,25 @@ Kolbo Studio is an Electron-based desktop application for video editors. It prov
 
 ## Tech Stack
 
-- **Framework**: Electron 28.x
-- **Build System**: electron-builder 24.x
-- **Auto-Updates**: electron-updater
-- **CI/CD**: GitHub Actions
+- **Framework**: Electron 42.x (upgraded from 28 in July 2026 — brings ~2.5 years of Chromium stability/memory fixes; the root-cause fix for "web app crashes in desktop but not in browser")
+- **Build System**: electron-builder 26.x
+- **Auto-Updates**: electron-updater 6.8+
+- **CI/CD**: GitHub Actions (Node 22; explicit `node node_modules/electron/install.js` step because Electron ≥42 doesn't guarantee binary download via postinstall in CI)
+
+### Electron 42 migration notes (July 2026)
+- `webContents.getProcessMemoryInfo()` was removed → `getRendererMemoryKB()` in `main.js` (matches renderer by pid via `app.getAppMetrics()`; values in KB, `privateBytes` is KB despite the name). The memory monitor + `memory:get-stats` use it.
+- `session.clearStorageData`: `quotas` option + `'appcache'` storage removed — both cleanup call sites fixed (they were silently rejecting even on 28).
+- `File.path` removed → preload exposes `getPathForFile(file)` (wraps `webUtils.getPathForFile`). Re-attached at every OS-file entry point: quick-tools-manager `handleFilesDropped`, format-factory `handleFiles`, video-merger drop handler, agent-terminal drop handler. **Any new drop/file-picker feature that needs a filesystem path must use this bridge.**
+- Dead Chromium switches pruned from main.js (`NetworkService*`, `CanvasOopRasterization`, `VaapiVideoDecoder`, `enable-accelerated-video-decode`).
+- **Webapp tab zoom** (`tab-manager.js applyZoom`): uses CSS `zoom` on the iframe, NOT `transform: scale()`. On Chromium ≥ Electron 42, `zoom` propagates into the cross-origin iframe and re-rasterizes crisply; `transform: scale` stretched rendered pixels → blurry tab, made *permanent* by the persisted per-tab zoomLevel. Never reintroduce transform-based zoom (verified empirically with a side-by-side capture). Related: the iframe GPU-layer hints (`translateZ(0)`/`will-change`) were removed from `styles.css` for the same blur reason.
+- electron-builder 26 config: `mac.notarize` is boolean now (teamId comes from `APPLE_TEAM_ID` env — export it for local mac builds), `win.publisherName` removed, `dmg.background: null` removed.
+- `sharp` moved devDependencies → dependencies (main.js requires it at runtime for WebP→PNG clipboard copy; as a devDep it was never packaged, so that feature was broken in production builds).
+- electron-store must stay on 8.x (9+ is ESM-only; main process uses require()).
+- Local Windows builds need the VS 2022 "Spectre-mitigated libraries" component (node-pty rebuild); GitHub runners already have it.
+- macOS floor is now macOS 12 Monterey (Electron 38 dropped Big Sur).
+
+### Crash telemetry
+`src/main/crash-telemetry.js` sends a `desktop_renderer_crash` event to PostHog (project Kolbo.AI, US cloud) whenever a process dies: `crash_kind` = `main-window` | `webapp-iframe` (OOPIF, includes `crashed_url`) | `child-process` (GPU/utility, includes `child_type`), plus `reason` (`oom`/`crashed`/`gpu`...), `exit_code`, app/electron/chrome versions, RAM, uptime. Distinct id = anonymous per-install id in electron-store (`telemetry_anonymous_id`). Fire-and-forget HTTPS — never throws, never blocks recovery. Wired into all three `render-process-gone`/`child-process-gone` handlers in `main.js`.
 
 ## Key Files
 
@@ -194,6 +209,8 @@ Hebrew and Arabic automatically flip layout to RTL when selected.
 
 ## Synci Music Library
 
+> **July 2026**: the standalone Synci tab button was removed from the sidebar — Synci music is now browsed through the **Stock Library** tab (Synci is one of its sources). Everything below (files, IPC handlers, `synci*` API, waveform/dropdown modules) stays in place: `waveform.js` + `dropdown.js` are reused by the Stock Library, and the `#synci-view` + `switchView('synci')` wiring remains so the tab can be restored by re-adding the button in `index.html`.
+
 The **Synci** tab (after "My Media") is the licensed-music browser ported from the Adobe plugin. Backend is the shared `/api/synci/*` (in `kolbo-api`) — no backend changes.
 
 - **Ported verbatim from the plugin** → `src/renderer/js/`: `synci-manager.js` (the `SynciManager` UI class), `waveform.js` (`KolboWaveform` — real-peak canvas waveform with two-tone progress + click-to-seek. **Decode fix vs the plugin**: Chromium's native Web Audio `decodeAudioData` crashes the Electron renderer (access violation `0xC0000005`) from a `file://` origin — with **both** `AudioContext` (also fires a `media` permission + opens an audio output device) and `OfflineAudioContext`. So the desktop computes peaks in the **main process via the bundled FFmpeg**: IPC `synci:waveform-peaks` (main.js `setupScreenshotHandlers`) fetches the audio, pipes it through FFmpeg → mono f32 PCM @ 8 kHz, returns normalized RMS peaks. Exposed via `preload.js` `synciWaveformPeaks`; `waveform.js::_decodePeaks` calls it when `window.kolboDesktop` is present (Web Audio `OfflineAudioContext` remains only as a non-Electron fallback). Peaks are cached per-URL in mem + IndexedDB so each track decodes once. (kolbo-map gets away with renderer Web Audio because it runs on an `https` origin, not `file://`.) Peaks fetched via browser `fetch` (Node-`require` branch is dead under `contextIsolation`) → in production this needs the audio CDN to allow the `null`/`file://` origin for CORS; if not, it falls back to the deterministic skeleton (no crash). Row `<audio>` uses `preload="none"`), `dropdown.js` (`KolboDropdown` — the plugin's portal dropdown; the desktop had no equivalent, required by the quality/project/suggest menus).
@@ -212,7 +229,35 @@ The **Synci** tab (after "My Media") is the licensed-music browser ported from t
 - **Wiring**: tab button + `#synci-view` container + css/script includes in `index.html`; tab listener + `switchView('synci')` branch in `main.js` (lazy-inits `new window.SynciManager(window.kolboDesktopSynciBridge, window.kolboAPI)`).
 - **i18n**: nested `synci.*` block (+ `tabs.synci`) in `src/renderer/i18n/locales/*.json` (en full; others get the literal brand `tabs.synci` — `SynciManager.FALLBACK` covers English strings until translated). Brand "Synci" is never translated.
 
+## Stock Media Library
+
+The **Stock Library** tab is a multi-source stock browser (Pexels / Unsplash / Pixabay / Coverr / Freesound / Sketchfab / Kolbo AI / Synci) over the shared `/api/stock/*` backend (kolbo-api).
+
+- **Shared component**: `src/renderer/js/stock-library-manager.js` is the SAME vanilla-JS `StockLibraryManager` class as the Adobe plugin's (`kolbo-adobe-plugin/com.kolbo.ai.adobe/client/js/stock-library-manager.js`) — the plugin's copy is the **canonical/newest** one; when fixing stock issues, port from there (July 2026: desktop re-synced verbatim). Host differences are runtime-gated: plugin-only paths check `bridge.placeAsset` / `bridge.exportFrameAsBase64` (desktop passes `bridge = null` in `main.js`, so it uses `window.kolboDesktop` drag-to-disk/import paths instead, and keeps the 3D tab which NLE hosts hide).
+- **Features**: browse/favorites/downloaded sections; media-type + source chips; category chips + music facets (genre/mood/theme/instrument/vocals); sort + "Surprise me" shuffle; BPM/duration dual-range sliders (bounds from `stockMusicBounds`); **album view** for music collections (`stockGetCollection(slug)` → hero + tracks + similar, mirrors kolbo-map's StockAlbumPage); AI search (vision upload + script analyze); masonry grid / audio waveform rows; now-playing dock with in/out trim; play beacon `stockTrackPlay` (feeds "popular" sort).
+- **State persistence**: `_saveState`/`_restoreState` via localStorage `kolbo_stock_state` — last media type, source, query, filters, sort, and section survive app restarts; the search query also carries across media-type switches. The manager instance is kept alive by `main.js`, so switching desktop tabs never resets it.
+- **API**: `stock*` methods in `src/renderer/js/api.js` (direct `window.fetch`, public/optional-auth like Synci; search is GET). Method names/shapes mirror the plugin so the shared manager runs unchanged.
+- **CSS**: `src/renderer/css/stock-library.css` — self-contained (`#stock-view` defines its own `--glass-*`/`--radius-*` aliases), also synced from the plugin.
+- **i18n**: nested `stock.*` block (+ `tabs.stock`) fully translated across all 12 locales (synced from the plugin's locales); `StockLibraryManager.FALLBACK` covers English as a safety net. Provider brand names render literally (licence attribution requirement).
+- **Footer** (kolbo-map `StockFooter` parity): a distinct "Stock Library Terms" chip (→ app.kolbo.ai/legal/stock-library-terms) + divider, then EITHER "Powered by [source]" when a specific source is selected in Browse (Kolbo-owned sources get the mark without a link) OR the full descriptive credits row ("Photos & videos provided by Pexels" + Terms links) on All sources / Favorites / Downloaded. Credits table: `StockLibraryManager.CREDITS`; re-rendered on source/section change.
+- **Audio waveforms**: rows/dock pass the backend's precomputed peaks (`asset.meta.waveform`, ~64 gain-normalized floats — same data kolbo-map draws) via the new `peaks` option on `KolboWaveform.create` (`waveform.js`, added in BOTH repos), so tracks render their real shapes instantly with no decode. FFmpeg-IPC decode stays as fallback for sources without shipped peaks; only then can the shared index-based skeleton appear.
+
+## Social / Video Downloader (yt-dlp)
+
+`src/main/ytdlp-handler.js` powers the Downloader tab (`src/renderer/js/downloader-manager.js`, IPC `dl:*` in `main.js`). It wraps a self-updating yt-dlp binary (stored in `userData/binaries/`, refreshed to the latest GitHub release on launch + on extractor breakage) with bundled ffmpeg for merge/remux/mp3.
+
+### Reliability: the retry ladder (July 2026)
+Root cause of the recurring **"video not available anymore"** complaints was NOT dead videos — it was (a) YouTube/Instagram **bot/login gating** being **mislabeled** as "no longer available", (b) those failures **not triggering** the auto-heal, and (c) no fallback. Fixed with a tiered ladder in BOTH `getMediaInfo` (via `getInfoWithLadder`) and `downloadMedia` (via `_runDownloadAttempt`), applied to `SOCIAL_PLATFORMS` (youtube/instagram/facebook/twitter/tiktok):
+1. **Tier 1** — yt-dlp's own **default (adaptive) player-client** + browser-like UA. *Do NOT pin `youtube:player_client`* — hardcoding clients (tv/web_safari/mweb) is empirically WORSE (verified: `default`=11 formats, all pinned clients FAIL; the `tv` client is DRM-poisoned, yt-dlp#12563). yt-dlp keeps `default` current.
+2. **Tier 2** — first extractor breakage → `ensureUpdate()` the binary once, retry the same tier.
+3. **Tier 3+** — the user's logged-in **browser session** via `--cookies-from-browser` (auto-detects installed Firefox/Brave/Edge/Chrome/Safari through `detectInstalledCookieBrowsers()`), one tier per browser. Solves bot / age / region / Instagram-login walls.
+
+Support methods: `isExtractionFailure` (widened to catch bot/login/"confirm you're not a bot"/rate-limit), `isPermanentlyUnavailable` (genuine removals → fail fast, no wasted tiers), `classifyError` adds `BOT_BLOCKED` (checked BEFORE private/unavailable so bot-blocks aren't shown as "gone"), `isCookieInfraFailure` (keeps `primaryError` = the real content-access cause instead of a cookie-read failure).
+
+### Known limitation — Windows Chrome/Edge cookies
+`--cookies-from-browser chrome|edge` **fails on Windows** with `Failed to decrypt with DPAPI` (App-Bound Encryption, yt-dlp#10927). So the cookie tier is reliable on **macOS + Firefox**, but Chrome/Edge on Windows can't be auto-read. The ladder degrades gracefully (that tier just fails silently and the honest tier-1 error is reported). An in-app login-capture flow (Electron `session.cookies` → cookies.txt → `--cookies`) *would* fix Windows Chrome/Edge, but was **deliberately declined** (July 2026, Zohar) to keep the feature simple — the cookie tier stays an invisible internal fallback, no login UI.
+
 ## Last Updated
-- **Date**: June 8, 2026
-- **Version**: 1.6.2
-- **Status**: v1.6.2 — embedded-webapp performance: inactive iframe tabs no longer hold permanent GPU compositor layers (`will-change` scoped to the active iframe in `styles.css`) and `MAX_LOADED_TABS` lowered 5→2 (`tab-manager.js`) to cut GPU/main-thread contention. Pairs with the kolbo-map service worker (network-first HTML + cache-first hashed assets) now live on app.kolbo.ai/sapir — the embedded view, Adobe-plugin webapp area, and web all get cached repeat loads (mobile Capacitor excluded). Prior: Synci music library (browse/search/favorites/downloads/AI-suggest, FFmpeg waveforms, now-playing dock with in/out selection + drag-to-timeline). Video Studio sub-app vendored from LTX-Desktop (scaffold only — API adapter pending)
+- **Date**: July 6, 2026
+- **Version**: 1.6.3
+- **Status**: v1.6.3 — Social/Video **Downloader reliability**: yt-dlp handler rebuilt around a retry ladder (adaptive default client → auto-update → browser-cookie fallback) so YouTube/Instagram bot/login blocks stop surfacing as false "video not available"; honest error classification (`BOT_BLOCKED`), fail-fast on genuine removals. See "Social / Video Downloader" above. Also folds in the previously-uncommitted **Stock Media Library** feature + **crash telemetry** + in-flight tool edits. Prior v1.6.2 — embedded-webapp blur fix: ALL GPU-layer hints (`transform: translateZ(0)`, `backface-visibility`, `will-change`) removed from the webapp iframes in `styles.css` — forcing a compositor layer made Chromium scale a cached texture instead of re-rasterizing, so the embedded webapp rendered blurry and page zoom (Ctrl +) magnified the blur; cross-origin iframes composite in their own process anyway. Prior v1.6.2 perf work stands: `MAX_LOADED_TABS` lowered 5→2 (`tab-manager.js`) to cut GPU/main-thread contention. Pairs with the kolbo-map service worker (network-first HTML + cache-first hashed assets) now live on app.kolbo.ai/sapir — the embedded view, Adobe-plugin webapp area, and web all get cached repeat loads (mobile Capacitor excluded). Prior: Synci music library (browse/search/favorites/downloads/AI-suggest, FFmpeg waveforms, now-playing dock with in/out selection + drag-to-timeline). Video Studio sub-app vendored from LTX-Desktop (scaffold only — API adapter pending)

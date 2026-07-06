@@ -55,7 +55,8 @@
     "splitView": "عرض مقسم",
     "loadingFileBridge": "جاري تحميل File Bridge...",
     "loadingKolbo": "جاري تحميل تطبيق Kolbo على الويب...",
-    "synci": "Synci"
+    "synci": "Synci",
+    "stock": "المخزون"
   },
   "webapp": {
     "back": "رجوع",
@@ -391,6 +392,121 @@
       "preparing": "جارٍ تجهيز الملف…",
       "preparingShort": "جارٍ التجهيز…",
       "ready": "جاهز — اسحبه إلى المخطط الزمني."
+    }
+  },
+  "stock": {
+    "title": "مكتبة المخزون",
+    "tab": {
+      "browse": "تصفح",
+      "favorites": "المفضلة",
+      "downloaded": "المنزلة"
+    },
+    "search": {
+      "placeholder": "ابحث عن صور، فيديو، موسيقى، مؤثرات صوتية، محتوى ثلاثي الأبعاد…",
+      "go": "بحث"
+    },
+    "allSources": "جميع المصادر",
+    "smart": {
+      "vision": "ابحث باستخدام صورة أو فيديو",
+      "script": "ابحث عن لقطات من نص"
+    },
+    "mt": {
+      "image": "صور",
+      "illustration": "رسوم توضيحية",
+      "vector": "متجهات",
+      "video": "فيديو",
+      "3d": "ثلاثي الأبعاد",
+      "music": "موسيقى",
+      "sfx": "مؤثرات صوتية"
+    },
+    "facet": {
+      "vocals": "غناء"
+    },
+    "vocals": {
+      "all": "الكل",
+      "instrumental": "بدون غناء",
+      "vocals": "مع غناء"
+    },
+    "vision": {
+      "image": "رفع صورة",
+      "video": "رفع فيديو",
+      "frame": "من إطار Timeline"
+    },
+    "script": {
+      "title": "ابحث عن لقطات من نص",
+      "placeholder": "الصق نصك أو التعليق الصوتي هنا…",
+      "run": "ابحث عن لقطات",
+      "analyzing": "جارٍ التحليل…"
+    },
+    "projectScope": "المشروع",
+    "allProjects": "جميع المشاريع",
+    "loading": "جارٍ التحميل…",
+    "endOfResults": "نهاية النتائج",
+    "partial": "بعض ��لمصادر غير متاحة مؤقتًا.",
+    "partialNamed": "بعض المصادر غير متاحة ({{sources}}).",
+    "empty": {
+      "browse": "لا توجد نتائج. جرّب كلمة مفتاحية أو مصدرًا آخر.",
+      "favorites": "لا توجد مفضلة بعد. اضغط على أيقونة القلب على أي أصل لحفظه.",
+      "downloaded": "لم يتم استيراد أو تنزيل أي شيء بعد."
+    },
+    "preview": "معاينة",
+    "favorite": "مفضلة",
+    "download": "تنزيل",
+    "import": "إضافة إلى المكتبة",
+    "downloaded": "تم الحفظ في التنزيلات",
+    "placed": "تمت الإضافة إلى المخطط الزمني",
+    "imported": "تمت الإضافة إلى مكتبة الوسائط",
+    "alreadyImported": "موجود بالفعل في مكتبتك",
+    "viewSource": "عرض المصدر",
+    "view3d": "عرض نموذج ثلاثي الأبعاد",
+    "close": "إغلاق",
+    "cancel": "إلغاء",
+    "analyze": {
+      "analyzing": "جاري التحليل…",
+      "tooLarge": "هذا الملف كبير جدًا (الحد الأقصى 50 ميجابايت).",
+      "capturing": "جاري التقاط الإطار…"
+    },
+    "error": {
+      "generic": "حدث خطأ ما. يرجى المحاولة مرة أخرى.",
+      "download": "تعذر تنزيل هذا الأصل.",
+      "import": "تعذر إضافة هذا الأصل إلى مكتبتك.",
+      "frame": "تعذر التقاط إطار Timeline."
+    },
+    "sort": {
+      "label": "فرز",
+      "relevance": "الأكثر صلة",
+      "popular": "الأكثر شيوعًا",
+      "newest": "الأحدث",
+      "bpmAsc": "BPM · الأبطأ",
+      "bpmDesc": "BPM · الأسرع",
+      "durAsc": "المدة · الأقصر",
+      "durDesc": "المدة · الأطول"
+    },
+    "surprise": "فاجئني",
+    "range": {
+      "bpm": "الإيقاع (BPM)",
+      "duration": "المدة",
+      "any": "أي"
+    },
+    "album": {
+      "tracks": "{{count}} مسارات",
+      "back": "العودة إلى المكتبة",
+      "by": "ألبوم لـ {{artist}}",
+      "play": "تشغيل",
+      "similar": "ألبومات مشابهة"
+    },
+    "footer": {
+      "terms": "شروط مكتبة الوسائط",
+      "poweredBy": "مدعوم من",
+      "termsShort": "الشروط"
+    },
+    "credit": {
+      "pexels": "الصور والفيديوهات مقدمة من Pexels",
+      "unsplash": "الصور مقدمة من Unsplash",
+      "pixabay": "محتوى من Pixabay",
+      "coverr": "الفيديوهات مقدمة من Coverr",
+      "freesound": "الأصوات مقدمة من Freesound",
+      "sketchfab": "نماذج ثلاثية الأبعاد من Sketchfab"
     }
   }
 }
