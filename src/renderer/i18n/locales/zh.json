@@ -172,7 +172,12 @@
       "launchOnStartup": "启动时启动",
       "launchOnStartupDesc": "当您的计算机启动时自动启动 Kolbo Studio",
       "downloadFolder": "下载文件夹",
-      "changeFolder": "更改文件夹"
+      "changeFolder": "更改文件夹",
+      "uiScale": "界面缩放",
+      "uiScaleDesc": "自动检测您的显示缩放,使按钮保持易于点击。",
+      "uiScaleAuto": "自动(推荐)",
+      "uiScaleAutoDetected": "检测到的显示缩放:{{pct}}%。",
+      "uiScaleManual": "手动覆盖。按钮将为设计尺寸的{{pct}}%。"
     },
     "formatFactory": {
       "title": "格式工厂",

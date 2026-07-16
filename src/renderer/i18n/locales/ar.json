@@ -170,9 +170,14 @@
       "title": "عام",
       "description": "تفضيلات وسلوك التطبيق بشكل عام.",
       "launchOnStartup": "تشغيل عند بدء التشغيل",
-      "launchOnStartupDesc": "ابدأ Kolbo Studio تلقائيًا عند بدء تشغيل جهاز الكمبيوتر الخاص بك",
-      "downloadFolder": "مجلد التنزيل",
-      "changeFolder": "تغيير المجلد"
+      "launchOnStartupDesc": "ابدأ Kolbo Studio تلقائياً عند تشغيل جهازك",
+      "downloadFolder": "مجلد التنزيلات",
+      "changeFolder": "تغيير المجلد",
+      "uiScale": "حجم الواجهة",
+      "uiScaleDesc": "يكتشف تلقائياً قياس شاشتك ليبقى النقر على الأزرار مريحاً.",
+      "uiScaleAuto": "تلقائي (موصى به)",
+      "uiScaleAutoDetected": "قياس الشاشة المكتشف: {{pct}}%.",
+      "uiScaleManual": "تجاوز يدوي. ستكون الأزرار بحجم {{pct}}% من التصميم الأصلي."
     },
     "formatFactory": {
       "title": "Format Factory",

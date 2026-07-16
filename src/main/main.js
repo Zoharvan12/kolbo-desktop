@@ -2,7 +2,7 @@
 // Handles window creation, system tray, and IPC setup
 
 // ── Critical-path imports (needed before first paint) ──────────────────────
-const { app, BrowserWindow, Tray, Menu, nativeImage, screen, dialog } = require('electron');
+const { app, BrowserWindow, Tray, Menu, nativeImage, screen, dialog, webContents } = require('electron');
 const path = require('path');
 
 // ── Deferred imports — loaded lazily after splash is visible ───────────────
@@ -192,9 +192,17 @@ function createWindow() {
   const htmlPath = path.join(__dirname, '..', 'renderer', 'index.html');
   console.log('[Main] Loading HTML:', htmlPath);
 
+  // Apply user-chosen UI zoom to any newly created webContents (tab iframes
+  // spawned after the initial load — e.g. when opening a webapp tab).
+  app.on('web-contents-created', (_, wc) => {
+    applyZoomToWebContents(wc, getEffectiveUiZoom());
+  });
+
   mainWindow.loadFile(htmlPath)
     .then(() => {
       console.log('[Main] HTML loaded successfully');
+      // Apply UI zoom once the renderer + all initial child webContents exist.
+      applyUiZoomEverywhere(getEffectiveUiZoom());
     })
     .catch((err) => {
       console.error('[Main] Failed to load HTML file:', err);
@@ -729,6 +737,71 @@ function setupWindowHandlers() {
       mainWindow.webContents.send('window:unmaximized');
     });
   }
+}
+
+// ============================================================================
+// UI ZOOM / DPI COMPENSATION
+// ============================================================================
+//
+// Windows display scaling (125%, 150%, ...) shrinks the UI on machines where
+// users report the navbar buttons look "too small". Electron's renderer does
+// NOT auto-zoom to compensate, so we apply `setZoomFactor(1 / scaleFactor)`
+// to every webContents (main + every OOPIF tab iframe). Default mode is "auto"
+// so most users get a fix without touching Settings.
+//
+// Stored key: `ui_zoom_mode` — 'auto' | '0.75' | '0.9' | '1' | '1.1' | '1.25' | '1.5'
+// ============================================================================
+
+const UI_ZOOM_PRESETS = ['auto', '0.75', '0.9', '1', '1.1', '1.25', '1.5'];
+
+function getAutoUiZoomFactor() {
+  // IMPORTANT: Chromium already honors the OS device scale factor for the
+  // top-level window, so a 32px CSS button is already the correct physical
+  // size on a 150% display. Applying `1 / scaleFactor` here DOUBLE-corrected
+  // and shrank the whole app to ~67% on scaled laptops (the opposite of the
+  // intended fix). Auto therefore means "no zoom"; users who want larger UI
+  // opt in via the manual UI Scale control in Settings.
+  return 1;
+}
+
+function getEffectiveUiZoom() {
+  const stored = store.get('ui_zoom_mode', 'auto');
+  if (stored === 'auto' || !stored) return getAutoUiZoomFactor();
+  const n = parseFloat(stored);
+  return Number.isFinite(n) && n > 0 ? n : 1;
+}
+
+function applyZoomToWebContents(wc, factor) {
+  if (!wc || wc.isDestroyed?.()) return;
+  try { wc.setZoomFactor(factor); } catch (e) { /* ignore guest view hosts */ }
+}
+
+function applyUiZoomEverywhere(factor) {
+  // webContents.getAllWebContents() includes main + every OOPIF (tab iframes).
+  for (const wc of webContents.getAllWebContents()) {
+    applyZoomToWebContents(wc, factor);
+  }
+}
+
+function setupUiZoomHandlers() {
+  const { ipcMain } = require('electron');
+  ipcMain.handle('settings:get-ui-zoom', () => {
+    const mode = store.get('ui_zoom_mode', 'auto');
+    const effectiveZoom = getEffectiveUiZoom();
+    const displayScale = screen.getPrimaryDisplay().scaleFactor || 1;
+    return { mode, effectiveZoom, displayScale, presets: UI_ZOOM_PRESETS };
+  });
+
+  ipcMain.handle('settings:set-ui-zoom', (event, mode) => {
+    if (!UI_ZOOM_PRESETS.includes(String(mode))) {
+      return { success: false, error: 'Invalid ui zoom mode' };
+    }
+    store.set('ui_zoom_mode', String(mode));
+    const factor = getEffectiveUiZoom();
+    applyUiZoomEverywhere(factor);
+    console.log(`[Main] UI zoom set: mode=${mode} factor=${factor}`);
+    return { success: true, mode, effectiveZoom: factor };
+  });
 }
 
 // Auto-updater configuration
@@ -3557,6 +3630,7 @@ app.whenReady().then(() => {
     FileManager.setupHandlers();
     DragHandler.setupHandlers();
     setupWindowHandlers();
+    setupUiZoomHandlers();
     setupPremiereImportHandler();
     setupMediaCacheHandlers();
 

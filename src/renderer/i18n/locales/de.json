@@ -172,7 +172,12 @@
       "launchOnStartup": "Beim Start ausführen",
       "launchOnStartupDesc": "Kolbo Studio automatisch starten, wenn Ihr Computer hochfährt",
       "downloadFolder": "Download-Ordner",
-      "changeFolder": "Ordner ändern"
+      "changeFolder": "Ordner ändern",
+      "uiScale": "UI-Skalierung",
+      "uiScaleDesc": "Erkennt die Anzeigeskalierung automatisch, damit Schaltflächen leicht anklickbar bleiben.",
+      "uiScaleAuto": "Auto (empfohlen)",
+      "uiScaleAutoDetected": "Erkannte Anzeigeskalierung: {{pct}}%.",
+      "uiScaleManual": "Manuelle Überschreibung. Schaltflächen sind {{pct}}% der Designgröße."
     },
     "formatFactory": {
       "title": "Format Factory",

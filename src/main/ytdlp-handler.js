@@ -74,6 +74,11 @@ class YtdlpHandler {
     this.initialized = false;
     this._updatingPromise = null; // dedupe concurrent forceUpdate calls
 
+    // Deno JS runtime state (for YouTube signature/nsig descrambling)
+    this._denoReady = false;
+    this._denoPath = null;
+    this._denoProvisioning = null; // dedupe concurrent ensureDeno calls
+
     // Initialize yt-dlp
     this.initialize();
   }
@@ -194,7 +199,9 @@ class YtdlpHandler {
    * Non-social platforms get a single plain attempt.
    */
   buildAttempts(platform) {
-    const base = [...COMMON_EXTRACTOR_ARGS];
+    // Include the Deno JS runtime when ready — required for reliable YouTube
+    // extraction (nsig/signature descrambling). Harmless for other sites.
+    const base = [...COMMON_EXTRACTOR_ARGS, ...this.getJsRuntimeArgs()];
 
     const attempts = [{ label: 'default', args: base }];
 
@@ -215,6 +222,11 @@ class YtdlpHandler {
    * Refreshes yt-dlp once on the first extractor breakage, then keeps escalating.
    */
   async getInfoWithLadder(url, platform) {
+    // YouTube needs the JS runtime to descramble signatures — make sure Deno is
+    // ready before building the attempt args (usually already provisioned on launch).
+    if (platform === 'youtube' && !this._denoReady) {
+      try { await this.ensureDeno(); } catch (_) {}
+    }
     const attempts = this.buildAttempts(platform);
     let i = 0;
     let updated = false;
@@ -326,6 +338,10 @@ class YtdlpHandler {
         this.ytdlp = new YTDlpWrap(binaryPath);
         this.initialized = true;
       }
+
+      // Provision the Deno JS runtime in the background so YouTube extraction
+      // stays first-class (yt-dlp deprecated no-JS-runtime YouTube). Non-blocking.
+      this.ensureDeno();
 
       console.log('[yt-dlp Handler] Initialized successfully');
     } catch (error) {
@@ -506,7 +522,8 @@ class YtdlpHandler {
       const file = fs.createWriteStream(destPath);
 
       const request = https.get(url, {
-        headers: { 'User-Agent': 'KolboStudio' }
+        headers: { 'User-Agent': 'KolboStudio' },
+        timeout: 60000 // arms the 'timeout' handler below so a stalled download can't hang
       }, (response) => {
         // Handle redirects (GitHub releases redirect to CDN)
         if (response.statusCode >= 300 && response.statusCode < 400 && response.headers.location) {
@@ -590,6 +607,137 @@ class YtdlpHandler {
     }
 
     return path.join(binariesPath, binaryName);
+  }
+
+  // ── Deno JS runtime (YouTube signature/nsig descrambling) ──────────────────
+  // As of mid-2026 yt-dlp deprecated no-JS-runtime YouTube extraction: without a
+  // JS runtime, formats go missing and downloads fail → the app escalates to the
+  // browser-cookie tier (which can't even read Chrome/Edge cookies on Windows,
+  // DPAPI). We self-download a Deno binary (same pattern as the yt-dlp binary
+  // itself — no installer bloat) and pass `--js-runtimes deno:PATH` so YouTube
+  // stays first-class and the browser fallback is rarely needed.
+
+  getDenoBinaryName() {
+    return process.platform === 'win32' ? 'deno.exe' : 'deno';
+  }
+
+  getDenoPath() {
+    const binariesPath = path.join(app.getPath('userData'), 'binaries');
+    if (!fs.existsSync(binariesPath)) fs.mkdirSync(binariesPath, { recursive: true });
+    return path.join(binariesPath, this.getDenoBinaryName());
+  }
+
+  /** GitHub release asset (Deno ships as a per-platform .zip). */
+  getDenoAssetName() {
+    if (process.platform === 'win32') {
+      // No official Windows arm64 build; x64 runs under emulation.
+      return 'deno-x86_64-pc-windows-msvc.zip';
+    }
+    if (process.platform === 'darwin') {
+      return process.arch === 'arm64'
+        ? 'deno-aarch64-apple-darwin.zip'
+        : 'deno-x86_64-apple-darwin.zip';
+    }
+    return 'deno-x86_64-unknown-linux-gnu.zip';
+  }
+
+  /** yt-dlp args enabling the Deno JS runtime, or [] if it isn't ready yet. */
+  getJsRuntimeArgs() {
+    return this._denoReady && this._denoPath
+      ? ['--js-runtimes', `deno:${this._denoPath}`]
+      : [];
+  }
+
+  validateDeno(denoPath) {
+    try {
+      const { execFileSync } = require('child_process');
+      execFileSync(denoPath, ['--version'], { timeout: 10000 });
+      return true;
+    } catch (error) {
+      console.warn('[yt-dlp Handler] Deno validation failed:', error.message);
+      return false;
+    }
+  }
+
+  /**
+   * Ensure a working Deno binary exists (downloads + extracts once, deduped).
+   * Sets this._denoReady/_denoPath on success. NEVER throws — YouTube still
+   * works via yt-dlp's fallback clients if Deno can't be provisioned.
+   */
+  ensureDeno() {
+    if (this._denoReady) return Promise.resolve(true);
+    if (!this._denoProvisioning) {
+      this._denoProvisioning = this._provisionDeno().finally(() => {
+        this._denoProvisioning = null;
+      });
+    }
+    return this._denoProvisioning;
+  }
+
+  async _provisionDeno() {
+    try {
+      const denoPath = this.getDenoPath();
+
+      // Already downloaded on a previous launch?
+      if (fs.existsSync(denoPath) && this.validateDeno(denoPath)) {
+        this._denoPath = denoPath;
+        this._denoReady = true;
+        console.log('[yt-dlp Handler] Deno JS runtime ready:', denoPath);
+        return true;
+      }
+
+      const asset = this.getDenoAssetName();
+      const url = `https://github.com/denoland/deno/releases/latest/download/${asset}`;
+      const binariesPath = path.dirname(denoPath);
+      const zipPath = path.join(binariesPath, asset);
+
+      console.log('[yt-dlp Handler] Downloading Deno JS runtime:', url);
+      await this.downloadFile(url, zipPath);
+      await this._extractDeno(zipPath, binariesPath);
+      try { fs.unlinkSync(zipPath); } catch (_) {}
+
+      if (process.platform !== 'win32') {
+        try { fs.chmodSync(denoPath, 0o755); } catch (_) {}
+      }
+      this.stripMacQuarantine(denoPath);
+
+      if (fs.existsSync(denoPath) && this.validateDeno(denoPath)) {
+        this._denoPath = denoPath;
+        this._denoReady = true;
+        console.log('[yt-dlp Handler] Deno JS runtime provisioned:', denoPath);
+        return true;
+      }
+
+      console.warn('[yt-dlp Handler] Deno provisioning did not yield a working binary');
+      return false;
+    } catch (error) {
+      console.warn('[yt-dlp Handler] Deno provisioning failed (non-critical):', error.message);
+      return false;
+    }
+  }
+
+  /**
+   * Extract the deno binary from its release .zip using the platform's bundled
+   * bsdtar (Windows System32 tar.exe + macOS /usr/bin/tar are both libarchive,
+   * which unpacks .zip). Extracts just the binary; falls back to a full extract.
+   */
+  _extractDeno(zipPath, destDir) {
+    return new Promise((resolve, reject) => {
+      const { execFile } = require('child_process');
+      const tarBin = process.platform === 'win32'
+        ? path.join(process.env.SystemRoot || 'C:\\Windows', 'System32', 'tar.exe')
+        : 'tar';
+      const denoName = this.getDenoBinaryName();
+
+      execFile(tarBin, ['-xf', zipPath, '-C', destDir, denoName], { timeout: 60000 }, (error) => {
+        if (!error) return resolve();
+        // Fallback: extract the whole archive (still just contains the binary)
+        execFile(tarBin, ['-xf', zipPath, '-C', destDir], { timeout: 60000 }, (err2) => {
+          if (err2) reject(new Error('Deno unzip failed: ' + (err2.message || error.message)));
+          else resolve();
+        });
+      });
+    });
   }
 
   /**
@@ -1037,6 +1185,12 @@ class YtdlpHandler {
     }
 
     const platform = this.detectPlatform(url);
+
+    // YouTube needs the Deno JS runtime for signature descrambling — ensure it's
+    // ready before building attempts (background-provisioned on launch already).
+    if (platform === 'youtube' && !this._denoReady) {
+      try { await this.ensureDeno(); } catch (_) {}
+    }
     const attempts = this.buildAttempts(platform);
 
     let i = 0;

@@ -172,7 +172,12 @@
       "launchOnStartup": "स्टार्टअप पर लॉन्च करें",
       "launchOnStartupDesc": "जब आपका कंप्यूटर बूट हो तो स्वचालित रूप से Kolbo Studio शुरू करें",
       "downloadFolder": "डाउनलोड फ़ोल्डर",
-      "changeFolder": "फ़ोल्डर बदलें"
+      "changeFolder": "फ़ोल्डर बदलें",
+      "uiScale": "UI स्केल",
+      "uiScaleDesc": "आपके डिस्प्ले स्केलिंग का स्वचालित रूप से पता लगाता है ताकि बटन क्लिक करने में आसान रहें।",
+      "uiScaleAuto": "ऑटो (अनुशंसित)",
+      "uiScaleAutoDetected": "पता लगाया गया डिस्प्ले स्केल: {{pct}}%।",
+      "uiScaleManual": "मैन्युअल ओवरराइड। बटन डिज़ाइन आकार के {{pct}}% होंगे।"
     },
     "formatFactory": {
       "title": "प्रारूप फ़ैक्टरी",
