@@ -260,6 +260,14 @@ contextBridge.exposeInMainWorld('kolboDesktop', {
   setAutoLaunch: (enabled) =>
     ipcRenderer.invoke('autoLaunch:set', enabled),
 
+  // UI Scale (compensates for Windows display scaling so 32px CSS buttons
+  // stay the same physical size on 125%/150% scaled displays)
+  getUiZoom: () =>
+    ipcRenderer.invoke('settings:get-ui-zoom'),
+
+  setUiZoom: (mode) =>
+    ipcRenderer.invoke('settings:set-ui-zoom', mode),
+
   // Update System
   checkForUpdates: () =>
     ipcRenderer.invoke('updater:check'),

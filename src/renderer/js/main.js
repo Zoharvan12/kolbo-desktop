@@ -4387,6 +4387,59 @@ ${Icons.get('file-text', 16)}
           }
         }
 
+        // Load UI Scale setting (DPI compensation)
+        const uiScaleSelect = document.getElementById('ui-scale-select');
+        const uiScaleSublabel = document.getElementById('ui-scale-sublabel');
+        if (uiScaleSelect && window.kolboDesktop?.getUiZoom) {
+          try {
+            const zoomInfo = await window.kolboDesktop.getUiZoom();
+            uiScaleSelect.value = zoomInfo.mode;
+
+            // Show the user the detected display scale so Auto feels transparent.
+            // Only override the sublabel when no manual pick has been made.
+            if (uiScaleSublabel && (zoomInfo.mode === 'auto' || !zoomInfo.mode)) {
+              const pct = Math.round(zoomInfo.displayScale * 100);
+              const autoLabel = (window.t && window.t('settings.general.uiScaleAutoDetected', { pct }))
+                || `Detected display scaling: ${pct}%. Buttons will look the same as on a 100% display.`;
+              uiScaleSublabel.textContent = autoLabel;
+            } else if (uiScaleSublabel) {
+              const manualLabel = (window.t && window.t('settings.general.uiScaleManual'))
+                || `Manual override. Buttons will be ${Math.round(parseFloat(zoomInfo.mode) * 100)}% of design size.`;
+              uiScaleSublabel.textContent = manualLabel;
+            }
+
+            if (!uiScaleSelect.hasAttribute('data-listener-attached')) {
+              uiScaleSelect.setAttribute('data-listener-attached', 'true');
+              uiScaleSelect.addEventListener('change', async (e) => {
+                try {
+                  const result = await window.kolboDesktop.setUiZoom(e.target.value);
+                  if (!result?.success) {
+                    console.error('[Settings] Failed to set UI scale:', result?.error);
+                    return;
+                  }
+                  // Refresh the sublabel with the new effective zoom
+                  if (uiScaleSublabel) {
+                    if (e.target.value === 'auto') {
+                      const pct = Math.round(zoomInfo.displayScale * 100);
+                      uiScaleSublabel.textContent = `Detected display scaling: ${pct}%.`;
+                    } else {
+                      uiScaleSublabel.textContent = `Manual override. Buttons will be ${Math.round(result.effectiveZoom * 100)}% of design size.`;
+                    }
+                  }
+                  if (window.toastManager?.show) {
+                    const label = e.target.value === 'auto' ? 'Auto' : `${Math.round(result.effectiveZoom * 100)}%`;
+                    window.toastManager.show(`UI Scale: ${label}`, 'success', 2000);
+                  }
+                } catch (err) {
+                  console.error('[Settings] UI Scale change failed:', err);
+                }
+              });
+            }
+          } catch (err) {
+            console.error('[Settings] Failed to load UI Scale:', err);
+          }
+        }
+
         // Load Format Factory settings
         const ffModeSource = document.getElementById('ff-mode-source');
         const ffModeCustom = document.getElementById('ff-mode-custom');

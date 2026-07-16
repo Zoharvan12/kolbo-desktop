@@ -172,7 +172,12 @@
       "launchOnStartup": "Iniciar al inicio",
       "launchOnStartupDesc": "Inicia Kolbo Studio automáticamente cuando tu ordenador se inicia",
       "downloadFolder": "Carpeta de descarga",
-      "changeFolder": "Cambiar carpeta"
+      "changeFolder": "Cambiar carpeta",
+      "uiScale": "Escala de la interfaz",
+      "uiScaleDesc": "Detecta automáticamente la escala de tu pantalla para que los botones sigan siendo fáciles de pulsar.",
+      "uiScaleAuto": "Auto (recomendado)",
+      "uiScaleAutoDetected": "Escala de pantalla detectada: {{pct}}%.",
+      "uiScaleManual": "Ajuste manual. Los botones serán {{pct}}% del tamaño de diseño."
     },
     "formatFactory": {
       "title": "Format Factory",

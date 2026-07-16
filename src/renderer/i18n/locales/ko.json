@@ -172,7 +172,12 @@
       "launchOnStartup": "시작 시 실행",
       "launchOnStartupDesc": "컴퓨터 부팅 시 Kolbo Studio를 자동으로 시작합니다.",
       "downloadFolder": "다운로드 폴더",
-      "changeFolder": "폴더 변경"
+      "changeFolder": "폴더 변경",
+      "uiScale": "UI 크기",
+      "uiScaleDesc": "디스플레이 배율을 자동 감지하여 버튼을 클릭하기 쉽게 유지합니다.",
+      "uiScaleAuto": "자동(권장)",
+      "uiScaleAutoDetected": "감지된 디스플레이 배율: {{pct}}%.",
+      "uiScaleManual": "수동 재정의. 버튼은 디자인 크기의 {{pct}}%가 됩니다."
     },
     "formatFactory": {
       "title": "Format Factory",

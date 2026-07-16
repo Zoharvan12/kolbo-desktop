@@ -172,7 +172,12 @@
       "launchOnStartup": "הפעל בעת הפעלה",
       "launchOnStartupDesc": "הפעל אוטומטית את Kolbo Studio כאשר המחשב שלך עולה",
       "downloadFolder": "תיקיית הורדות",
-      "changeFolder": "שנה תיקייה"
+      "changeFolder": "שנה תיקייה",
+      "uiScale": "גודל ממשק",
+      "uiScaleDesc": "מזהה אוטומטית את קנה המידה של התצוגה כדי שהכפתורים יישארו נוחים ללחיצה.",
+      "uiScaleAuto": "אוטומטי (מומלץ)",
+      "uiScaleAutoDetected": "קנה מידה שזוהה בתצוגה: {{pct}}%. הכפתורים ייראו זהים לתצוגה ב-100%.",
+      "uiScaleManual": "הגדרה ידנית. הכפתורים יהיו בגודל {{pct}}% מהעיצוב המקורי."
     },
     "formatFactory": {
       "title": "Format Factory",

@@ -172,7 +172,12 @@
       "launchOnStartup": "起動時に開始",
       "launchOnStartupDesc": "コンピュータの起動時にKolbo Studioを自動的に開始する",
       "downloadFolder": "ダウンロードフォルダ",
-      "changeFolder": "フォルダを変更"
+      "changeFolder": "フォルダを変更",
+      "uiScale": "UIスケール",
+      "uiScaleDesc": "ディスプレイのスケーリングを自動検出し、ボタンをクリックしやすいサイズに保ちます。",
+      "uiScaleAuto": "自動(推奨)",
+      "uiScaleAutoDetected": "検出された表示スケール:{{pct}}%。",
+      "uiScaleManual": "手動上書き。ボタンはデザインサイズの{{pct}}%になります。"
     },
     "formatFactory": {
       "title": "フォーマットファクトリー",

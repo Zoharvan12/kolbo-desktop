@@ -172,7 +172,12 @@
       "launchOnStartup": "Запускать при запуске",
       "launchOnStartupDesc": "Автоматически запускать Kolbo Studio при загрузке компьютера",
       "downloadFolder": "Папка загрузок",
-      "changeFolder": "Изменить папку"
+      "changeFolder": "Изменить папку",
+      "uiScale": "Масштаб интерфейса",
+      "uiScaleDesc": "Автоматически определяет масштабирование экрана, чтобы кнопки оставались удобными для нажатия.",
+      "uiScaleAuto": "Авто (рекомендуется)",
+      "uiScaleAutoDetected": "Обнаруженное масштабирование: {{pct}}%.",
+      "uiScaleManual": "Ручная переопределение. Кнопки будут {{pct}}% от проектного размера."
     },
     "formatFactory": {
       "title": "Format Factory",
