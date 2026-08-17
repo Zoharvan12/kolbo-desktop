@@ -157,5 +157,8 @@
       "title": "${productName} ${version}",
       "icon": "assets/icon.icns"
     }
+  },
+  "overrides": {
+    "@noble/hashes": "^1.8.0"
   }
 }
