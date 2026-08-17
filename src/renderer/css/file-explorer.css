@@ -1060,7 +1060,7 @@
 }
 
 .fe-preview-time-info {
-  font-family: 'Inter', monospace;
+  font-family: var(--font-sans);
 }
 
 .fe-preview-time-in {

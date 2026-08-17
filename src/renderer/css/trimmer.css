@@ -503,7 +503,7 @@
   justify-content: center;
   gap: 4px;
   font-size: 14px;
-  font-family: 'Inter', sans-serif;
+  font-family: var(--font-sans);
   color: #ffffff;
 }
 

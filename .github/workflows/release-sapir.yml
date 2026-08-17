@@ -59,7 +59,8 @@ jobs:
         run: node scripts/build-whitelabel.js sapir --win
 
       - name: Sign Sapir Windows installer
-        if: github.event.inputs.sign != 'false'
+        # Temporarily disabled to prevent SSL.com eSigner overage charges.
+        if: ${{ false }}
         uses: SSLcom/esigner-codesign@v1.3.2
         with:
           command: sign

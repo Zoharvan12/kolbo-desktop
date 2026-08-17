@@ -681,7 +681,7 @@
   overflow-x: hidden;
   padding: 4px;
   box-sizing: border-box;
-  font-family: Inter, sans-serif;
+  font-family: var(--font-sans);
 }
 .kdd-list::-webkit-scrollbar { width: 4px; }
 .kdd-list::-webkit-scrollbar-track { background: 0 0; }
@@ -708,7 +708,7 @@
   font-size: 10px;
   font-weight: 700;
   color: rgba(147, 197, 253, 0.9);
-  font-family: Inter, sans-serif;
+  font-family: var(--font-sans);
 }
 .kdd-item-label {
   flex: 1;

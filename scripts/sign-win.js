@@ -5,6 +5,11 @@ const { execSync } = require('child_process');
 const path = require('path');
 
 exports.default = async function sign(configuration) {
+  if (process.env.KOLBO_ESIGNER_ENABLED !== 'true') {
+    console.log('  SSL.com eSigner temporarily disabled — skipping Windows signing');
+    return;
+  }
+
   const filePath = configuration.path;
   if (!filePath.endsWith('.exe')) return;
 
