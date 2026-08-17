@@ -1297,6 +1297,42 @@ class YtdlpHandler {
           }
         };
 
+        // Locate the finished file and convert/remux it to the requested format.
+        // Shared by the clean-exit path AND the error path below — yt-dlp can exit
+        // non-zero on a trailing post-processing hiccup (thumbnail embed, metadata
+        // write, temp-file cleanup racing a Windows AV lock) even though the actual
+        // media finished downloading intact, so both paths need to check for a
+        // real output file before deciding success or failure.
+        const finalizeOutput = async () => {
+          sendProgress(82, { status: 'Finalizing...' });
+
+          let outputPath = this.findOutputFile(outputFolder, sanitizedTitle, outputFormat);
+
+          if (outputFormat === 'mp3') {
+            // yt-dlp normally handles m4a→mp3 internally; if it left a non-mp3, convert it.
+            if (outputPath && !outputPath.endsWith('.mp3') && fs.existsSync(outputPath)) {
+              const mp3Target = path.join(outputFolder, `${sanitizedTitle}.mp3`);
+              try {
+                outputPath = await this.convertToMp3WithFfmpeg(outputPath, mp3Target, id, quality);
+              } catch (convErr) {
+                console.warn('[yt-dlp Handler] ffmpeg MP3 conversion failed, keeping original:', convErr.message);
+              }
+            }
+          } else {
+            // If yt-dlp left a .webm/.mkv (merge failed internally), remux to mp4.
+            if (outputPath && !outputPath.endsWith('.mp4') && fs.existsSync(outputPath)) {
+              const remuxTarget = path.join(outputFolder, `${sanitizedTitle}.mp4`);
+              try {
+                outputPath = await this.remuxWithFfmpeg(outputPath, remuxTarget, id);
+              } catch (remuxErr) {
+                console.warn('[yt-dlp Handler] ffmpeg remux failed, keeping original:', remuxErr.message);
+              }
+            }
+          }
+
+          return outputPath;
+        };
+
         const downloadProcess = this.ytdlp.exec([url, ...options])
           .on('progress', (progress) => {
             if (downloadState.aborted || hasError) return;
@@ -1319,12 +1355,21 @@ class YtdlpHandler {
           .on('ytDlpEvent', (eventType, eventData) => {
             console.log(`[yt-dlp Handler] Event [${id}]:`, eventType, eventData);
           })
-          .on('error', (error) => {
+          .on('error', async (error) => {
             if (downloadState.aborted) { reject({ aborted: true }); return; }
             hasError = true;
+            this.activeDownloads.delete(id);
+
+            // yt-dlp exited non-zero — but check whether the media actually
+            // finished before reporting a failure the user didn't really have.
+            const outputPath = await finalizeOutput().catch(() => null);
+            if (outputPath && this.validateOutputFile(outputPath)) {
+              console.warn('[yt-dlp Handler] Non-zero exit but a valid output file exists — treating as success:', outputPath);
+              resolve(outputPath);
+              return;
+            }
 
             console.error('[yt-dlp Handler] Download attempt error:', error);
-            this.activeDownloads.delete(id);
             this.cleanupTempFiles(outputFolder, sanitizedTitle);
 
             const errorMessage = error.message || error.toString();
@@ -1337,33 +1382,7 @@ class YtdlpHandler {
             console.log('[yt-dlp Handler] yt-dlp process closed:', id);
             this.activeDownloads.delete(id);
 
-            // Report 82% — the merge/conversion phase is starting
-            sendProgress(82, { status: 'Finalizing...' });
-
-            // Find the output file — extension depends on what yt-dlp actually produced
-            let outputPath = this.findOutputFile(outputFolder, sanitizedTitle, outputFormat);
-
-            if (outputFormat === 'mp3') {
-              // yt-dlp normally handles m4a→mp3 internally; if it left a non-mp3, convert it.
-              if (outputPath && !outputPath.endsWith('.mp3') && fs.existsSync(outputPath)) {
-                const mp3Target = path.join(outputFolder, `${sanitizedTitle}.mp3`);
-                try {
-                  outputPath = await this.convertToMp3WithFfmpeg(outputPath, mp3Target, id, quality);
-                } catch (convErr) {
-                  console.warn('[yt-dlp Handler] ffmpeg MP3 conversion failed, keeping original:', convErr.message);
-                }
-              }
-            } else {
-              // If yt-dlp left a .webm/.mkv (merge failed internally), remux to mp4.
-              if (outputPath && !outputPath.endsWith('.mp4') && fs.existsSync(outputPath)) {
-                const remuxTarget = path.join(outputFolder, `${sanitizedTitle}.mp4`);
-                try {
-                  outputPath = await this.remuxWithFfmpeg(outputPath, remuxTarget, id);
-                } catch (remuxErr) {
-                  console.warn('[yt-dlp Handler] ffmpeg remux failed, keeping original:', remuxErr.message);
-                }
-              }
-            }
+            const outputPath = await finalizeOutput();
 
             // Validate the produced file; a missing/tiny file is a failed attempt.
             if (!this.validateOutputFile(outputPath)) {
