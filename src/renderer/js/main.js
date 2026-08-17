@@ -5296,7 +5296,7 @@ function setupDownloadNotifications() {
   if (window.kolboDesktop && window.kolboDesktop.onDownloadFailed) {
     window.kolboDesktop.onDownloadFailed((data) => {
       console.error("[Download Notification] Download failed:", data);
-      showToast(`Download failed: ${data.fileName}`, "error");
+      window.toastManager?.show(`Download failed: ${data.fileName}`, "error");
     });
   }
 
@@ -5321,7 +5321,7 @@ function setupDownloadNotifications() {
     if (window.kolboDesktop && window.kolboDesktop.setDownloadFolder) {
       const newFolder = await window.kolboDesktop.setDownloadFolder();
       if (newFolder) {
-        showToast(`Download folder changed to: ${newFolder}`, "success");
+        window.toastManager?.show(`Download folder changed to: ${newFolder}`, "success");
         notification.classList.add("hidden");
       }
     }

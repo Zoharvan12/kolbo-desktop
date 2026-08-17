@@ -4,6 +4,7 @@
 // ── Critical-path imports (needed before first paint) ──────────────────────
 const { app, BrowserWindow, Tray, Menu, nativeImage, screen, dialog, webContents } = require('electron');
 const path = require('path');
+const config = require('../config');
 
 // ── Deferred imports — loaded lazily after splash is visible ───────────────
 let Store, store, autoUpdater, checkDiskSpace;
@@ -1505,11 +1506,16 @@ function setupDownloaderHandlers() {
 
 // Follow up to 5 redirects and resolve with the final http(s) IncomingMessage.
 // Shared by the Synci download/cache/peak handlers (signed CDN urls 30x often).
+// Forwards the logged-in user's bearer token to our own API (stock/synci
+// routes gate paid audio on req.user) — never to third-party redirect targets.
 function synciHttpGetFollow(url, depth = 0) {
   return new Promise((resolve, reject) => {
     if (depth > 5) return reject(new Error('Too many redirects'));
     const mod = url.indexOf('https:') === 0 ? require('https') : require('http');
-    mod.get(url, (res) => {
+    const token = store.get('token') || store.get('kolbo_access_token') || store.get('kolbo_token');
+    const isOwnApi = token && url.indexOf(config.apiUrl) === 0;
+    const opts = isOwnApi ? { headers: { Authorization: `Bearer ${token}` } } : {};
+    mod.get(url, opts, (res) => {
       if (res.statusCode >= 300 && res.statusCode < 400 && res.headers.location) {
         res.resume();
         let next = res.headers.location;
@@ -1780,6 +1786,7 @@ function setupScreenshotHandlers() {
   // SynciManager's desktop bridge calls this in place of "add to timeline".
   // Saves to the user's configured download folder (or the OS Downloads dir).
   ipcMain.handle('synci:download-to-disk', async (event, { url, filename }) => {
+    const fsSync = require('fs');
     try {
       if (!url) return { success: false, error: 'No URL provided' };
 
@@ -1791,7 +1798,18 @@ function setupScreenshotHandlers() {
         .replace(/[\\/:*?"<>|]/g, '')
         .trim() || 'Synci Track';
       if (!/\.[a-z0-9]{2,4}$/i.test(safeName)) safeName += '.mp3';
-      const savePath = path.join(downloadFolder, safeName);
+
+      // Avoid clobbering an existing file with the same suggested name
+      // (different tracks/generations can share a generic title).
+      const ext = path.extname(safeName);
+      const base = path.basename(safeName, ext);
+      let savePath = path.join(downloadFolder, safeName);
+      let counter = 1;
+      while (fsSync.existsSync(savePath)) {
+        savePath = path.join(downloadFolder, `${base} (${counter})${ext}`);
+        counter++;
+      }
+      safeName = path.basename(savePath);
 
       await synciDownloadToFile(url, savePath);
 
@@ -1949,8 +1967,11 @@ function setupDownloadHandler() {
   const path = require('path');
   const fs = require('fs');
 
-  // Track recent downloads to prevent duplicates
-  const recentDownloads = new Map(); // filename -> timestamp
+  // Track recent downloads to prevent duplicates. Keyed by URL, not filename —
+  // Kolbo audio generations often share a generic suggested filename (e.g. every
+  // TTS take suggests "audio.mp3"), so two genuinely different downloads firing
+  // within the threshold must not be mistaken for the same event double-firing.
+  const recentDownloads = new Map(); // url -> timestamp
   const DUPLICATE_THRESHOLD = 1000; // 1 second
 
   // Track active dialogs to prevent showing multiple for same file
@@ -1991,31 +2012,32 @@ function setupDownloadHandler() {
 
     console.log('[Download] Event fired:', fileName, 'URL:', fileUrl);
 
-    // Check if we're already showing a dialog for this file
-    if (activeDialogs.has(fileName)) {
-      console.log('[Download] Dialog already active for:', fileName, '- canceling duplicate');
+    // Check if we're already showing a dialog for this exact download
+    if (activeDialogs.has(fileUrl)) {
+      console.log('[Download] Dialog already active for:', fileUrl, '- canceling duplicate');
       item.cancel();
       return;
     }
 
-    // Check if this is a duplicate download (same filename within 1 second)
-    const lastDownload = recentDownloads.get(fileName);
+    // Check if this is a duplicate download event (same URL within 1 second —
+    // Electron can double-fire will-download for one click/redirect)
+    const lastDownload = recentDownloads.get(fileUrl);
     if (lastDownload && (now - lastDownload) < DUPLICATE_THRESHOLD) {
-      console.log('[Download] Ignoring duplicate download (recent):', fileName);
+      console.log('[Download] Ignoring duplicate download (recent):', fileUrl);
       item.cancel();
       return;
     }
 
     // Mark as active
-    activeDialogs.add(fileName);
+    activeDialogs.add(fileUrl);
 
     // Track this download
-    recentDownloads.set(fileName, now);
+    recentDownloads.set(fileUrl, now);
 
     // Clean up old entries (older than threshold)
-    for (const [name, timestamp] of recentDownloads.entries()) {
+    for (const [url, timestamp] of recentDownloads.entries()) {
       if (now - timestamp > DUPLICATE_THRESHOLD) {
-        recentDownloads.delete(name);
+        recentDownloads.delete(url);
       }
     }
 
@@ -2037,7 +2059,7 @@ function setupDownloadHandler() {
 
       if (result.canceled || !result.filePaths.length) {
         console.log('[Download] Download canceled - no folder selected');
-        activeDialogs.delete(fileName);
+        activeDialogs.delete(fileUrl);
         item.cancel();
         return;
       }
@@ -2061,7 +2083,7 @@ function setupDownloadHandler() {
     console.log('[Download] Saving to:', savePath);
 
     // Remove from active dialogs
-    activeDialogs.delete(fileName);
+    activeDialogs.delete(fileUrl);
 
     // Set save path
     item.setSavePath(savePath);
@@ -2417,6 +2439,12 @@ class MediaCache {
     this.maxCacheItems = 500;
     this.downloadQueue = new Map(); // id -> Promise
     this.thumbnailQueue = new Map(); // id -> Promise
+    // Paths claimed by an in-flight download but not yet written to disk.
+    // preloadMedia() fires every item's download concurrently, so two items
+    // that share a generic suggested filename (e.g. every TTS take names
+    // itself "audio.mp3") can both pass fs.existsSync before either file
+    // actually lands — this closes that race. See downloadToCache().
+    this.reservedPaths = new Set();
 
     this.ensureCacheFolderExists();
     this.loadCacheIndex();
@@ -2572,16 +2600,18 @@ class MediaCache {
     const path = require('path');
     const fs = require('fs');
 
-    // Generate unique filename if file already exists
+    // Generate unique filename if file already exists (or is claimed by an
+    // in-flight download this same batch — see this.reservedPaths above).
     let filePath = path.join(this.cachePath, fileName);
     let counter = 1;
     const ext = path.extname(fileName);
     const base = path.basename(fileName, ext);
 
-    while (fs.existsSync(filePath)) {
+    while (fs.existsSync(filePath) || this.reservedPaths.has(filePath)) {
       filePath = path.join(this.cachePath, `${base} (${counter})${ext}`);
       counter++;
     }
+    this.reservedPaths.add(filePath);
 
     // If filename was changed, log it
     if (counter > 1) {
@@ -2591,6 +2621,7 @@ class MediaCache {
     // Start download
     const downloadPromise = this.downloadFile(url, filePath)
       .then(() => {
+        this.reservedPaths.delete(filePath);
         const stats = fs.statSync(filePath);
         const actualFileName = path.basename(filePath);
 
@@ -2612,6 +2643,7 @@ class MediaCache {
         return filePath;
       })
       .catch(err => {
+        this.reservedPaths.delete(filePath);
         console.error(`[MediaCache] Failed to download ${path.basename(filePath)}:`, err);
         this.downloadQueue.delete(id);
         throw err;
