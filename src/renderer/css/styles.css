@@ -37,7 +37,7 @@
 }
 
 html, body {
-  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+  font-family: var(--font-sans);
   background: #000000;
   color: rgb(var(--foreground));
   font-size: 13px;
@@ -2906,7 +2906,7 @@ body.is-mac .window-controls {
   font-size: 10px;
   font-weight: 500;
   color: rgba(255, 255, 255, 0.9);
-  font-family: 'Inter', sans-serif;
+  font-family: var(--font-sans);
   white-space: nowrap;
   min-width: 70px;
   text-align: right;
@@ -3119,7 +3119,7 @@ body.is-mac .window-controls {
   align-items: center;
   gap: 4px;
   font-size: 10px;
-  font-family: 'Inter', sans-serif;
+  font-family: var(--font-sans);
   color: rgb(var(--foreground) / 0.6);
 }
 
@@ -3681,7 +3681,7 @@ body.dragging-active * {
 .batch-processing-filename {
   font-size: 13px;
   color: rgba(255, 255, 255, 0.6);
-  font-family: 'Inter', sans-serif;
+  font-family: var(--font-sans);
   margin-top: 8px;
   min-height: 20px;
 }
@@ -3852,7 +3852,7 @@ body.dragging-active * {
   font-size: 18px;
   font-weight: 600;
   color: #667eea;
-  font-family: 'Inter', sans-serif;
+  font-family: var(--font-sans);
 }
 
 /* Button Styles */

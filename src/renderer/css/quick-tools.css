@@ -607,7 +607,7 @@
 }
 
 .qt-frame-time {
-  font-family: 'Inter', sans-serif;
+  font-family: var(--font-sans);
   font-size: 14px;
   color: #ffffff;
   min-width: 80px;
@@ -653,7 +653,7 @@
   border-radius: 3px;
   font-size: 11px;
   color: #ffffff;
-  font-family: 'Inter', sans-serif;
+  font-family: var(--font-sans);
 }
 
 .qt-captured-frame-remove {

@@ -1,12 +1,15 @@
 # Kolbo Studio Desktop - Project Context for Claude
 
-## Memory Hierarchy (READ FIRST)
-At the start of every session, read `C:\Users\Zohar\.claude\memory\MEMORY.md` for the global peer card, user preferences, and cross-project rules that apply to all Kolbo repos.
+## Memory
+Global memory index: `C:\Users\Zohar\.claude\memory\MEMORY.md` — consult when prior decisions or cross-project history are relevant (per global routing rules; do not preload for self-contained tasks).
 
 ## Full-Stack Tool Map
 Read `C:\Users\Zohar\.claude\KOLBO-STACK.md` when working on any feature — maps every tool's frontend ↔ backend files across all repos (kolbo-map, kolbo-api, kolbo-desktop, kolbo-adobe-plugin).
 
 **MANDATORY**: When you add, remove, or rename a key file in kolbo-desktop, update KOLBO-STACK.md in the same step. Do not wait to be asked.
+
+## Codebase Graph
+A graphify knowledge graph exists at `graphify-out/graph.json` (auto-rebuilds via git hook). Use `/graphify` or `graphify query|affected|explain|god-nodes` for "what calls X" / blast-radius questions before grepping cold.
 
 ## Project Overview
 
@@ -38,9 +41,16 @@ Kolbo Studio is an Electron-based desktop application for video editors. It prov
 
 ### Configuration
 - `package.json` - App config, dependencies, and electron-builder settings
-- `.github/workflows/release.yml` - CI/CD workflow for building and releasing
+- `.github/workflows/release.yml` - CI/CD: builds BOTH Windows and macOS on every master push, creates the release, and fixes yml filenames
+- `.github/workflows/release-sapir.yml` - CI/CD for the Sapir AI Studio whitelabel build (also every master push)
 - `entitlements.mac.plist` - macOS app entitlements
 - `entitlements.mac.inherit.plist` - macOS inherited entitlements
+
+### Whitelabel (Sapir AI Studio)
+Every push to master builds TWO branded desktop apps: Kolbo Studio (`release.yml`) and Sapir AI Studio (`release-sapir.yml`, backed by `scripts/build-whitelabel.js`; preview locally with `scripts/preview-whitelabel.js`).
+
+### Windows signing
+Windows currently ships UNSIGNED. An SSL.com eSigner step exists in `release.yml` but is hardcoded off (`if: ${{ false }}` — disabled to prevent eSigner overage charges), which also makes the workflow's `sign` dispatch input dead. `verifyUpdateCodeSignature: false` in `package.json` is load-bearing for auto-update while unsigned — do not re-enable verification before signing is re-enabled. The latest.yml SHA512-regeneration step in the workflow exists because signing mutates the exe.
 
 ### Main Code
 - `src/main/main.js` - Main Electron process
@@ -57,11 +67,10 @@ As of February 2026, macOS builds are **fully signed and notarized**.
   "gatekeeperAssess": true,
   "entitlements": "entitlements.mac.plist",
   "entitlementsInherit": "entitlements.mac.inherit.plist",
-  "notarize": {
-    "teamId": "DPVW9Z2L9Y"
-  }
+  "notarize": true
 }
 ```
+(electron-builder 26: `notarize` is boolean — the teamId comes from the `APPLE_TEAM_ID` env var, see the Electron 42 migration notes above.)
 
 ### Required GitHub Secrets
 - `CSC_LINK` - Base64-encoded .p12 certificate file
@@ -113,7 +122,7 @@ npm run version:patch   # 1.1.6 -> 1.1.7
 ### Manual Release
 1. Update version in `package.json`
 2. Commit and push to master
-3. GitHub Actions will build and create release
+3. GitHub Actions builds BOTH platforms (Windows + macOS) on every master push, creates the release, and fixes the latest*.yml filenames automatically — no local release builds needed
 
 ## Common Issues & Solutions
 
@@ -172,22 +181,6 @@ When adding any user-facing text (buttons, labels, messages, etc.), ALWAYS:
 2. Use `window.t('key')` in JavaScript or `data-i18n="key"` in HTML
 3. NEVER hardcode visible strings
 
-### Translation Script
-When adding new strings or updating translations, use the Gemini translation script:
-
-```javascript
-// translate-locales.js - creates/updates all locale files
-import { GoogleGenerativeAI } from '@google/generative-ai';
-import fs from 'fs';
-import path from 'path';
-
-const genAI = new GoogleGenerativeAI(process.env.GOOGLE_API_KEY);
-const model = genAI.getGenerativeModel({ model: 'gemini-2.0-flash-lite' });
-
-// To run translations:
-node translate-locales.js
-```
-
 ### Locale Files Location
 - `src/renderer/i18n/locales/en.json` - Source (English)
 - `src/renderer/i18n/locales/he.json` - Hebrew (RTL)
@@ -199,7 +192,7 @@ Hebrew and Arabic automatically flip layout to RTL when selected.
 
 ## Video Studio Sub-App
 
-`src/renderer/ltx-studio/` is a vendored copy of [Lightricks/LTX-Desktop](https://github.com/Lightricks/LTX-Desktop) (Apache 2.0), built as a static React+Vite sub-app and loaded by `main.js::_loadVideoStudioIframe()` into a tab driven by `src/renderer/index.html#video-studio-view`.
+`src/renderer/ltx-studio/` is a vendored copy of [Lightricks/LTX-Desktop](https://github.com/Lightricks/LTX-Desktop) (Apache 2.0), built as a static React+Vite sub-app and loaded by `src/renderer/js/main.js::_loadVideoStudioIframe()` (the RENDERER main.js, not `src/main/main.js`) into a tab driven by `src/renderer/index.html#video-studio-view`.
 
 - Build: `npm run build:ltx-studio` — outputs `src/renderer/ltx-studio/dist/`. Chained into `build:prod:win` and `build:prod:mac`.
 - LTX's Electron main process and Python backend were removed. A stub at `src/renderer/ltx-studio/frontend/lib/electron-api-stub.ts` provides safe no-op defaults so the React app boots.
@@ -226,7 +219,7 @@ The **Synci** tab (after "My Media") is the licensed-music browser ported from t
 - **Shared main-process helpers** (`main.js`, near `setupScreenshotHandlers`): `synciHttpGetFollow` (redirect-following GET → `IncomingMessage`), `synciDownloadToFile`, `synciFetchToBuffer` — used by the `synci:download-to-disk`/`cache-track`/`waveform-peaks` handlers instead of three inline copies.
 - **API**: `synci*` methods in `src/renderer/js/api.js` use **direct `window.fetch`** against `${getApiUrl()}/synci…` (not IPC — endpoints are public/optional-auth; gated ones get the Bearer token). Names/shapes mirror the plugin so `synci-manager.js` runs unchanged.
 - **CSS**: `src/renderer/css/synci.css` = plugin CSS + a `#synci-view` var-alias block (the desktop lacks `--glass-*`, `--radius-sm/md/full`, `--accent-purple/green`) + the `.kdd-*` dropdown CSS.
-- **Wiring**: tab button + `#synci-view` container + css/script includes in `index.html`; tab listener + `switchView('synci')` branch in `main.js` (lazy-inits `new window.SynciManager(window.kolboDesktopSynciBridge, window.kolboAPI)`).
+- **Wiring**: tab button + `#synci-view` container + css/script includes in `index.html`; tab listener + `switchView('synci')` branch in `src/renderer/js/main.js` (the renderer main.js; lazy-inits `new window.SynciManager(window.kolboDesktopSynciBridge, window.kolboAPI)`).
 - **i18n**: nested `synci.*` block (+ `tabs.synci`) in `src/renderer/i18n/locales/*.json` (en full; others get the literal brand `tabs.synci` — `SynciManager.FALLBACK` covers English strings until translated). Brand "Synci" is never translated.
 
 ## Stock Media Library
@@ -282,6 +275,4 @@ The 32×32px navbar buttons in `.header` looked "fine on some computers, tiny on
 - Note: per the July 2026 webapp zoom work, the **tab webapp iframe** already uses CSS `zoom` (not `transform: scale`) for its per-tab zoom — so applying `setZoomFactor` at the parent level stacks correctly and the iframe re-rasterizes crisply.
 
 ## Last Updated
-- **Date**: July 16, 2026
-- **Version**: 1.6.4
-- **Status**: v1.6.4 ships TWO things together. **(1) Downloader YouTube reliability** — yt-dlp deprecated no-JS-runtime YouTube extraction; the handler now self-downloads a **Deno** JS runtime (to `userData/binaries`, unzipped via bundled bsdtar) and passes `--js-runtimes deno:PATH`, so YouTube resolves on tier 1 and stops falsely escalating to the browser sign-in tier. Tested end-to-end live (fetch succeeds on attempt 1/3, 37 formats). No installer/packaging change; provisioned in background on launch. **(2) UI Scale / DPI compensation**: navbar buttons + the rest of the UI no longer look tiny on Windows laptops with 125%/150% display scaling. Auto-detects `screen.getPrimaryDisplay().scaleFactor` on launch and applies `setZoomFactor(1 / scaleFactor)` to every webContents (main + OOPIF tab iframes); user can override in Settings → General → UI Scale (Auto / 75 / 90 / 100 / 110 / 125 / 150%). Persisted in `electron-store` (`ui_zoom_mode`). Stacks cleanly with the existing tab webapp CSS-zoom. Prior v1.6.3 — Social/Video **Downloader reliability**: yt-dlp handler rebuilt around a retry ladder (adaptive default client → auto-update → browser-cookie fallback) so YouTube/Instagram bot/login blocks stop surfacing as false "video not available"; honest error classification (`BOT_BLOCKED`), fail-fast on genuine removals. Prior v1.6.2 — embedded-webapp blur fix + Stock Media Library + crash telemetry. Prior: Synci music library, Video Studio LTX-Desktop vendoring.
+Version history lives in git tags (`git tag -l` / GitHub Releases). The durable rules from recent releases are embedded in their sections above (CSS zoom not transform, getPathForFile bridge, electron-store 8.x pin, do-not-pin youtube player_client, Deno JS runtime, UI Scale).

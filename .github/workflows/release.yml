@@ -68,7 +68,8 @@ jobs:
           npx electron-builder --win --publish never
 
       - name: Sign Windows installer
-        if: github.event.inputs.sign != 'false'
+        # Temporarily disabled to prevent SSL.com eSigner overage charges.
+        if: ${{ false }}
         uses: SSLcom/esigner-codesign@v1.3.2
         with:
           command: sign

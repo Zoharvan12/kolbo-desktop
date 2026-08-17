@@ -8,7 +8,7 @@ export default {
   theme: {
     extend: {
       fontFamily: {
-        sans: ['Inter', 'system-ui', 'sans-serif'],
+        sans: ['Poppins', 'Heebo', 'system-ui', 'sans-serif'],
       },
       colors: {
         // ── Semantic tokens via CSS variables ──

@@ -2,6 +2,10 @@
 /* Matches: G:\Projects\Kolbo.AI\github\kolbo-map\src\styles\base.css */
 
 :root {
+  /* Typography — Poppins for Latin, Heebo for Hebrew (per-glyph fallback:
+     Poppins has no Hebrew glyphs, so Hebrew text automatically renders in Heebo) */
+  --font-sans: 'Poppins', 'Heebo', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+
   /* Background & Foreground - Dark Mode (Plugin Default) */
   --background: 15 15 15;        /* #0f0f0f - 6% brightness */
   --foreground: 255 255 255;      /* #ffffff - Pure white text */
