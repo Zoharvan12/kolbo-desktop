@@ -206,7 +206,9 @@
       "restartInstall": "再起動してインストール",
       "downloadingProgress": "ダウンロード中... {{percent}}%",
       "downloadingProgressMb": "ダウンロード中... {{percent}}% ({{mb}} MB / {{mbTotal}} MB)",
-      "downloadedToDownloads": "インストーラーがダウンロードフォルダにダウンロードされました！"
+      "downloadedToDownloads": "インストーラーがダウンロードフォルダにダウンロードされました！",
+      "installing": "アップデートをインストール中 — アプリはまもなく再起動します…",
+      "jobsRunning": "実行中のタスクが {{count}} 件あり、失われます。アップデートは次回終了時に自動で適用されます。それでも今すぐ再起動しますか？"
     },
     "account": {
       "title": "アカウント",

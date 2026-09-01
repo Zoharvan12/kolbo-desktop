@@ -816,6 +816,7 @@ ${Icons.get('sliders', 20)}
 
     formats.forEach(fmt => {
       const btn = document.createElement('button');
+      btn.className = 'ff-modal-format-option';
       btn.dataset.format = fmt.format;
       btn.dataset.type = type;
       btn.style.cssText = `
@@ -833,9 +834,11 @@ ${Icons.get('sliders', 20)}
         text-align: left;
       `;
 
+      const formatIconName = type === 'video' ? 'film' : type === 'audio' ? 'music' : 'image';
+
       btn.innerHTML = `
         <div style="display: flex; align-items: center; gap: 8px; width: 100%;">
-          <span style="font-size: 20px;">${fmt.icon}</span>
+          <span class="ff-modal-format-icon" aria-hidden="true">${Icons.get(formatIconName, 18)}</span>
           <span style="font-size: 14px; font-weight: 600;">${fmt.label}</span>
         </div>
         <span style="font-size: 11px; color: rgba(255, 255, 255, 0.5); line-height: 1.3;">${fmt.desc}</span>

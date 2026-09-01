@@ -206,7 +206,9 @@
       "restartInstall": "Neustart & Installieren",
       "downloadingProgress": "Herunterladen... {{percent}}%",
       "downloadingProgressMb": "Herunterladen... {{percent}}% ({{mb}} MB / {{mbTotal}} MB)",
-      "downloadedToDownloads": "Installer in den Downloads-Ordner heruntergeladen!"
+      "downloadedToDownloads": "Installer in den Downloads-Ordner heruntergeladen!",
+      "installing": "Update wird installiert – die App wird gleich neu gestartet…",
+      "jobsRunning": "{{count}} Vorgang/Vorgänge laufen noch und gehen verloren. Das Update wird beim nächsten Beenden automatisch installiert. Trotzdem jetzt neu starten?"
     },
     "account": {
       "title": "Konto",

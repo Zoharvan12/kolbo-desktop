@@ -52,6 +52,39 @@ Every push to master builds TWO branded desktop apps: Kolbo Studio (`release.yml
 ### Windows signing
 Windows currently ships UNSIGNED. An SSL.com eSigner step exists in `release.yml` but is hardcoded off (`if: ${{ false }}` — disabled to prevent eSigner overage charges), which also makes the workflow's `sign` dispatch input dead. `verifyUpdateCodeSignature: false` in `package.json` is load-bearing for auto-update while unsigned — do not re-enable verification before signing is re-enabled. The latest.yml SHA512-regeneration step in the workflow exists because signing mutates the exe.
 
+### Auto-update (silent, Aug 2026)
+Flow: launch → check after 3s → `autoDownload` pulls it in the background → header button
+turns into **"Restart to Update"** → one click quits, installs silently, relaunches.
+Never clicked? `autoInstallOnAppQuit` lands it on the next normal quit.
+
+**`quitAndInstall(true, true)` — the first argument (`isSilent`) is load-bearing, do not set it back to `false`.**
+It was `false`, which is why updates felt broken: electron-updater only appends `/S` when
+`isSilent`, so users got the full NSIS wizard, *and* — per app-builder-lib's
+`templates/nsis/installSection.nsh` — an assisted installer (`oneClick: false`) only honors
+`--force-run` **when `${Silent}`**, so the app never relaunched itself; the user had to tick
+"Run Kolbo Studio" on the finish page. Silent fixes both. Install dir is preserved either way
+(`multiUser.nsh` reads `HKCU InstallLocation` into `$INSTDIR` before any page logic), and the
+old-version uninstaller was always invoked `/S /KEEP_APP_DATA`.
+Consequence: nothing is on screen during the ~15s swap, so `handleInstallUpdate()` in the
+renderer raises `#loading-overlay` with `settings.updates.installing` first — otherwise the app
+just vanishes and reads as a crash.
+
+**No `setFeedURL` — do not add one back.** electron-builder bakes `app-update.yml` from each
+build's own `publish` block, so Kolbo Studio reads kolbo-desktop-releases and Sapir reads
+`kolbo-desktop-sapir`. The old hardcoded feed pointed every build at `Zoharvan12/kolbo-desktop`,
+which meant **Sapir installs updated themselves into Kolbo Studio**. `build-whitelabel.js` sets
+the publish block but has never patched `main.js`, so any hardcoded feed silently breaks the
+whitelabel.
+
+Two more rules the UI depends on:
+- The header button appears **only** on `update-downloaded`, never on `update-available` — a
+  download in flight is not actionable and a badge for it is noise. Progress lives in Settings.
+- `updater:install` returns `{ blocked, count }` instead of quitting when
+  `ffmpegHandler.activeJobs` / `ytdlpHandler.activeDownloads` are non-empty; the renderer
+  confirms and re-invokes with `force`. `quitAndInstall` is a hard kill and would drop a
+  running export. `updater:download` (manual save-to-Downloads) is a **fallback only** — its
+  button stays hidden unless `updater:error` fires while an update is actually known.
+
 ### Main Code
 - `src/main/main.js` - Main Electron process
 - `src/renderer/` - Renderer process (UI)

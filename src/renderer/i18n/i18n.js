@@ -204,7 +204,12 @@ window.KolboI18n = (function () {
         launchOnStartup: "Launch on Startup",
         launchOnStartupDesc: "Automatically start Kolbo Studio when your computer boots",
         downloadFolder: "Download Folder",
-        changeFolder: "Change Folder"
+        changeFolder: "Change Folder",
+        uiScale: "UI Scale",
+        uiScaleDesc: "Auto-detects your display scaling so buttons stay easy to click.",
+        uiScaleAuto: "Auto (recommended)",
+        uiScaleAutoDetected: "Detected display scaling: {{pct}}%. Buttons will look the same as on a 100% display.",
+        uiScaleManual: "Manual override. Buttons will be {{pct}}% of design size."
       },
       formatFactory: {
         title: "Format Factory",

@@ -206,7 +206,9 @@
       "restartInstall": "הפעל מחדש והתקן",
       "downloadingProgress": "מוריד... {{percent}}%",
       "downloadingProgressMb": "מוריד... {{percent}}% ({{mb}} MB / {{mbTotal}} MB)",
-      "downloadedToDownloads": "המתקין הורד לתיקיית ההורדות!"
+      "downloadedToDownloads": "המתקין הורד לתיקיית ההורדות!",
+      "installing": "מתקין עדכון — האפליקציה תיפתח מחדש בעוד רגע…",
+      "jobsRunning": "{{count}} משימות עדיין רצות ויאבדו. העדכון יותקן אוטומטית בפעם הבאה שתסגור את האפליקציה. להפעיל מחדש בכל זאת?"
     },
     "account": {
       "title": "חשבון",

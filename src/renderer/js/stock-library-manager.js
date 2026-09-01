@@ -60,6 +60,7 @@ class StockLibraryManager {
 
     // rAF-throttle the infinite-scroll handler (coalesces layout reads to 1/frame).
     this._scrollRaf = 0;
+    this._collectionsHidden = false;
     this._scrollHandler = () => {
       if (this._scrollRaf) return;
       this._scrollRaf = requestAnimationFrame(() => { this._scrollRaf = 0; this._onScroll(); });
@@ -119,6 +120,14 @@ class StockLibraryManager {
     return s;
   }
   isAudio() { return StockLibraryManager.AUDIO_TYPES.indexOf(this.mediaType) >= 0; }
+  _queryNeedsUnderstanding(query) {
+    const value = String(query || '').trim();
+    if (!value) return false;
+    if (Array.from(value).some((char) => (char.codePointAt(0) || 0) > 127)) return true;
+    const words = value.split(/\s+/).filter(Boolean);
+    if (words.length > 4) return true;
+    return /\b(the|a|an|for|with|that|of|some|something|like|feels?|mood|vibe|need|want|show|in|on|to|at|my|me|app|intro|about)\b/i.test(value);
+  }
   isAuth() { return !!(this.api && this.api.isAuthenticated && this.api.isAuthenticated()); }
   requireAuth() {
     if (this.isAuth()) return true;
@@ -188,18 +197,25 @@ class StockLibraryManager {
         '<div id="stock-ai-hint" class="stock-ai-hint hidden"></div>' +
 
         '<div id="stock-mediatypes" class="stock-chiprow stock-mediatypes"></div>' +
-        '<div id="stock-sources" class="stock-chiprow stock-sources"></div>' +
-        '<div id="stock-collections" class="stock-rail hidden"></div>' +
-        '<div id="stock-facets" class="stock-facets hidden"></div>' +
-        '<div id="stock-controls" class="stock-controls hidden"></div>' +
-        '<div id="stock-ranges" class="stock-ranges hidden"></div>' +
-        '<div id="stock-categories" class="stock-chiprow stock-categories"></div>' +
-        '<div id="stock-albumview" class="stock-albumview hidden"></div>' +
-
-        '<div id="stock-project-bar" class="stock-project-bar">' +
-          '<label>' + this._esc(this.t('stock.projectScope')) + '</label>' +
-          '<button id="stock-project-select" class="stock-dd-trigger" type="button"><span id="stock-project-text">' + this._esc(this.t('stock.allProjects')) + '</span>' + this._icon('chevronDown', 12) + '</button>' +
+        '<div class="stock-source-toolbar">' +
+          '<div id="stock-sources" class="stock-chiprow stock-sources"></div>' +
+          '<div id="stock-project-bar" class="stock-project-bar">' +
+            '<button id="stock-project-select" class="stock-dd-trigger stock-project-select" type="button" title="' + this._escAttr(this.t('stock.projectScope')) + '">' +
+              this._icon('folder', 13) + '<span id="stock-project-text">' + this._esc(this.t('stock.allProjects')) + '</span>' + this._icon('chevronDown', 12) + '</button>' +
+          '</div>' +
         '</div>' +
+        '<div id="stock-collections" class="stock-rail hidden"></div>' +
+        '<div class="stock-filter-toolbar">' +
+          '<div class="stock-filter-primary">' +
+            '<div id="stock-facets" class="stock-facets hidden"></div>' +
+            '<div id="stock-categories" class="stock-categories"></div>' +
+          '</div>' +
+          '<div class="stock-filter-actions">' +
+            '<div id="stock-controls" class="stock-controls hidden"></div>' +
+          '</div>' +
+        '</div>' +
+        '<div id="stock-ranges" class="stock-ranges hidden"></div>' +
+        '<div id="stock-albumview" class="stock-albumview hidden"></div>' +
 
         '<div id="stock-partial" class="stock-partial hidden"></div>' +
 
@@ -403,14 +419,39 @@ class StockLibraryManager {
       else chips.push(c);
     });
 
-    if (!chips.length) box.innerHTML = '';
+    // Music uses the four facet dimensions and the dedicated BPM/Length panel.
+    // Generic cross-provider query chips add a second, competing taxonomy and
+    // consume the result viewport, so mirror kolbo-map and omit them for music.
+    if (this.mediaType === 'music' || !chips.length) box.innerHTML = '';
     else {
-      box.innerHTML = chips.slice(0, 40).map((c) => {
-        const active = (this.filters.category && this.filters.category === c.providerParam) || (c.paramType === 'query' && this.query === c.providerParam);
-        return '<button class="stock-chip stock-chip-sm' + (active ? ' active' : '') + '" data-param="' + this._escAttr(c.providerParam) + '" data-ptype="' + this._escAttr(c.paramType || 'category') + '" data-csrc="' + this._escAttr(c.source || '') + '">' + this._esc(c.label) + '</button>';
-      }).join('');
-      box.querySelectorAll('.stock-chip').forEach((chip) => chip.addEventListener('click', () => this._selectCategory(chip.dataset.param, chip.dataset.ptype, chip.dataset.csrc)));
+      const visibleChips = chips.slice(0, 40);
+      const activeIndex = visibleChips.findIndex((c) =>
+        (this.filters.category && this.filters.category === c.providerParam) ||
+        (c.paramType === 'query' && this.query === c.providerParam));
+      const active = activeIndex >= 0 ? visibleChips[activeIndex] : null;
+      const triggerLabel = active ? active.label : this.t('synci.filter.more');
+      box.innerHTML = '<button id="stock-category-select" class="stock-dd-trigger stock-category-select' + (active ? ' active' : '') + '" type="button" aria-haspopup="listbox" title="' + this._escAttr(this.t('synci.filter.more')) + '">' +
+        this._icon('slidersHorizontal', 13) + '<span>' + this._esc(triggerLabel) + '</span>' + this._icon('chevronDown', 12) + '</button>';
+      const trigger = document.getElementById('stock-category-select');
+      if (trigger) trigger.addEventListener('click', () => KolboDropdown.open({
+        trigger, noAvatar: true,
+        items: [{ id: '__all', label: this.t('media.filters.all'), selected: !active }].concat(visibleChips.map((c, index) => ({
+          id: String(index), label: c.label, selected: index === activeIndex
+        }))),
+        onSelect: (id) => {
+          if (id === '__all') {
+            const activeQuery = visibleChips.find((c) => c.paramType === 'query' && this.query === c.providerParam);
+            this.filters.category = null; this.filters.subcategory = null;
+            if (activeQuery) { this.query = ''; const input = document.getElementById('stock-search-input'); if (input) input.value = ''; }
+            this._loadCategories(); this.runSearch();
+            return;
+          }
+          const selected = visibleChips[Number(id)];
+          if (selected) this._selectCategory(selected.providerParam, selected.paramType || 'category', selected.source || '');
+        }
+      }));
     }
+    box.classList.toggle('hidden', this.section !== 'browse' || !box.innerHTML);
     this._renderFacets();
   }
 
@@ -431,7 +472,7 @@ class StockLibraryManager {
     const box = document.getElementById('stock-facets');
     if (!box) return;
     const dims = ['genre', 'mood', 'theme', 'instrument'].filter((d) => (this._facetOpts[d] || []).length);
-    const hasFacets = this.isAudio() && (dims.length || this.mediaType === 'music');
+    const hasFacets = this.section === 'browse' && this.isAudio() && (dims.length || this.mediaType === 'music');
     box.classList.toggle('hidden', !hasFacets);
     if (!hasFacets) return;
 
@@ -442,6 +483,10 @@ class StockLibraryManager {
         this._esc(this.t('stock.facet.' + d)) + (sel ? ': ' + this._esc(sel) : '') + this._icon('chevronDown', 11) + '</button>';
     });
     if (this.mediaType === 'music') {
+      const rangesActive = this.filters.bpmMin != null || this.filters.bpmMax != null || this.filters.durationMin != null || this.filters.durationMax != null;
+      const rangesLabel = this.t('stock.range.bpm') + ' · ' + this.t('stock.range.duration');
+      html += '<button class="stock-facet-toggle stock-range-toggle' + (this._openFacet === 'ranges' ? ' open' : '') + (rangesActive ? ' has' : '') + '" data-facet="ranges">' +
+        this._icon('slidersHorizontal', 13) + '<span>' + this._esc(rangesLabel) + '</span>' + this._icon('chevronDown', 11) + '</button>';
       const v = this.filters.vocals || 'all';
       html += '<span class="stock-seg-group">' + ['all', 'instrumental', 'vocals'].map((opt) =>
         '<button class="stock-seg' + (v === opt ? ' active' : '') + '" data-vocals="' + opt + '">' + this._esc(this.t('stock.vocals.' + opt)) + '</button>').join('') + '</span>';
@@ -450,7 +495,7 @@ class StockLibraryManager {
     if (anyActive) html += '<button class="stock-facet-clear" data-clear="1">' + this._icon('x', 12) + this._esc(this.t('stock.clear')) + '</button>';
     html += '</div>';
 
-    if (this._openFacet && (this._facetOpts[this._openFacet] || []).length) {
+    if (this._openFacet && this._openFacet !== 'ranges' && (this._facetOpts[this._openFacet] || []).length) {
       html += '<div class="stock-facet-panel">' + this._facetOpts[this._openFacet].map((c) => {
         const active = this.filters[this._openFacet] === c.providerParam;
         return '<button class="stock-chip stock-chip-sm' + (active ? ' active' : '') + '" data-fval="' + this._escAttr(c.providerParam) + '">' + this._esc(c.label) + '</button>';
@@ -459,7 +504,9 @@ class StockLibraryManager {
     box.innerHTML = html;
 
     box.querySelectorAll('.stock-facet-toggle').forEach((b) => b.addEventListener('click', () => {
-      this._openFacet = this._openFacet === b.dataset.facet ? null : b.dataset.facet; this._renderFacets();
+      this._openFacet = this._openFacet === b.dataset.facet ? null : b.dataset.facet;
+      this._renderFacets();
+      this._renderRanges();
     }));
     box.querySelectorAll('.stock-chip[data-fval]').forEach((b) => b.addEventListener('click', () => {
       const d = this._openFacet; const val = b.dataset.fval;
@@ -488,12 +535,12 @@ class StockLibraryManager {
     } catch (e) { this.collections = []; }
     if (!this.collections.length) { rail.classList.add('hidden'); rail.innerHTML = ''; return; }
     rail.classList.remove('hidden');
-    rail.innerHTML = this.collections.map((c) => {
+    rail.innerHTML = '<div class="stock-rail-inner">' + this.collections.map((c) => {
       const active = this.filters.collectionId === c.id;
       const cover = c.coverUrl ? '<img src="' + this._escAttr(c.coverUrl) + '" alt="" loading="lazy">' : '';
       return '<button class="stock-coll' + (active ? ' active' : '') + '" data-coll="' + this._escAttr(c.id) + '" title="' + this._escAttr(c.title) + '">' +
         cover + '<span class="stock-coll-title">' + this._esc(c.title) + '</span></button>';
-    }).join('');
+    }).join('') + '</div>';
     rail.querySelectorAll('.stock-coll').forEach((b) => b.addEventListener('click', () => {
       const coll = (this.collections || []).filter((x) => x.id === b.dataset.coll)[0];
       // Music collections open a dedicated album page; SFX packs just filter the grid.
@@ -537,16 +584,20 @@ class StockLibraryManager {
   async _renderRanges() {
     const box = document.getElementById('stock-ranges');
     if (!box) return;
-    const show = this.section === 'browse' && this.mediaType === 'music';
-    box.classList.toggle('hidden', !show);
-    if (!show) { box.innerHTML = ''; return; }
+    const show = this.section === 'browse' && this.mediaType === 'music' && this._openFacet === 'ranges';
+    if (!show) { box.classList.add('hidden'); box.innerHTML = ''; return; }
     if (!this._musicBounds && typeof this.api.stockMusicBounds === 'function') {
+      // Keep the panel out of layout while its bounds load; an empty bordered
+      // strip reads as a broken slider and can race a quick open/close action.
+      box.classList.add('hidden');
       try { this._musicBounds = await this.api.stockMusicBounds(); } catch (e) { this._musicBounds = { bpm: [40, 200], duration: [0, 360] }; }
     }
+    if (this.section !== 'browse' || this.mediaType !== 'music' || this._openFacet !== 'ranges') return;
     const b = this._musicBounds || { bpm: [40, 200], duration: [0, 360] };
     box.innerHTML =
       this._rangeHtml('bpm', this.t('stock.range.bpm'), b.bpm[0], b.bpm[1], this.filters.bpmMin, this.filters.bpmMax, '') +
       this._rangeHtml('dur', this.t('stock.range.duration'), b.duration[0], b.duration[1], this.filters.durationMin, this.filters.durationMax, 's');
+    box.classList.remove('hidden');
     this._wireRange(box);
   }
   _rangeValText(a, b, min, max, unit) {
@@ -670,7 +721,7 @@ class StockLibraryManager {
   }
   _buildSearchParams() {
     const f = this.filters;
-    const p = { source: this.source, mediaType: this.mediaType, perPage: this.perPage, smart: !!this.query };
+    const p = { source: this.source, mediaType: this.mediaType, perPage: this.perPage, smart: this._queryNeedsUnderstanding(this.query) };
     if (this.query) p.query = this.query;
     ['category', 'subcategory', 'genre', 'mood', 'theme', 'instrument', 'vocals', 'color', 'orientation', 'collectionId'].forEach((k) => { if (f[k]) p[k] = f[k]; });
     ['bpmMin', 'bpmMax', 'durationMin', 'durationMax'].forEach((k) => { if (f[k] != null) p[k] = f[k]; });
@@ -680,6 +731,8 @@ class StockLibraryManager {
   }
   runSearch() {
     this.assets = []; this.page = 1; this.nextCursor = null; this.hasMore = true; this._optimizedQuery = null;
+    this._setCollectionsHidden(false);
+    const results = document.getElementById('stock-results'); if (results) results.scrollTop = 0;
     this._stopPlayback(); this._clearResults(); this._setPartial(false); this._renderAiHint();
     this._saveState();
     this._fetch(false);
@@ -717,10 +770,24 @@ class StockLibraryManager {
     }
   }
   _onScroll() {
-    if (this.loading || !this.hasMore) return;
     const el = document.getElementById('stock-results');
     if (!el) return;
+    const hidden = this._collectionsHidden ? el.scrollTop > 4 : el.scrollTop > 20;
+    this._setCollectionsHidden(hidden);
+    if (this.loading || !this.hasMore) return;
     if (el.scrollTop + el.clientHeight >= el.scrollHeight - 600) { if (this.section === 'browse') this._fetch(true); else this._loadList(false); }
+  }
+
+  _setCollectionsHidden(hidden) {
+    if (hidden === this._collectionsHidden) return;
+    this._collectionsHidden = hidden;
+    const panel = document.querySelector('#stock-view .stock-panel');
+    if (panel) panel.classList.toggle('stock-collections-hidden', hidden);
+    if (hidden && this._openFacet) {
+      this._openFacet = null;
+      this._renderFacets();
+      this._renderRanges();
+    }
   }
 
   _browseUI() {
@@ -731,7 +798,11 @@ class StockLibraryManager {
     const prev = this.section; this.section = section;
     document.querySelectorAll('.stock-tab').forEach((b) => b.classList.toggle('active', b.dataset.section === section));
     if (this._albumMode) this._closeAlbum();
-    this._renderControls(); this._renderRanges(); this._renderFooter();
+    const categories = document.getElementById('stock-categories');
+    if (categories) categories.classList.toggle('hidden', section !== 'browse' || !categories.innerHTML);
+    const filterToolbar = document.querySelector('#stock-view .stock-filter-toolbar');
+    if (filterToolbar) filterToolbar.classList.toggle('hidden', section !== 'browse');
+    this._renderFacets(); this._renderControls(); this._renderRanges(); this._renderFooter();
     if (section === 'browse') { if (force || prev !== 'browse') this.runSearch(); return; }
     if (!this.requireAuth()) { this.switchSection('browse', true); return; }
     this._saveState();
@@ -740,7 +811,12 @@ class StockLibraryManager {
   async _loadList(reset) {
     if (this.loading) return;
     if (!this.requireAuth()) return;
-    if (reset) { this.assets = []; this.page = 1; this.hasMore = true; this._stopPlayback(); this._clearResults(); this._setPartial(false); this._renderAiHint(); }
+    if (reset) {
+      this.assets = []; this.page = 1; this.hasMore = true;
+      this._setCollectionsHidden(false);
+      const results = document.getElementById('stock-results'); if (results) results.scrollTop = 0;
+      this._stopPlayback(); this._clearResults(); this._setPartial(false); this._renderAiHint();
+    }
     if (!this.hasMore) return;
     this.loading = true; this._beginLoad();
     const reqId = ++this._reqId;
@@ -1714,6 +1790,8 @@ StockLibraryManager.ICONS = {
   grid3x3: '<rect width="18" height="18" x="3" y="3" rx="2"></rect><path d="M3 9h18"></path><path d="M3 15h18"></path><path d="M9 3v18"></path><path d="M15 3v18"></path>',
   arrowUpDown: '<path d="m21 16-4 4-4-4"></path><path d="M17 20V4"></path><path d="m3 8 4-4 4 4"></path><path d="M7 4v16"></path>',
   shuffle: '<path d="M2 18h1.4c1.3 0 2.5-.6 3.3-1.7l6.1-8.6c.7-1.1 2-1.7 3.3-1.7H22"></path><path d="m18 2 4 4-4 4"></path><path d="M2 6h1.9c1.5 0 2.9.9 3.6 2.2"></path><path d="M22 18h-5.9c-1.3 0-2.6-.7-3.3-1.8l-.5-.8"></path><path d="m18 14 4 4-4 4"></path>',
+  slidersHorizontal: '<line x1="21" x2="14" y1="4" y2="4"></line><line x1="10" x2="3" y1="4" y2="4"></line><line x1="21" x2="12" y1="12" y2="12"></line><line x1="8" x2="3" y1="12" y2="12"></line><line x1="21" x2="16" y1="20" y2="20"></line><line x1="12" x2="3" y1="20" y2="20"></line><line x1="14" x2="14" y1="2" y2="6"></line><line x1="8" x2="8" y1="10" y2="14"></line><line x1="16" x2="16" y1="18" y2="22"></line>',
+  folder: '<path d="M20 20a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.9a2 2 0 0 1-1.69-.9L9.6 3.9A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2Z"></path>',
 };
 
 StockLibraryManager.FALLBACK = {
@@ -1731,6 +1809,7 @@ StockLibraryManager.FALLBACK = {
   'stock.sort.bpmAsc': 'BPM · slowest', 'stock.sort.bpmDesc': 'BPM · fastest', 'stock.sort.durAsc': 'Length · shortest', 'stock.sort.durDesc': 'Length · longest',
   'stock.surprise': 'Surprise me',
   'stock.range.bpm': 'Tempo (BPM)', 'stock.range.duration': 'Length', 'stock.range.any': 'Any',
+  'synci.filter.more': 'Filters', 'media.filters.all': 'All',
   'stock.album.tracks': '{{count}} tracks', 'stock.album.back': 'Back to library', 'stock.album.by': 'Album by {{artist}}', 'stock.album.play': 'Play', 'stock.album.similar': 'Similar albums',
   'stock.vocals.all': 'All', 'stock.vocals.instrumental': 'Instrumental', 'stock.vocals.vocals': 'With vocals',
   'stock.vision.image': 'Upload an image', 'stock.vision.video': 'Upload a video', 'stock.vision.frame': 'From timeline frame',
