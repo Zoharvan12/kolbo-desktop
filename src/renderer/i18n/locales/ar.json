@@ -206,7 +206,9 @@
       "restartInstall": "إعادة التشغيل والتثبيت",
       "downloadingProgress": "جاري التنزيل... {{percent}}%",
       "downloadingProgressMb": "جاري التنزيل... {{percent}}% ({{mb}} MB / {{mbTotal}} MB)",
-      "downloadedToDownloads": "تم تنزيل المثبت في مجلد التنزيلات!"
+      "downloadedToDownloads": "تم تنزيل المثبت في مجلد التنزيلات!",
+      "installing": "جارٍ تثبيت التحديث — سيُعاد فتح التطبيق بعد لحظات…",
+      "jobsRunning": "لا تزال {{count}} مهمة قيد التشغيل وستُفقد. سُيثبَّت التحديث تلقائيًا في المرة القادمة عند الإغلاق. إعادة التشغيل الآن على أي حال؟"
     },
     "account": {
       "title": "الحساب",

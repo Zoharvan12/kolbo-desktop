@@ -355,10 +355,21 @@ class KolboApp {
     await kolboAPI.syncTokenFromMainProcess();
 
     // Show auth screen when any direct fetch() call returns 401 (e.g. Synci endpoints).
-    kolboAPI.onUnauthorized = () => this.handleLogout(true);
+    kolboAPI.onUnauthorized = window.kolboUiAudit?.isActive
+      ? () => console.warn('[UI Audit] Ignoring disposable-profile 401')
+      : () => this.handleLogout(true);
 
     if (kolboAPI.isAuthenticated()) {
       this.showLoadingOverlay();
+      // A background visual audit must not mutate authentication or disappear
+      // into the sign-in screen when its disposable profile has stale API data.
+      // It audits layout/navigation only; normal app startup remains unchanged.
+      if (window.kolboUiAudit?.isActive) {
+        this.showMediaScreen(false);
+        this.cacheDOM();
+        this.bindEvents();
+        return;
+      }
       Promise.all([this.loadProjects(), this.loadMedia()]).then(() => {
         // Re-check auth: a 401 during loadProjects/loadMedia clears the token
         // and calls handleLogout(). Without this guard, showMediaScreen would
@@ -2122,6 +2133,12 @@ ${Icons.get('folder', 16)}
   }
 
   async loadMedia(forceRefresh = false, appendToExisting = false) {
+    if (window.kolboUiAudit?.isActive) {
+      this.getElement('loading')?.classList.add('hidden');
+      this.getElement('error-state')?.classList.add('hidden');
+      this.getElement('empty-state')?.classList.remove('hidden');
+      return;
+    }
     if (this.isLoading || (this.loadingMore && appendToExisting)) return;
 
     // IMPROVED: Cancel any in-flight media request
@@ -4311,9 +4328,7 @@ ${Icons.get('file-text', 16)}
         // Show cache location
         const cacheLocationPath = document.getElementById('cache-location-path');
         if (cacheLocationPath) {
-          // Get user data path from Electron
-          const userDataPath = await this.getUserDataPath();
-          cacheLocationPath.textContent = `${userDataPath}\\MediaCache`;
+          cacheLocationPath.textContent = cacheInfo.path || '';
         }
 
         // Load app version
@@ -4644,6 +4659,9 @@ ${Icons.get('file-text', 16)}
 
   async loadUpdateSettings() {
     if (!window.kolboDesktop) return;
+    // Auto-updater handlers are intentionally disabled in the disposable,
+    // off-screen visual-audit process. Normal desktop windows are unchanged.
+    if (window.kolboUiAudit?.isActive) return;
 
     try {
       // Display current version
@@ -4814,6 +4832,16 @@ ${Icons.get('refresh-cw', 16)}
       window.kolboDesktop.onUpdateError((error) => {
         console.error('[Update] Error:', error);
         this.showUpdateStatus(`Error checking for updates: ${error}`, 'error');
+        // Only now is the manual "download the installer yourself" path worth offering.
+        // Shown by default it just races the background download and ends in a confusing
+        // "check your Downloads folder".
+        // ...and only when an update actually exists. A failed routine check (offline,
+        // GitHub blip) must not conjure a download button out of nothing.
+        const card = this.getElement('update-available-card');
+        const downloadBtn = this.getElement('download-update-btn');
+        if (downloadBtn && card && !card.classList.contains('hidden')) {
+          downloadBtn.classList.remove('hidden');
+        }
       });
     }
   }
@@ -4823,22 +4851,9 @@ ${Icons.get('refresh-cw', 16)}
     console.log('[Updater] Update available:', info.version);
     }
 
-    // Show header update button — auto-download is running in background
-    const updateBtn = this.getElement('update-available-btn');
-    const updateBtnLabel = this.getElement('update-btn-label');
-    if (updateBtn) {
-      updateBtn.classList.remove('hidden');
-          if (updateBtnLabel) updateBtnLabel.textContent = window.t ? window.t('header.downloadingUpdate') : 'Downloading Update…';
-      updateBtn.onclick = () => {
-        this.switchView('settings');
-        setTimeout(() => {
-          const updatesSection = document.querySelector('.settings-section:has(#update-available-card)');
-          if (updatesSection) {
-            updatesSection.scrollIntoView({ behavior: 'smooth', block: 'start' });
-          }
-        }, 100);
-      };
-    }
+    // Deliberately NO header button here. A download in progress is not actionable,
+    // so a badge for it is just noise — the button appears in showUpdateDownloaded()
+    // once there is actually something to click. Settings still shows live progress.
 
     // Show settings page update card
     const updateCard = this.getElement('update-available-card');
@@ -4989,38 +5004,36 @@ ${Icons.get('download', 16)}
     if (this.DEBUG_MODE) {
       console.log('[Update] Installing update');
     }
-    await window.kolboDesktop.installUpdate();
-    // App will quit, install, and relaunch
-  }
 
-  async getUserDataPath() {
-    // Get from Electron's app.getPath('userData')
-    // This is typically: C:\Users\{username}\AppData\Roaming\kolbo-desktop
-    try {
-      // We can infer this from the environment or ask main process
-      // For now, use a reasonable default
-      if (navigator.platform.includes('Win')) {
-        const username = await this.getUsername();
-        return `C:\\Users\\${username}\\AppData\\Roaming\\kolbo-desktop`;
-      } else if (navigator.platform.includes('Mac')) {
-        return '~/Library/Application Support/kolbo-desktop';
-      } else {
-        return '~/.config/kolbo-desktop';
+    // The installer now runs silently, so there is no window of any kind during
+    // the ~15s swap. Hold the screen with the existing loading overlay, otherwise
+    // the app just vanishes and reads as a crash.
+    const overlay = document.getElementById('loading-overlay');
+    if (overlay) {
+      const text = overlay.querySelector('.loading-text');
+      if (text) {
+        text.removeAttribute('data-i18n'); // don't let a locale re-render overwrite it
+        text.textContent = window.t
+          ? window.t('settings.updates.installing')
+          : 'Installing update — the app will reopen in a moment…';
       }
-    } catch (error) {
-      return 'AppData/kolbo-desktop';
+      overlay.classList.remove('hidden');
     }
-  }
 
-  async getUsername() {
-    // Get username from environment
-    try {
-      // In Electron, we can use process.env, but it's in main process
-      // For now, return a placeholder
-      return 'User';
-    } catch (error) {
-      return 'User';
+    const result = await window.kolboDesktop.installUpdate();
+
+    // Main process refuses while an export/download is mid-flight. The update still
+    // lands on the next normal quit, so "Later" is a real option here.
+    if (result && result.blocked) {
+      if (overlay) overlay.classList.add('hidden');
+      const msg = window.t
+        ? window.t('settings.updates.jobsRunning', { count: result.count })
+        : `${result.count} job(s) are still running and will be lost. The update installs automatically next time you quit. Restart now anyway?`;
+      if (!window.confirm(msg)) return;
+      if (overlay) overlay.classList.remove('hidden');
+      await window.kolboDesktop.installUpdate(true);
     }
+    // App quits, installs silently, and relaunches itself
   }
 
   async handleClearCache() {
@@ -5340,4 +5353,3 @@ if (document.readyState === "loading") {
 } else {
   setupDownloadNotifications();
 }
-

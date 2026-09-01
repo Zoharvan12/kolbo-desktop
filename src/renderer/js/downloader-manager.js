@@ -39,6 +39,9 @@ class DownloaderManager {
     // Setup IPC listeners
     this.setupIPCListeners();
 
+    this.updateToolbarButtons();
+    this.checkEmptyState();
+
     this.initialized = true;
     console.log('[Downloader] Initialized successfully');
   }
@@ -706,9 +709,11 @@ class DownloaderManager {
   updateToolbarButtons() {
     const startBtn = document.getElementById('dl-start-all-btn');
     const stopBtn = document.getElementById('dl-stop-all-btn');
+    const clearBtn = document.getElementById('dl-clear-btn');
 
     const hasPending = this.queue.some(j => j.status === 'pending');
     const hasDownloading = this.queue.some(j => j.status === 'downloading');
+    const hasClearable = this.queue.some(j => j.status === 'completed' || j.status === 'failed');
 
     if (startBtn) {
       const canStart = hasPending && !hasDownloading;
@@ -725,6 +730,10 @@ class DownloaderManager {
     if (stopBtn) {
       stopBtn.disabled = !hasDownloading;
     }
+
+    if (clearBtn) {
+      clearBtn.disabled = !hasClearable;
+    }
   }
 
   checkEmptyState() {
@@ -734,6 +743,10 @@ class DownloaderManager {
     if (emptyState) {
       emptyState.style.display = hasItems ? 'none' : 'flex';
     }
+
+
+    const queueSection = document.querySelector('.dl-queue-section');
+    if (queueSection) queueSection.classList.toggle('is-empty', !hasItems);
   }
 
   showError(message) {

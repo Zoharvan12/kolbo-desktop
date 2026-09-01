@@ -5,6 +5,7 @@
 const { app, BrowserWindow, Tray, Menu, nativeImage, screen, dialog, webContents } = require('electron');
 const path = require('path');
 const config = require('../config');
+const IS_UI_AUDIT = process.env.KOLBO_UI_AUDIT === '1';
 
 // ── Deferred imports — loaded lazily after splash is visible ───────────────
 let Store, store, autoUpdater, checkDiskSpace;
@@ -14,6 +15,37 @@ let FFmpegHandler, YtdlpHandler, FileExplorerHandler;
 function loadDeferredModules() {
   Store = require('electron-store');
   store = new Store();
+
+  if (IS_UI_AUDIT) {
+    const authKeys = ['token', 'kolbo_token', 'kolbo_access_token'];
+    const isIsolatedSignInAudit = process.env.KOLBO_UI_AUDIT_ISOLATED === '1';
+
+    // Every audit runs in its own profile. For a full audit, seed only the saved
+    // auth token from the real profile; all subsequent renderer/storage writes
+    // and any 401 logout stay inside the audit profile.
+    let sourceAuth = {};
+    if (!isIsolatedSignInAudit) {
+      try {
+        const fs = require('fs');
+        const sourcePath = path.join(app.getPath('appData'), 'kolbo-desktop', 'config.json');
+        sourceAuth = JSON.parse(fs.readFileSync(sourcePath, 'utf8'));
+      } catch (error) {
+        console.warn('[UI Audit] Saved authentication was unavailable:', error.code || error.message);
+      }
+    }
+
+    for (const key of authKeys) {
+      if (!isIsolatedSignInAudit && typeof sourceAuth[key] === 'string' && sourceAuth[key]) {
+        store.set(key, sourceAuth[key]);
+      } else {
+        store.delete(key);
+      }
+    }
+    console.log(isIsolatedSignInAudit
+      ? '[UI Audit] Using an isolated signed-out profile'
+      : '[UI Audit] Seeded the isolated audit profile from saved authentication');
+  }
+
   autoUpdater = require('electron-updater').autoUpdater;
   checkDiskSpace = require('check-disk-space').default;
 
@@ -92,9 +124,17 @@ if (process.env.NODE_ENV === 'development') {
 }
 
 // Set permanent user data path for persistent settings
-const userDataPath = path.join(app.getPath('appData'), 'kolbo-desktop');
+const userDataPath = path.join(
+  app.getPath('appData'),
+  IS_UI_AUDIT
+    ? (process.env.KOLBO_UI_AUDIT_ISOLATED === '1'
+      ? 'kolbo-desktop-ui-audit-signed-out'
+      : 'kolbo-desktop-ui-audit')
+    : 'kolbo-desktop'
+);
 app.setPath('userData', userDataPath);
 console.log('[Main] User data path:', userDataPath);
+if (IS_UI_AUDIT) console.log('[Main] Background UI audit mode enabled');
 
 // Single instance lock removed - allow multiple instances
 // Users can now open multiple windows of the app simultaneously
@@ -167,12 +207,18 @@ function createWindow() {
     minWidth: 350,
     minHeight: 500,
     title: 'Kolbo Studio',
+    skipTaskbar: IS_UI_AUDIT,
     backgroundColor: '#000000',     // Match splash screen — no white flash during swap
     frame: false,                   // Remove default frame for custom title bar
     titleBarStyle: 'hidden',        // Hide default title bar
     webPreferences: {
       nodeIntegration: false,      // Security: no Node.js in renderer
       contextIsolation: true,       // Security: isolate contexts
+      // Electron 42's sandboxed preload can fail to receive startupData when a
+      // remote debugging target attaches before first paint. Audit mode still
+      // has context isolation + no Node integration, but runs this trusted local
+      // preload outside the renderer sandbox so the read-only capture bridge loads.
+      sandbox: !IS_UI_AUDIT,
       preload: (() => {
         const preloadPath = path.join(__dirname, 'preload.js');
         console.log('[Main] Preload script path:', preloadPath);
@@ -184,7 +230,7 @@ function createWindow() {
       v8CacheOptions: 'bypassHeatCheck',  // Aggressive caching for faster execution (was 'code')
       enableWebSQL: false,         // Disable unused WebSQL to save memory
       spellcheck: false,           // Disable spellcheck to reduce memory overhead
-      backgroundThrottling: true   // Allow Chromium to throttle timers/animations when window is hidden
+      backgroundThrottling: !IS_UI_AUDIT // Audit frames must repaint while off-screen
     },
     show: false // Stay hidden until ready-to-show fires (prevents blank window flash)
   });
@@ -217,8 +263,18 @@ function createWindow() {
     if (windowShown) return;
     windowShown = true;
     clearTimeout(showWindowTimer);
-    mainWindow.show();
     closeSplash();
+    if (IS_UI_AUDIT) {
+      // Windows does not composite a BrowserWindow that has never been shown,
+      // which makes background screenshots blank. Present it far outside every
+      // practical desktop bound and without activation: no focus, taskbar item,
+      // pointer interception, or visible pixels on the user's workspace.
+      mainWindow.setPosition(-32000, -32000, false);
+      mainWindow.showInactive();
+      console.log('[Main] Audit window ready off-screen without activation');
+      return;
+    }
+    mainWindow.show();
     console.log('[Main] Window shown');
   };
   // Fallback: force-show after 8s in case renderer signal never arrives
@@ -239,7 +295,7 @@ function createWindow() {
 
   // Log console messages from renderer (development only — in production this causes
   // an IPC round-trip + console write for every single renderer log statement)
-  if (process.env.NODE_ENV === 'development') {
+  if (process.env.NODE_ENV === 'development' && !IS_UI_AUDIT) {
     mainWindow.webContents.on('console-message', (event, level, message, line, sourceId) => {
       console.log('[Renderer]', message);
     });
@@ -370,8 +426,9 @@ function createWindow() {
     console.log('[Main] Window closed and cleaned up');
   });
 
-  // Dev tools in development
-  if (process.env.NODE_ENV === 'development') {
+  // Dev tools in development. The background audit already has a private CDP
+  // connection and must not create a second renderer window.
+  if (process.env.NODE_ENV === 'development' && !IS_UI_AUDIT) {
     mainWindow.webContents.openDevTools({ mode: 'detach' });
     console.log('[Main] Dev tools opened (development mode)');
   }
@@ -740,6 +797,20 @@ function setupWindowHandlers() {
   }
 }
 
+function setupUiAuditHandlers() {
+  if (!IS_UI_AUDIT) return;
+  const { ipcMain } = require('electron');
+  ipcMain.handle('ui-audit:capture-page', async () => {
+    if (!mainWindow || mainWindow.isDestroyed()) {
+      throw new Error('Audit window is unavailable');
+    }
+    mainWindow.webContents.invalidate();
+    await new Promise((resolve) => setTimeout(resolve, 80));
+    const image = await mainWindow.webContents.capturePage();
+    return image.toPNG().toString('base64');
+  });
+}
+
 // ============================================================================
 // UI ZOOM / DPI COMPENSATION
 // ============================================================================
@@ -815,21 +886,16 @@ function setupAutoUpdater() {
   autoUpdater.allowDowngrade = false; // Only allow upgrades, not downgrades
   autoUpdater.allowPrerelease = false; // Only stable releases
 
-  // Explicitly set GitHub provider to ensure proper redirect handling
-  autoUpdater.setFeedURL({
-    provider: 'github',
-    owner: 'Zoharvan12',
-    repo: 'kolbo-desktop',
-    releaseType: 'release'
-  });
-
-  // Force check for latest release (not just any newer version)
+  // NO setFeedURL here. electron-builder bakes app-update.yml from each build's own
+  // `publish` config, so Kolbo Studio reads kolbo-desktop-releases and the Sapir
+  // whitelabel reads kolbo-desktop-sapir. Hardcoding a feed made every Sapir install
+  // poll the Kolbo feed and update itself into Kolbo Studio.
   autoUpdater.channel = 'latest';
 
   console.log('[Updater] Configuration:');
   console.log('[Updater] - Current version:', app.getVersion());
   console.log('[Updater] - Channel: latest (always fetches newest release)');
-  console.log('[Updater] - Provider: GitHub (explicit)');
+  console.log('[Updater] - Feed: from app-update.yml (per-build publish config)');
 
   // Log all updater events
   autoUpdater.on('checking-for-update', () => {
@@ -914,7 +980,7 @@ function setupAutoUpdater() {
     // UI (renderer) handles install prompt via "Restart to Update" button.
     // If window is already closed, install immediately.
     if (!mainWindow || mainWindow.isDestroyed()) {
-      autoUpdater.quitAndInstall(false, true);
+      autoUpdater.quitAndInstall(true, true);
     }
   });
 
@@ -1110,10 +1176,23 @@ function setupUpdaterHandlers() {
     }
   });
 
-  // Open installer (no auto-install, user runs it manually)
-  ipcMain.handle('updater:install', async () => {
-    console.log('[Updater] User triggered install — quitting and installing');
-    autoUpdater.quitAndInstall(false, true);
+  // Silent install: `isSilent=true` passes /S to the NSIS installer — no wizard,
+  // and it is the ONLY branch where an assisted (oneClick:false) installer honors
+  // --force-run and relaunches the app itself (app-builder-lib installSection.nsh).
+  ipcMain.handle('updater:install', async (event, force) => {
+    // quitAndInstall is a hard kill. autoInstallOnAppQuit already lands the update on
+    // the next normal quit, so deferring costs the user nothing — losing a 40-minute
+    // export does.
+    const busy =
+      (ffmpegHandler && ffmpegHandler.activeJobs ? ffmpegHandler.activeJobs.size : 0) +
+      (ytdlpHandler && ytdlpHandler.activeDownloads ? ytdlpHandler.activeDownloads.size : 0);
+    if (busy > 0 && !force) {
+      console.log(`[Updater] Install deferred — ${busy} job(s) still running`);
+      return { blocked: true, count: busy };
+    }
+    console.log('[Updater] User triggered install — quitting and installing silently');
+    autoUpdater.quitAndInstall(true, true);
+    return { blocked: false };
   });
 
   console.log('[Updater] IPC handlers registered');
@@ -3636,12 +3715,12 @@ function setupSessionCSP() {
 
 // App ready
 app.whenReady().then(() => {
-  console.log('[Main] App ready, showing splash');
+  console.log(IS_UI_AUDIT ? '[Main] App ready for background UI audit' : '[Main] App ready, showing splash');
 
   // ── Phase 1: Show splash immediately ─────────────────────────────────────
   // Create splash and YIELD the event loop so Chromium can paint it.
   // Everything else runs after the splash is confirmed visible.
-  createSplashWindow();
+  if (!IS_UI_AUDIT) createSplashWindow();
 
   // Wait for splash to actually paint before doing heavy work
   function onSplashVisible() {
@@ -3662,6 +3741,7 @@ app.whenReady().then(() => {
     FileManager.setupHandlers();
     DragHandler.setupHandlers();
     setupWindowHandlers();
+    setupUiAuditHandlers();
     setupUiZoomHandlers();
     setupPremiereImportHandler();
     setupMediaCacheHandlers();
@@ -3706,7 +3786,7 @@ app.whenReady().then(() => {
     });
 
     // Tray, menu, updater, memory monitor — none block the renderer
-    setImmediate(() => {
+    if (!IS_UI_AUDIT) setImmediate(() => {
       createTray();
       createApplicationMenu();
       setupMemoryMonitoring();
@@ -3786,6 +3866,7 @@ app.on('window-all-closed', () => {
 
 // Activate (macOS) - Re-show window when clicking dock icon
 app.on('activate', () => {
+  if (IS_UI_AUDIT) return;
   if (mainWindow) {
     mainWindow.show();
   } else if (BrowserWindow.getAllWindows().length === 0) {

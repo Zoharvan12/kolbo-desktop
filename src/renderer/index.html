@@ -25,6 +25,7 @@
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/lipis/flag-icons@7.2.3/css/flag-icons.min.css" media="print" onload="this.media='all'">
   <link rel="stylesheet" href="css/language-selector.css?v=1" media="print" onload="this.media='all'">
   <link rel="stylesheet" href="css/rtl.css?v=1" media="print" onload="this.media='all'">
+  <link rel="stylesheet" href="css/desktop-polish.css?v=1">
 </head>
 <body>
   <div id="app">
@@ -615,7 +616,8 @@
                   <p id="update-progress-text" class="update-progress-text" data-i18n="settings.updates.downloading">Downloading...</p>
                 </div>
                 <div class="update-card-actions">
-                  <button id="download-update-btn" class="primary-btn">
+                  <!-- Fallback only: revealed by the updater:error handler, not part of the happy path -->
+                  <button id="download-update-btn" class="primary-btn hidden">
                     <i data-lucide="download"></i>
                     <span data-i18n="settings.updates.downloadUpdate">Download Update</span>
                   </button>
@@ -761,24 +763,24 @@
                 </button>
                 <div class="ff-format-list active">
                   <button class="ff-format-tile" data-format="mp4" data-type="video">
-                    <div class="ff-tile-icon">🎬</div>
-                    <div class="ff-tile-label">-> MP4</div>
+                    <i data-lucide="film" class="ff-tile-icon"></i>
+                    <div class="ff-tile-label">MP4</div>
                   </button>
                   <button class="ff-format-tile" data-format="mov" data-type="video">
-                    <div class="ff-tile-icon">🎬</div>
-                    <div class="ff-tile-label">-> MOV</div>
+                    <i data-lucide="film" class="ff-tile-icon"></i>
+                    <div class="ff-tile-label">MOV</div>
                   </button>
                   <button class="ff-format-tile" data-format="avi" data-type="video">
-                    <div class="ff-tile-icon">🎬</div>
-                    <div class="ff-tile-label">-> AVI</div>
+                    <i data-lucide="film" class="ff-tile-icon"></i>
+                    <div class="ff-tile-label">AVI</div>
                   </button>
                   <button class="ff-format-tile" data-format="mkv" data-type="video">
-                    <div class="ff-tile-icon">🎬</div>
-                    <div class="ff-tile-label">-> MKV</div>
+                    <i data-lucide="film" class="ff-tile-icon"></i>
+                    <div class="ff-tile-label">MKV</div>
                   </button>
                   <button class="ff-format-tile" data-format="webm" data-type="video">
-                    <div class="ff-tile-icon">🎬</div>
-                    <div class="ff-tile-label">-> WEBM</div>
+                    <i data-lucide="film" class="ff-tile-icon"></i>
+                    <div class="ff-tile-label">WEBM</div>
                   </button>
                 </div>
               </div>
@@ -792,20 +794,20 @@
                 </button>
                 <div class="ff-format-list">
                   <button class="ff-format-tile" data-format="mp3" data-type="audio">
-                    <div class="ff-tile-icon">🎵</div>
-                    <div class="ff-tile-label">-> MP3</div>
+                    <i data-lucide="music" class="ff-tile-icon"></i>
+                    <div class="ff-tile-label">MP3</div>
                   </button>
                   <button class="ff-format-tile" data-format="wav" data-type="audio">
-                    <div class="ff-tile-icon">🎵</div>
-                    <div class="ff-tile-label">-> WAV</div>
+                    <i data-lucide="music" class="ff-tile-icon"></i>
+                    <div class="ff-tile-label">WAV</div>
                   </button>
                   <button class="ff-format-tile" data-format="aac" data-type="audio">
-                    <div class="ff-tile-icon">🎵</div>
-                    <div class="ff-tile-label">-> AAC</div>
+                    <i data-lucide="music" class="ff-tile-icon"></i>
+                    <div class="ff-tile-label">AAC</div>
                   </button>
                   <button class="ff-format-tile" data-format="flac" data-type="audio">
-                    <div class="ff-tile-icon">🎵</div>
-                    <div class="ff-tile-label">-> FLAC</div>
+                    <i data-lucide="music" class="ff-tile-icon"></i>
+                    <div class="ff-tile-label">FLAC</div>
                   </button>
                 </div>
               </div>
@@ -819,20 +821,20 @@
                 </button>
                 <div class="ff-format-list">
                   <button class="ff-format-tile" data-format="jpg" data-type="image">
-                    <div class="ff-tile-icon">🖼️</div>
-                    <div class="ff-tile-label">-> JPG</div>
+                    <i data-lucide="image" class="ff-tile-icon"></i>
+                    <div class="ff-tile-label">JPG</div>
                   </button>
                   <button class="ff-format-tile" data-format="png" data-type="image">
-                    <div class="ff-tile-icon">🖼️</div>
-                    <div class="ff-tile-label">-> PNG</div>
+                    <i data-lucide="image" class="ff-tile-icon"></i>
+                    <div class="ff-tile-label">PNG</div>
                   </button>
                   <button class="ff-format-tile" data-format="webp" data-type="image">
-                    <div class="ff-tile-icon">🖼️</div>
-                    <div class="ff-tile-label">-> WEBP</div>
+                    <i data-lucide="image" class="ff-tile-icon"></i>
+                    <div class="ff-tile-label">WEBP</div>
                   </button>
                   <button class="ff-format-tile" data-format="gif" data-type="image">
-                    <div class="ff-tile-icon">🖼️</div>
-                    <div class="ff-tile-label">-> GIF</div>
+                    <i data-lucide="image" class="ff-tile-icon"></i>
+                    <div class="ff-tile-label">GIF</div>
                   </button>
                 </div>
               </div>
@@ -1008,31 +1010,31 @@
 
           <!-- Tool Selector Cards -->
           <div class="qt-tool-selector">
-            <div class="qt-tool-card active" data-tool="trimmer">
-              <span class="qt-tool-icon">✂️</span>
+            <button type="button" class="qt-tool-card active" data-tool="trimmer">
+              <i data-lucide="scissors" class="qt-tool-icon"></i>
               <span class="qt-tool-name" data-i18n="quickTools.trimmer.name">Trimmer</span>
               <span class="qt-tool-desc" data-i18n="quickTools.trimmer.desc">Cut video or audio</span>
-            </div>
-            <div class="qt-tool-card" data-tool="extractor">
-              <span class="qt-tool-icon">🎵</span>
+            </button>
+            <button type="button" class="qt-tool-card" data-tool="extractor">
+              <i data-lucide="music" class="qt-tool-icon"></i>
               <span class="qt-tool-name" data-i18n="quickTools.extractor.name">Audio Extractor</span>
               <span class="qt-tool-desc" data-i18n="quickTools.extractor.desc">Extract audio</span>
-            </div>
-            <div class="qt-tool-card" data-tool="frame-grabber">
-              <span class="qt-tool-icon">🖼️</span>
+            </button>
+            <button type="button" class="qt-tool-card" data-tool="frame-grabber">
+              <i data-lucide="image" class="qt-tool-icon"></i>
               <span class="qt-tool-name" data-i18n="quickTools.frameGrabber.name">Frame Grabber</span>
               <span class="qt-tool-desc" data-i18n="quickTools.frameGrabber.desc">Grab frames</span>
-            </div>
-            <div class="qt-tool-card" data-tool="merger">
-              <span class="qt-tool-icon">🎬</span>
+            </button>
+            <button type="button" class="qt-tool-card" data-tool="merger">
+              <i data-lucide="combine" class="qt-tool-icon"></i>
               <span class="qt-tool-name" data-i18n="quickTools.merger.name">Video Merger</span>
               <span class="qt-tool-desc" data-i18n="quickTools.merger.desc">Combine clips</span>
-            </div>
-            <div class="qt-tool-card" data-tool="cropper">
-              <span class="qt-tool-icon">📐</span>
+            </button>
+            <button type="button" class="qt-tool-card" data-tool="cropper">
+              <i data-lucide="crop" class="qt-tool-icon"></i>
               <span class="qt-tool-name" data-i18n="quickTools.cropper.name">Media Cropper</span>
               <span class="qt-tool-desc" data-i18n="quickTools.cropper.desc">Crop video & images</span>
-            </div>
+            </button>
           </div>
 
           <!-- Tool Container -->

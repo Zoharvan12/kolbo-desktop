@@ -206,7 +206,9 @@
       "restartInstall": "Reiniciar e instalar",
       "downloadingProgress": "Descargando... {{percent}}%",
       "downloadingProgressMb": "Descargando... {{percent}}% ({{mb}} MB / {{mbTotal}} MB)",
-      "downloadedToDownloads": "¡El instalador se descargó en la carpeta Descargas!"
+      "downloadedToDownloads": "¡El instalador se descargó en la carpeta Descargas!",
+      "installing": "Instalando la actualización: la aplicación se reabrirá en un momento…",
+      "jobsRunning": "Hay {{count}} tarea(s) en curso que se perderán. La actualización se instalará sola la próxima vez que cierres la app. ¿Reiniciar ahora de todos modos?"
     },
     "account": {
       "title": "Cuenta",

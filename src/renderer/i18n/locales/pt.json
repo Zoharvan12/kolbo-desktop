@@ -206,7 +206,9 @@
       "restartInstall": "Reiniciar e Instalar",
       "downloadingProgress": "Baixando... {{percent}}%",
       "downloadingProgressMb": "Baixando... {{percent}}% ({{mb}} MB / {{mbTotal}} MB)",
-      "downloadedToDownloads": "Instalador baixado para a pasta Downloads!"
+      "downloadedToDownloads": "Instalador baixado para a pasta Downloads!",
+      "installing": "Instalando a atualização — o aplicativo será reaberto em instantes…",
+      "jobsRunning": "{{count}} tarefa(s) ainda em execução serão perdidas. A atualização será instalada automaticamente ao fechar o aplicativo. Reiniciar agora mesmo assim?"
     },
     "account": {
       "title": "Conta",

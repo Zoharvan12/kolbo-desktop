@@ -206,7 +206,9 @@
       "restartInstall": "Redémarrer et installer",
       "downloadingProgress": "Téléchargement en cours... {{percent}}%",
       "downloadingProgressMb": "Téléchargement en cours... {{percent}}% ({{mb}} Mo / {{mbTotal}} Mo)",
-      "downloadedToDownloads": "Programme d'installation téléchargé dans le dossier Téléchargements !"
+      "downloadedToDownloads": "Programme d'installation téléchargé dans le dossier Téléchargements !",
+      "installing": "Installation de la mise à jour — l’application va rouvrir dans un instant…",
+      "jobsRunning": "{{count}} tâche(s) sont encore en cours et seront perdues. La mise à jour s’installera automatiquement à la prochaine fermeture. Redémarrer quand même ?"
     },
     "account": {
       "title": "Compte",

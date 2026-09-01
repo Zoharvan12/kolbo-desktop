@@ -206,7 +206,9 @@
       "restartInstall": "重新启动并安装",
       "downloadingProgress": "正在下载... {{percent}}%",
       "downloadingProgressMb": "正在下载... {{percent}}% ({{mb}} MB / {{mbTotal}} MB)",
-      "downloadedToDownloads": "安装程序已下载到“下载”文件夹！"
+      "downloadedToDownloads": "安装程序已下载到“下载”文件夹！",
+      "installing": "正在安装更新 — 应用稍后将重新打开…",
+      "jobsRunning": "还有 {{count}} 项任务正在运行，将会丢失。下次退出时会自动安装更新。仍要现在重新启动吗？"
     },
     "account": {
       "title": "账户",

@@ -206,7 +206,9 @@
       "restartInstall": "다시 시작 및 설치",
       "downloadingProgress": "다운로드 중... {{percent}}%",
       "downloadingProgressMb": "다운로드 중... {{percent}}% ({{mb}} MB / {{mbTotal}} MB)",
-      "downloadedToDownloads": "설치 프로그램이 다운로드 폴더에 다운로드되었습니다!"
+      "downloadedToDownloads": "설치 프로그램이 다운로드 폴더에 다운로드되었습니다!",
+      "installing": "업데이트 설치 중 — 앱이 곷 다시 열립니다…",
+      "jobsRunning": "실행 중인 작업 {{count}}개가 손실됩니다. 업데이트는 다음에 앱을 종료할 때 자동으로 설치됩니다. 그래도 지금 다시 시작할까요?"
     },
     "account": {
       "title": "계정",

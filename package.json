@@ -1,6 +1,6 @@
 {
   "name": "kolbo-desktop",
-  "version": "1.6.7",
+  "version": "1.6.8",
   "description": "Kolbo Studio - AI Creative Platform for Video Editors",
   "main": "src/main/main.js",
   "author": {
@@ -18,6 +18,8 @@
     "start:prod": "cross-env KOLBO_ENV=production node build-env.js && electron .",
     "start:staging": "cross-env KOLBO_ENV=staging node build-env.js && electron .",
     "dev": "cross-env KOLBO_ENV=development NODE_ENV=development node build-env.js && electron .",
+    "audit:ui": "cross-env KOLBO_ENV=development NODE_ENV=development node build-env.js && node scripts/ui-audit.js",
+    "audit:ui:isolated": "cross-env KOLBO_ENV=development NODE_ENV=development node build-env.js && node scripts/ui-audit.js --isolated",
     "build:ltx-studio": "cd src/renderer/ltx-studio && npm install --no-audit --no-fund && npm run build",
     "build": "npm run build:ltx-studio && electron-builder",
     "build:win": "npm run build:ltx-studio && electron-builder --win",

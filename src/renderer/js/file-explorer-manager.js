@@ -1195,6 +1195,7 @@ class FileExplorerManager {
           ${Icons.get('folder', 16)}
         </div>
         <div class="fe-file-name">${this.escapeHtml(folder.name)}</div>
+        <div class="fe-file-folder">—</div>
         <div class="fe-file-type">Folder</div>
         <div class="fe-file-duration">--</div>
         <div class="fe-file-size">--</div>

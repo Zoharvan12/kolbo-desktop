@@ -278,8 +278,8 @@ contextBridge.exposeInMainWorld('kolboDesktop', {
   downloadUpdate: () =>
     ipcRenderer.invoke('updater:download'),
 
-  installUpdate: () =>
-    ipcRenderer.invoke('updater:install'),
+  installUpdate: (force) =>
+    ipcRenderer.invoke('updater:install', force),
 
   // Update events
   onUpdateAvailable: (callback) =>
@@ -632,3 +632,10 @@ contextBridge.exposeInMainWorld('kolboDesktop', {
 
 console.log('[Preload] Context bridge established');
 console.log('[Preload] Platform:', process.platform);
+
+// The matching main-process handler exists only in hidden audit mode. In a
+// normal app window this read-only capture request is rejected by Electron.
+contextBridge.exposeInMainWorld('kolboUiAudit', {
+  isActive: process.env.KOLBO_UI_AUDIT === '1',
+  capturePage: () => ipcRenderer.invoke('ui-audit:capture-page')
+});

@@ -436,6 +436,7 @@ class FileManager {
       bytes,
       mb: parseFloat(mb),
       gb: parseFloat(gb),
+      path: CACHE_DIR,
       formatted: bytes > 1024 ** 3 ? `${gb} GB` : `${mb} MB`
     };
   }
