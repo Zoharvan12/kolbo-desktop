@@ -466,6 +466,15 @@ contextBridge.exposeInMainWorld('kolboDesktop', {
     mergeVideos: (job) =>
       ipcRenderer.invoke('qt:merge-videos', job),
 
+    // Audio sync → FCP7 XML timeline
+    audioSync: (job) =>
+      ipcRenderer.invoke('qt:audio-sync', job),
+    audioSyncSave: (payload) =>
+      ipcRenderer.invoke('qt:audio-sync-save', payload),
+    onAudioSyncProgress: (callback) => {
+      ipcRenderer.on('qt:audio-sync-progress', (event, data) => callback(data));
+    },
+
     // Crop video
     cropVideo: (job) =>
       ipcRenderer.invoke('qt:crop-video', job),

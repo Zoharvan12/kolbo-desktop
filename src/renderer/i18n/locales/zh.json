@@ -56,7 +56,8 @@
     "loadingFileBridge": "正在加载文件桥接...",
     "loadingKolbo": "正在加载 Kolbo Web App...",
     "synci": "Synci",
-    "stock": "素材"
+    "stock": "素材",
+    "timelineSync": "时间线同步"
   },
   "webapp": {
     "back": "返回",
@@ -326,6 +327,31 @@
       "saveTo": "保存到:",
       "sameAsFirst": "与第一个文件相同",
       "change": "更改"
+    },
+    "sync": {
+      "name": "时间线同步",
+      "desc": "将摄像机与录音机同步到时间线",
+      "dropzone": "将所有摄像机和录音机文件拖到此处",
+      "or": "或",
+      "browseFiles": "浏览文件",
+      "hint": "按声音同步并导出 Premiere / Resolve 的 XML 时间线",
+      "saveTo": "保存到:",
+      "sameAsFirst": "与第一个文件相同",
+      "change": "更改",
+      "sync": "同步",
+      "syncing": "正在按声音同步…",
+      "synced": "已同步",
+      "unsynced": "无匹配",
+      "reference": "参考",
+      "done": "时间线 XML 已保存",
+      "showInFolder": "在文件夹中显示",
+      "importHint": "Premiere / Resolve：文件 → 导入此 XML",
+      "clearAll": "全部清除",
+      "addMore": "添加文件",
+      "noMatch": "文件之间未找到匹配的音频",
+      "saveXml": "保存时间线 XML…",
+      "reviewHint": "检查上面的偏移量，然后将时间线 XML 保存到所需位置。",
+      "legend": "蓝色 = 视频 · 绿色 = 音频 · 描边 = 参考"
     },
     "cropper": {
       "name": "媒体裁剪器",

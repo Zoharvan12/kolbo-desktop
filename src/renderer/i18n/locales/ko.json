@@ -56,7 +56,8 @@
     "loadingFileBridge": "File Bridge 로딩 중...",
     "loadingKolbo": "Kolbo 웹 앱 로딩 중...",
     "synci": "Synci",
-    "stock": "스톡"
+    "stock": "스톡",
+    "timelineSync": "타임라인 동기화"
   },
   "webapp": {
     "back": "뒤로 가기",
@@ -326,6 +327,31 @@
       "saveTo": "저장 위치:",
       "sameAsFirst": "첫 번째 파일과 동일",
       "change": "변경"
+    },
+    "sync": {
+      "name": "타임라인 동기화",
+      "desc": "카메라와 레코더를 타임라인으로 동기화",
+      "dropzone": "모든 카메라 및 레코더 파일을 여기에 놓으세요",
+      "or": "또는",
+      "browseFiles": "파일 찾아보기",
+      "hint": "소리로 동기화하고 Premiere / Resolve용 XML 타임라인을 내보냅니다",
+      "saveTo": "저장 위치:",
+      "sameAsFirst": "첫 번째 파일과 동일",
+      "change": "변경",
+      "sync": "동기화",
+      "syncing": "소리로 동기화 중…",
+      "synced": "동기화됨",
+      "unsynced": "일치 없음",
+      "reference": "기준",
+      "done": "타임라인 XML 저장됨",
+      "showInFolder": "폴더에서 보기",
+      "importHint": "Premiere / Resolve: 파일 → 가져오기로 이 XML 열기",
+      "clearAll": "모두 지우기",
+      "addMore": "파일 추가",
+      "noMatch": "파일 간에 일치하는 오디오를 찾지 못했습니다",
+      "saveXml": "타임라인 XML 저장…",
+      "reviewHint": "위의 오프셋을 확인한 뒤 원하는 위치에 XML을 저장하세요.",
+      "legend": "파랑 = 비디오 · 초록 = 오디오 · 테두리 = 기준"
     },
     "cropper": {
       "name": "미디어 자르기",

@@ -12,7 +12,8 @@ class QuickToolsManager {
       extractor: null,
       'frame-grabber': null,
       merger: null,
-      cropper: null
+      cropper: null,
+      sync: null
     };
 
     // Tool instances
@@ -21,7 +22,8 @@ class QuickToolsManager {
       extractor: null,
       'frame-grabber': null,
       merger: null,
-      cropper: null
+      cropper: null,
+      sync: null
     };
 
     // File input elements
@@ -75,7 +77,7 @@ class QuickToolsManager {
    * Setup output folder buttons
    */
   setupOutputFolders() {
-    const tools = ['trimmer', 'extractor', 'frame-grabber', 'merger', 'cropper'];
+    const tools = ['trimmer', 'extractor', 'frame-grabber', 'merger', 'cropper', 'sync'];
 
     tools.forEach(tool => {
       const btn = document.getElementById(`qt-${tool}-output-btn`);
@@ -115,7 +117,7 @@ class QuickToolsManager {
         pathEl.title = folderPath;
         pathEl.style.color = '#3b82f6';
       } else {
-        pathEl.textContent = toolId === 'merger' ? 'Same as first file' : 'Same as source';
+        pathEl.textContent = (toolId === 'merger' || toolId === 'sync') ? 'Same as first file' : 'Same as source';
         pathEl.title = '';
         pathEl.style.color = '';
       }
@@ -133,7 +135,7 @@ class QuickToolsManager {
    * Setup drag and drop zones
    */
   setupDropzones() {
-    const tools = ['trimmer', 'extractor', 'frame-grabber', 'merger', 'cropper'];
+    const tools = ['trimmer', 'extractor', 'frame-grabber', 'merger', 'cropper', 'sync'];
 
     tools.forEach(tool => {
       const dropzone = document.getElementById(`qt-${tool}-dropzone`);
@@ -168,7 +170,7 @@ class QuickToolsManager {
    * Setup browse buttons with hidden file inputs
    */
   setupBrowseButtons() {
-    const tools = ['trimmer', 'extractor', 'frame-grabber', 'merger', 'cropper'];
+    const tools = ['trimmer', 'extractor', 'frame-grabber', 'merger', 'cropper', 'sync'];
 
     tools.forEach(tool => {
       const browseBtn = document.getElementById(`qt-${tool}-browse-btn`);
@@ -179,7 +181,7 @@ class QuickToolsManager {
       fileInput.type = 'file';
       fileInput.style.display = 'none';
       fileInput.accept = this.getAcceptTypes(tool);
-      fileInput.multiple = tool === 'merger';
+      fileInput.multiple = tool === 'merger' || tool === 'sync';
       document.body.appendChild(fileInput);
       this.fileInputs[tool] = fileInput;
 
@@ -205,6 +207,7 @@ class QuickToolsManager {
   getAcceptTypes(toolId) {
     switch (toolId) {
       case 'trimmer':
+      case 'sync':
         return 'video/*,audio/*';
       case 'extractor':
       case 'frame-grabber':
@@ -266,6 +269,11 @@ class QuickToolsManager {
           this.tools.cropper.loadFile(validFiles[0]);
         }
         break;
+      case 'sync':
+        if (this.tools.sync) {
+          this.tools.sync.addFiles(validFiles);
+        }
+        break;
     }
   }
 
@@ -294,6 +302,8 @@ class QuickToolsManager {
         return isVideo;
       case 'cropper':
         return isVideo || isImage; // Cropper supports both video and images
+      case 'sync':
+        return isVideo || isAudio;
       default:
         return true;
     }
@@ -318,6 +328,9 @@ class QuickToolsManager {
     }
     if (typeof VideoCropperTool !== 'undefined') {
       this.tools.cropper = new VideoCropperTool(this);
+    }
+    if (typeof AudioSyncTool !== 'undefined') {
+      this.tools.sync = new AudioSyncTool(this);
     }
   }
 

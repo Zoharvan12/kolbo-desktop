@@ -56,7 +56,8 @@
     "loadingFileBridge": "טוען File Bridge...",
     "loadingKolbo": "טוען את אפליקציית האינטרנט של Kolbo...",
     "synci": "Synci",
-    "stock": "מאגר"
+    "stock": "מאגר",
+    "timelineSync": "סנכרון טיימליין"
   },
   "webapp": {
     "back": "חזור",
@@ -326,6 +327,31 @@
       "saveTo": "שמור אל:",
       "sameAsFirst": "זהה לקובץ הראשון",
       "change": "שנה"
+    },
+    "sync": {
+      "name": "סנכרון טיימליין",
+      "desc": "סנכרון מצלמות ורקורדרים לטיימליין",
+      "dropzone": "גררו לכאן את כל קבצי המצלמות והרקורדרים",
+      "or": "או",
+      "browseFiles": "דפדף בקבצים",
+      "hint": "מסנכרן לפי הסאונד ומייצא טיימליין XML לפרמייר / רזולב",
+      "saveTo": "שמור אל:",
+      "sameAsFirst": "זהה לקובץ הראשון",
+      "change": "שנה",
+      "sync": "סנכרן",
+      "syncing": "מסנכרן לפי סאונד…",
+      "synced": "מסונכרן",
+      "unsynced": "לא נמצאה התאמה",
+      "reference": "ייחוס",
+      "done": "קובץ XML של הטיימליין נשמר",
+      "showInFolder": "הצג בתיקייה",
+      "importHint": "פרמייר / רזולב: File ← Import את ה-XML הזה",
+      "clearAll": "נקה הכל",
+      "addMore": "הוסף קבצים",
+      "noMatch": "לא נמצא אודיו תואם בין הקבצים",
+      "saveXml": "שמור XML של הטיימליין…",
+      "reviewHint": "בדקו את ההיסטים למעלה ואז שמרו את ה-XML במיקום הרצוי.",
+      "legend": "כחול = וידאו · ירוק = אודיו · מסגרת = ייחוס"
     },
     "cropper": {
       "name": "Media Cropper",

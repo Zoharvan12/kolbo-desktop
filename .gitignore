@@ -70,3 +70,6 @@ branch_structure.json
 
 # graphify knowledge graph — local build artifact (~60MB), rebuilt by git hook
 graphify-out/
+
+# Kolbo MCP production log (local)
+.kolbo/

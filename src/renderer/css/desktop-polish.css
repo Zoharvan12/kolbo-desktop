@@ -1231,10 +1231,12 @@ textarea::placeholder {
 /* Wave two: workflow-first utility layouts. */
 
 /* Quick Tools ----------------------------------------------------------- */
-#quick-tools-view {
+#quick-tools-view,
+#timeline-sync-view {
   background: var(--studio-bg);
 }
 
+#timeline-sync-view .qt-layout,
 #quick-tools-view .qt-layout {
   height: 100%;
   box-sizing: border-box;
@@ -1552,7 +1554,9 @@ textarea::placeholder {
 }
 
 #downloader-view .dl-queue-section.is-empty {
-  flex: 0 0 auto;
+  flex: 1 1 auto;
+  display: flex;
+  flex-direction: column;
 }
 
 #downloader-view .dl-queue-header {
@@ -1580,8 +1584,9 @@ textarea::placeholder {
 }
 
 #downloader-view .dl-queue-section.is-empty .dl-queue-list {
-  flex: 0 0 230px;
-  min-height: 230px;
+  flex: 1 1 auto;
+  min-height: 460px;
+  overflow: hidden;
 }
 
 #downloader-view .dl-empty-state {
@@ -2088,4 +2093,93 @@ textarea::placeholder {
     animation-duration: 0.01ms !important;
     animation-iteration-count: 1 !important;
   }
+}
+
+/* ========== Empty-state illustrations (Kobi) ========== */
+.empty-illustration {
+  display: block;
+  width: min(100%, 520px);
+  aspect-ratio: 16 / 9;
+  object-fit: cover;
+  border-radius: 14px;
+  margin: 0 auto 18px;
+  pointer-events: none;
+  user-select: none;
+  -webkit-mask-image: linear-gradient(180deg, #000 70%, transparent 100%);
+  mask-image: linear-gradient(180deg, #000 70%, transparent 100%);
+  transition: transform 0.35s ease, opacity 0.35s ease;
+}
+.qt-dropzone:hover .empty-illustration,
+.qt-dropzone.dragover .empty-illustration,
+#format-factory-view .ff-drag-drop-zone:hover .empty-illustration,
+#format-factory-view .ff-drag-drop-zone.dragover .empty-illustration {
+  transform: translateY(-4px) scale(1.02);
+}
+#downloader-view .dl-empty-state .empty-illustration {
+  width: min(100%, 560px);
+  margin-bottom: 22px;
+}
+#downloader-view .dl-empty-state {
+  gap: 6px;
+}
+#downloader-view .dl-empty-title {
+  font-size: 16px;
+}
+#downloader-view .dl-empty-hint {
+  font-size: 13px;
+}
+#quick-tools-view .qt-dropzone,
+#timeline-sync-view .qt-dropzone,
+#format-factory-view .ff-drag-drop-zone {
+  padding-top: 28px;
+}
+
+/* ========== Empty-state hero + 8-bit chips ========== */
+.empty-hero {
+  position: relative;
+  width: min(100%, 560px);
+  margin: 0 auto 18px;
+}
+.empty-hero .empty-illustration {
+  width: 100%;
+  margin: 0;
+}
+.empty-chips {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+.empty-chip {
+  position: absolute;
+  transform: translate(-50%, -50%);
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 9px;
+  font: 700 11px/1 ui-monospace, "Cascadia Mono", Consolas, "Courier New", monospace;
+  letter-spacing: 1.5px;
+  text-transform: uppercase;
+  color: #e6efff;
+  background: #0e1016;
+  border: 2px solid #3b82f6;
+  box-shadow: 3px 3px 0 #1e40af, 0 0 14px rgba(59, 130, 246, 0.35);
+  white-space: nowrap;
+  animation: emptyChipFloat 4.2s ease-in-out infinite;
+}
+.empty-chip svg {
+  width: 12px;
+  height: 12px;
+  fill: currentColor;
+  image-rendering: pixelated;
+}
+@keyframes emptyChipFloat {
+  0%, 100% { margin-top: 0; }
+  50% { margin-top: -6px; }
+}
+#downloader-view .dl-empty-state .empty-hero {
+  width: min(100%, 560px);
+  margin-bottom: 22px;
+}
+@media (prefers-reduced-motion: reduce) {
+  .empty-chip { animation: none; }
 }
