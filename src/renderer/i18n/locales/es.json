@@ -56,7 +56,8 @@
     "loadingFileBridge": "Cargando File Bridge...",
     "loadingKolbo": "Cargando Kolbo Web App...",
     "synci": "Synci",
-    "stock": "Stock"
+    "stock": "Stock",
+    "timelineSync": "Sincronizar timeline"
   },
   "webapp": {
     "back": "Volver",
@@ -326,6 +327,31 @@
       "saveTo": "Guardar en:",
       "sameAsFirst": "Igual que el primer archivo",
       "change": "Cambiar"
+    },
+    "sync": {
+      "name": "Sincronizar timeline",
+      "desc": "Cámaras y grabadoras en una línea de tiempo",
+      "dropzone": "Suelta aquí todos los archivos de cámaras y grabadoras",
+      "or": "o",
+      "browseFiles": "Explorar archivos",
+      "hint": "Sincroniza por sonido y exporta una línea de tiempo XML para Premiere / Resolve",
+      "saveTo": "Guardar en:",
+      "sameAsFirst": "Igual que el primer archivo",
+      "change": "Cambiar",
+      "sync": "Sincronizar",
+      "syncing": "Sincronizando por sonido…",
+      "synced": "Sincronizado",
+      "unsynced": "Sin coincidencia",
+      "reference": "referencia",
+      "done": "XML de línea de tiempo guardado",
+      "showInFolder": "Mostrar en carpeta",
+      "importHint": "Premiere / Resolve: Archivo → Importar este XML",
+      "clearAll": "Borrar todo",
+      "addMore": "Añadir archivos",
+      "noMatch": "No se encontró audio coincidente entre los archivos",
+      "saveXml": "Guardar XML de timeline…",
+      "reviewHint": "Revisa los desfases y guarda el XML donde quieras.",
+      "legend": "Azul = vídeo · Verde = audio · Contorno = referencia"
     },
     "cropper": {
       "name": "Recortador de archivos",

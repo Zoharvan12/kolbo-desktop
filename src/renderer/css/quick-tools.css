@@ -1219,3 +1219,100 @@
   background: rgba(255, 255, 255, 0.15);
   border-radius: 4px;
 }
+
+/* ========== Timeline Sync preview ========== */
+.qt-sync-timeline {
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 12px;
+  padding: 16px 16px 12px;
+  margin-bottom: 16px;
+  overflow: hidden;
+}
+.qt-sync-ruler {
+  position: relative;
+  height: 18px;
+  margin-left: 160px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.12);
+  font-size: 11px;
+  color: rgba(255, 255, 255, 0.45);
+}
+.qt-sync-tick {
+  position: absolute;
+  top: 0;
+  transform: translateX(-50%);
+  white-space: nowrap;
+}
+.qt-sync-tick::after {
+  content: '';
+  position: absolute;
+  left: 50%;
+  bottom: -1px;
+  height: 5px;
+  border-left: 1px solid rgba(255, 255, 255, 0.25);
+}
+.qt-sync-lane {
+  display: flex;
+  align-items: center;
+  height: 60px;
+  margin-top: 6px;
+}
+.qt-sync-lane-name {
+  width: 160px;
+  flex: none;
+  padding-right: 12px;
+  font-size: 12px;
+  color: rgba(255, 255, 255, 0.8);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.qt-sync-lane-track {
+  position: relative;
+  flex: 1;
+  height: 100%;
+  background: repeating-linear-gradient(90deg, rgba(255,255,255,0.03) 0 1px, transparent 1px 10%);
+  border-radius: 4px;
+}
+.qt-sync-clip {
+  position: absolute;
+  top: 3px;
+  bottom: 3px;
+  min-width: 2px;
+  border-radius: 4px;
+  font-size: 11px;
+  line-height: 54px;
+  padding: 0 8px;
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.9), 0 0 2px rgba(0, 0, 0, 0.9);
+  color: #fff;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  background: linear-gradient(180deg, #3b82f6, #2563eb);
+  box-shadow: inset 0 0 0 1px rgba(255,255,255,0.15);
+}
+.qt-sync-clip.audio {
+  background: linear-gradient(180deg, #22c55e, #16a34a);
+}
+.qt-sync-clip.reference {
+  box-shadow: inset 0 0 0 1px rgba(255,255,255,0.6);
+}
+.qt-sync-legend {
+  margin: 10px 0 0 160px;
+  font-size: 11px;
+  color: rgba(255, 255, 255, 0.45);
+}
+
+/* Timeline Sync lives in its own top-level view */
+.ts-content {
+  width: min(100%, 1180px);
+  margin: 0 auto;
+  flex: 1;
+}
+.qt-sync-clip.unmatched {
+  background: transparent;
+  opacity: 0.55;
+  border: 1px dashed rgba(255, 255, 255, 0.3);
+  color: rgba(255, 255, 255, 0.5);
+  box-shadow: none;
+}

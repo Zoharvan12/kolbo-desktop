@@ -56,7 +56,8 @@
     "loadingFileBridge": "جاري تحميل File Bridge...",
     "loadingKolbo": "جاري تحميل تطبيق Kolbo على الويب...",
     "synci": "Synci",
-    "stock": "المخزون"
+    "stock": "المخزون",
+    "timelineSync": "مزامنة الخط الزمني"
   },
   "webapp": {
     "back": "رجوع",
@@ -326,6 +327,31 @@
       "saveTo": "حفظ في:",
       "sameAsFirst": "نفس الملف الأول",
       "change": "تغيير"
+    },
+    "sync": {
+      "name": "مزامنة الخط الزمني",
+      "desc": "مزامنة الكاميرات والمسجلات في خط زمني",
+      "dropzone": "أسقط هنا جميع ملفات الكاميرات ومسجلات الصوت",
+      "or": "أو",
+      "browseFiles": "تصفح الملفات",
+      "hint": "يزامن حسب الصوت ويصدّر خط زمني XML لبرنامج Premiere / Resolve",
+      "saveTo": "حفظ في:",
+      "sameAsFirst": "نفس الملف الأول",
+      "change": "تغيير",
+      "sync": "مزامنة",
+      "syncing": "جارٍ المزامنة حسب الصوت…",
+      "synced": "تمت المزامنة",
+      "unsynced": "لا يوجد تطابق",
+      "reference": "مرجع",
+      "done": "تم حفظ ملف XML للخط الزمني",
+      "showInFolder": "إظهار في المجلد",
+      "importHint": "Premiere / Resolve: File ← Import هذا الملف",
+      "clearAll": "مسح الكل",
+      "addMore": "إضافة ملفات",
+      "noMatch": "تعذر العثور على صوت متطابق بين الملفات",
+      "saveXml": "حفظ XML للخط الزمني…",
+      "reviewHint": "راجع الإزاحات أعلاه ثم احفظ ملف XML حيث تريد.",
+      "legend": "أزرق = فيديو · أخضر = صوت · محدد = مرجع"
     },
     "cropper": {
       "name": "أداة قص الوسائط",

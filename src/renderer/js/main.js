@@ -512,6 +512,7 @@ class KolboApp {
     const formatFactoryTab = document.getElementById('format-factory-tab');
     const downloaderTab = document.getElementById('downloader-tab');
     const quickToolsTab = document.getElementById('quick-tools-tab');
+    const timelineSyncTab = document.getElementById('timeline-sync-tab');
     if (mediaTab) {
       mediaTab.addEventListener('click', () => this.switchView('media'));
     }
@@ -526,6 +527,9 @@ class KolboApp {
     }
     if (quickToolsTab) {
       quickToolsTab.addEventListener('click', () => this.switchView('quick-tools'));
+    }
+    if (timelineSyncTab) {
+      timelineSyncTab.addEventListener('click', () => this.switchView('timeline-sync'));
     }
     const synciTab = document.getElementById('synci-tab');
     if (synciTab) {
@@ -802,6 +806,7 @@ class KolboApp {
     const formatFactoryView = document.getElementById('format-factory-view');
     const downloaderView = document.getElementById('downloader-view');
     const quickToolsView = document.getElementById('quick-tools-view');
+    const timelineSyncView = document.getElementById('timeline-sync-view');
     const fileExplorerView = document.getElementById('file-explorer-view');
     const agentView = document.getElementById('agent-view');
     const videoStudioView = document.getElementById('video-studio-view');
@@ -822,6 +827,8 @@ class KolboApp {
     downloaderView?.classList.remove('active');
     quickToolsView?.classList.add('hidden');
     quickToolsView?.classList.remove('active');
+    timelineSyncView?.classList.add('hidden');
+    timelineSyncView?.classList.remove('active');
     fileExplorerView?.classList.add('hidden');
     fileExplorerView?.classList.remove('active');
     agentView?.classList.add('hidden');
@@ -918,6 +925,14 @@ class KolboApp {
 
       if (this.DEBUG_MODE) {
         console.log('[View] Quick Tools view shown');
+      }
+    } else if (view === 'timeline-sync') {
+      timelineSyncView?.classList.remove('hidden');
+      timelineSyncView?.classList.add('active');
+      if (mediaCount) mediaCount.style.display = 'none';
+
+      if (this.DEBUG_MODE) {
+        console.log('[View] Timeline Sync view shown');
       }
     } else if (view === 'file-explorer') {
       fileExplorerView?.classList.remove('hidden');
@@ -1805,7 +1820,7 @@ ${Icons.get('columns-2', 16)}
     // Build HTML
     let html = `
       <div class="project-item ${this.selectedProjectId === 'all' ? 'active' : ''}" data-value="all">
-${Icons.get('grid-2x2', 16)}
+        <span class="project-thumb">${Icons.get('grid-2x2', 16)}</span>
         <span>All Projects</span>
       </div>
     `;
@@ -1818,7 +1833,7 @@ ${Icons.get('grid-2x2', 16)}
         const name = project.name || project.title || 'Unnamed Project';
         html += `
           <div class="project-item ${isActive ? 'active' : ''}" data-value="${project._id}">
-${Icons.get('folder', 16)}
+            ${this.projectThumbHtml(project)}
             <span>${this.escapeHtml(name)}</span>
           </div>
         `;
@@ -1834,6 +1849,21 @@ ${Icons.get('folder', 16)}
         this.selectProject(value);
       });
     });
+  }
+
+  // Mirrors kolbo-map ProjectCoverArt (maxTiles=1): manual cover → latest generation → tinted plate + faint mark.
+  projectThumbHtml(project) {
+    const media = (project.recentMedia || []).find(m => m && (m.thumbnailUrl || m.url));
+    const src = (project.cover && project.cover.manual && project.cover.manual.url) || (media && (media.thumbnailUrl || media.url));
+    if (src) {
+      const fp = (project.cover && project.cover.manual && project.cover.manual.url && project.cover.manual.focalPoint) || null;
+      const pos = fp ? `object-position:${Math.round(fp.x * 100)}% ${Math.round(fp.y * 100)}%` : '';
+      return `<span class="project-thumb"><img src="${this.escapeHtml(src)}" alt="" loading="lazy" decoding="async" style="${pos}"></span>`;
+    }
+    let sum = 0;
+    const id = String(project._id || '');
+    for (let i = 0; i < id.length; i++) sum = (sum + id.charCodeAt(i)) % 997;
+    return `<span class="project-thumb project-thumb-fallback tint-${sum % 5}"><img src="images/kolbo-icon-white.svg" alt=""></span>`;
   }
 
   escapeHtml(text) {

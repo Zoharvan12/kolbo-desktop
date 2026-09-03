@@ -66,7 +66,8 @@
     "loadingFileBridge": "Loading File Bridge...",
     "loadingKolbo": "Loading Kolbo Web App...",
     "synci": "Synci",
-    "stock": "Stock Library"
+    "stock": "Stock Library",
+    "timelineSync": "Timeline Sync"
   },
   "webapp": {
     "back": "Go Back",
@@ -340,6 +341,31 @@
       "saveTo": "Save to:",
       "sameAsFirst": "Same as first file",
       "change": "Change"
+    },
+    "sync": {
+      "name": "Timeline Sync",
+      "desc": "Sync cameras & recorders to a timeline",
+      "dropzone": "Drop all camera and audio recorder files here",
+      "or": "or",
+      "browseFiles": "Browse Files",
+      "hint": "Syncs by sound and exports an XML timeline for Premiere / Resolve",
+      "saveTo": "Save to:",
+      "sameAsFirst": "Same as first file",
+      "change": "Change",
+      "sync": "Sync",
+      "syncing": "Syncing by sound…",
+      "synced": "Synced",
+      "unsynced": "No match",
+      "reference": "reference",
+      "done": "Timeline XML saved",
+      "showInFolder": "Show in folder",
+      "importHint": "Premiere / Resolve: File → Import this XML",
+      "clearAll": "Clear All",
+      "addMore": "Add Files",
+      "noMatch": "Could not find matching audio between the files",
+      "saveXml": "Save Timeline XML…",
+      "reviewHint": "Review the offsets above, then save the timeline XML where you want it.",
+      "legend": "Blue = video · Green = audio · Outlined = reference"
     },
     "cropper": {
       "name": "Media Cropper",

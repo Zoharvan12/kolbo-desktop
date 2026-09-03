@@ -1385,6 +1385,45 @@ function setupQuickToolsHandlers() {
     }
   });
 
+  // Timeline sync (PluralEyes-style): analyze only — the XML is written by qt:audio-sync-save
+  ipcMain.handle('qt:audio-sync', async (event, job) => {
+    try {
+      const { analyze } = require('./audio-sync-handler');
+      const files = (job.files || []).filter(Boolean);
+      if (!files.length) return { success: false, error: 'No files' };
+      const result = await analyze(files, {
+        ffmpegPath: ffmpegHandler.ffmpegPath,
+        onProgress: (message) => event.sender.send('qt:audio-sync-progress', { message })
+      });
+      if (result.items.filter((i) => i.synced).length < 2) return { success: false, error: 'no-match', result };
+      return { success: true, result };
+    } catch (error) {
+      console.error('[Quick Tools] Audio sync failed:', error);
+      return { success: false, error: error.message };
+    }
+  });
+
+  // User confirms + picks where to save the FCP7 XML
+  ipcMain.handle('qt:audio-sync-save', async (event, { items }) => {
+    try {
+      const fs = require('fs');
+      const { dialog } = require('electron');
+      const { buildXmeml } = require('./timeline-xml');
+      const first = items.find((i) => i.synced);
+      const defaultDir = first ? path.dirname(first.file) : app.getPath('documents');
+      const { canceled, filePath } = await dialog.showSaveDialog(mainWindow, {
+        defaultPath: path.join(defaultDir, 'kolbo-synced.xml'),
+        filters: [{ name: 'Final Cut Pro XML', extensions: ['xml'] }]
+      });
+      if (canceled || !filePath) return { success: false, canceled: true };
+      fs.writeFileSync(filePath, buildXmeml({ name: path.basename(filePath, '.xml'), items }));
+      return { success: true, outputPath: filePath };
+    } catch (error) {
+      console.error('[Quick Tools] Audio sync save failed:', error);
+      return { success: false, error: error.message };
+    }
+  });
+
   // Crop video
   ipcMain.handle('qt:crop-video', async (event, job) => {
     try {

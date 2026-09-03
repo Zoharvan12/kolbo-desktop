@@ -56,7 +56,8 @@
     "loadingFileBridge": "Chargement de File Bridge...",
     "loadingKolbo": "Chargement de l'application Web Kolbo...",
     "synci": "Synci",
-    "stock": "Stock"
+    "stock": "Stock",
+    "timelineSync": "Synchro timeline"
   },
   "webapp": {
     "back": "Retour",
@@ -326,6 +327,31 @@
       "saveTo": "Enregistrer sous :",
       "sameAsFirst": "Identique au premier fichier",
       "change": "Modifier"
+    },
+    "sync": {
+      "name": "Synchro timeline",
+      "desc": "Caméras et enregistreurs sur une timeline",
+      "dropzone": "Déposez ici tous les fichiers caméras et enregistreurs",
+      "or": "ou",
+      "browseFiles": "Parcourir les fichiers",
+      "hint": "Synchronise par le son et exporte une timeline XML pour Premiere / Resolve",
+      "saveTo": "Enregistrer sous :",
+      "sameAsFirst": "Identique au premier fichier",
+      "change": "Modifier",
+      "sync": "Synchroniser",
+      "syncing": "Synchronisation par le son…",
+      "synced": "Synchronisé",
+      "unsynced": "Aucune correspondance",
+      "reference": "référence",
+      "done": "XML de timeline enregistré",
+      "showInFolder": "Afficher dans le dossier",
+      "importHint": "Premiere / Resolve : Fichier → Importer ce XML",
+      "clearAll": "Tout effacer",
+      "addMore": "Ajouter des fichiers",
+      "noMatch": "Aucun son correspondant trouvé entre les fichiers",
+      "saveXml": "Enregistrer le XML de timeline…",
+      "reviewHint": "Vérifiez les décalages, puis enregistrez le XML où vous voulez.",
+      "legend": "Bleu = vidéo · Vert = audio · Contour = référence"
     },
     "cropper": {
       "name": "Recadreur de médias",

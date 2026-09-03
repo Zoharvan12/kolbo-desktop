@@ -56,7 +56,8 @@
     "loadingFileBridge": "ファイルブリッジを読み込んでいます...",
     "loadingKolbo": "Kolbo Web Appを読み込んでいます...",
     "synci": "Synci",
-    "stock": "ストック"
+    "stock": "ストック",
+    "timelineSync": "タイムライン同期"
   },
   "webapp": {
     "back": "戻る",
@@ -326,6 +327,31 @@
       "saveTo": "保存先:",
       "sameAsFirst": "最初のファイルと同じ",
       "change": "変更"
+    },
+    "sync": {
+      "name": "タイムライン同期",
+      "desc": "カメラとレコーダーをタイムラインに同期",
+      "dropzone": "カメラとレコーダーのファイルをすべてここにドロップ",
+      "or": "または",
+      "browseFiles": "ファイルを参照",
+      "hint": "音声で同期し、Premiere / Resolve 用の XML タイムラインを書き出します",
+      "saveTo": "保存先:",
+      "sameAsFirst": "最初のファイルと同じ",
+      "change": "変更",
+      "sync": "同期",
+      "syncing": "音声で同期中…",
+      "synced": "同期済み",
+      "unsynced": "一致なし",
+      "reference": "基準",
+      "done": "タイムライン XML を保存しました",
+      "showInFolder": "フォルダで表示",
+      "importHint": "Premiere / Resolve：ファイル → 読み込み でこの XML を開く",
+      "clearAll": "すべてクリア",
+      "addMore": "ファイルを追加",
+      "noMatch": "ファイル間で一致する音声が見つかりませんでした",
+      "saveXml": "タイムライン XML を保存…",
+      "reviewHint": "上のオフセットを確認して、任意の場所に XML を保存します。",
+      "legend": "青 = 映像 · 緑 = 音声 · 枠線 = 基準"
     },
     "cropper": {
       "name": "メディアクロッパー",
