@@ -5022,8 +5022,10 @@ ${Icons.get('download', 16)}
       statusEl.className = 'settings-sublabel available';
     }
 
-    // Nav button now triggers install directly with one click
+    // Nav button now triggers install directly with one click.
+    // This is the ONLY place the header button is revealed (never on update-available).
     if (updateBtn) {
+      updateBtn.classList.remove('hidden');
       if (updateBtnLabel) updateBtnLabel.textContent = window.t ? window.t('header.restartToUpdate') : 'Restart to Update';
       updateBtn.title = `Version ${info.version} ready — click to install and relaunch`;
       updateBtn.onclick = () => this.handleInstallUpdate();
