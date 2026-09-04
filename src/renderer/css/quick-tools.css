@@ -121,16 +121,17 @@
   font-size: 16px;
   font-weight: 500;
   color: rgba(255, 255, 255, 0.8);
-  margin-bottom: 8px;
+  margin: 0 0 10px;
 }
 
 .qt-dropzone-hint {
   font-size: 13px;
   color: rgba(255, 255, 255, 0.4);
+  margin: 0;
 }
 
 .qt-dropzone-btn {
-  margin-top: 16px;
+  margin: 16px 0 18px;
   padding: 10px 24px;
   background: linear-gradient(135deg, #3b82f6, #60a5fa);
   border: none;

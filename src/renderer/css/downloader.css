@@ -520,6 +520,7 @@
   display: flex;
   align-items: center;
   gap: 8px;
+  flex-shrink: 0;
 }
 
 .dl-queue-header-actions .dl-btn {

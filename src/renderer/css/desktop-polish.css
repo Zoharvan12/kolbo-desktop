@@ -1399,7 +1399,8 @@ textarea::placeholder {
 
 #quick-tools-view .qt-dropzone-btn {
   min-height: 40px;
-  margin-top: 12px;
+  margin-top: 16px;
+  margin-bottom: 18px;
   padding: 9px 18px;
   border: 1px solid rgba(255, 255, 255, 0.74);
   border-radius: 9px;
@@ -1412,6 +1413,11 @@ textarea::placeholder {
   transform: none;
   background: #f4f4f5;
   box-shadow: 0 8px 18px rgba(0, 0, 0, 0.28);
+}
+
+#timeline-sync-view .qt-dropzone-btn {
+  margin-top: 16px;
+  margin-bottom: 18px;
 }
 
 /* Downloader ------------------------------------------------------------ */
@@ -1567,7 +1573,8 @@ textarea::placeholder {
   border-color: rgba(255, 255, 255, 0.1);
 }
 
-#downloader-view .dl-queue-section.is-empty .dl-queue-header-actions {
+#downloader-view .dl-queue-section.is-empty #dl-clear-btn,
+#downloader-view .dl-queue-section.is-empty #dl-stop-all-btn {
   display: none;
 }
 
@@ -1625,6 +1632,12 @@ textarea::placeholder {
 
 #downloader-view .dl-btn-start-main svg {
   stroke: currentColor;
+}
+
+#downloader-view .dl-btn-start-main:disabled {
+  opacity: 0.85;
+  background: #e4e4e7;
+  color: #171719;
 }
 
 #downloader-view .dl-btn-start-main:hover:not(:disabled) {
@@ -1874,8 +1887,14 @@ textarea::placeholder {
   color: #aaaab2;
 }
 
+#format-factory-view .ff-file-types {
+  margin-top: 0;
+}
+
 #format-factory-view .ff-btn-add-files {
   min-height: 42px;
+  margin-top: 4px;
+  margin-bottom: 6px;
   padding: 9px 18px;
   border-color: rgba(255, 255, 255, 0.74);
   border-radius: 9px;

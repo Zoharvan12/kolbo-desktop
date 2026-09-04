@@ -368,6 +368,7 @@ class DownloaderManager {
     this.renderQueueItem(job);
     this.updateQueueCount();
     this.updateToolbarButtons();
+    this.checkEmptyState();
 
     // Hide preview and clear input
     this.hidePreview();
