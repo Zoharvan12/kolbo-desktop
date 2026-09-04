@@ -436,7 +436,6 @@ html, body {
   display: flex;
   align-items: center;
   gap: 12px;
-  -webkit-app-region: no-drag; /* Make interactive elements clickable */
 }
 
 /* macOS: Add left padding to avoid overlap with traffic light buttons */
@@ -462,10 +461,19 @@ body.is-mac .header {
   display: flex;
   gap: 8px;
   align-items: center;
-  -webkit-app-region: no-drag; /* Make buttons clickable */
   overflow: visible;
   position: relative;
   z-index: 50;
+}
+
+/* Only controls are no-drag — empty header space must stay a window-drag region */
+.header .tab-btn,
+.header .icon-btn,
+.header .settings-btn,
+.header .header-lang-btn,
+.header .update-available-btn,
+.header .media-count {
+  -webkit-app-region: no-drag;
 }
 
 .icon-btn {
@@ -748,7 +756,10 @@ body.is-mac .window-controls {
   overflow-x: auto;
   overflow-y: hidden;
   scrollbar-width: none; /* Firefox */
-  -webkit-app-region: no-drag; /* Make tabs clickable */
+}
+
+.tab-list > * {
+  -webkit-app-region: no-drag;
 }
 
 .tab-list::-webkit-scrollbar {
