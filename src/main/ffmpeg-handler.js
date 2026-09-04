@@ -215,6 +215,12 @@ class FFmpegHandler {
       }
     }
 
+    // fluent-ffmpeg's progress.percent is vs the full input duration. A short
+    // trim of a long file stays under 1% and the UI rounds it to 0%.
+    const expectedDuration = (trimStart !== undefined && trimEnd !== undefined)
+      ? Math.max(0.001, Number(trimEnd) - Number(trimStart))
+      : parseFloat((videoMetadata || audioMetadata)?.format?.duration) || 0;
+
     return new Promise((resolve, reject) => {
       try {
         const command = ffmpeg(filePath);
@@ -252,14 +258,14 @@ class FFmpegHandler {
         });
 
         command.on('progress', (progress) => {
-          const percent = progress.percent || 0;
+          const percent = this.progressToPercent(progress, expectedDuration);
           console.log(`[FFmpeg Handler] Progress [${id}]: ${percent.toFixed(1)}%`);
 
           // Send progress to renderer
           if (this.mainWindow && !this.mainWindow.isDestroyed()) {
             this.mainWindow.webContents.send('ff:progress', {
               jobId: id,
-              progress: Math.min(Math.max(percent, 0), 100),
+              progress: percent,
               timemark: progress.timemark
             });
           }
@@ -271,6 +277,7 @@ class FFmpegHandler {
 
           // Send completion to renderer
           if (this.mainWindow && !this.mainWindow.isDestroyed()) {
+            this.mainWindow.webContents.send('ff:progress', { jobId: id, progress: 100 });
             this.mainWindow.webContents.send('ff:complete', {
               jobId: id,
               outputPath
@@ -709,6 +716,20 @@ class FFmpegHandler {
     if (parts.length === 3) {
       return parseFloat(parts[0]) * 3600 + parseFloat(parts[1]) * 60 + parseFloat(parts[2]);
     }
+    return 0;
+  }
+
+  /**
+   * Map ffmpeg progress to 0–99 using expected output duration when known.
+   * Caps at 99 so the 100 event on completion is the only terminal value.
+   */
+  progressToPercent(progress, expectedDurationSec) {
+    const elapsed = this.timemarkToSeconds(progress?.timemark);
+    if (expectedDurationSec > 0 && elapsed > 0) {
+      return Math.min(99, Math.max(0, (elapsed / expectedDurationSec) * 100));
+    }
+    const raw = Number(progress?.percent);
+    if (Number.isFinite(raw) && raw > 0) return Math.min(99, raw);
     return 0;
   }
 
