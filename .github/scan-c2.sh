@@ -57,15 +57,26 @@ scan_list() { printf '%s\n' "$FILES" | tr -d '\r' | xargs -d '\n' -r "$@" 2>/dev
 #    Every variant to date hides the payload behind padding after a real statement
 #    (`module.exports = router;` + 200 spaces + code). 100 is calibrated: catches the
 #    real payload, zero false positives repo-wide.
-for f in $(scan_list grep -lP '[ ]{100,}\S'); do
-  report "$f" "injection padding (100+ spaces mid-line followed by code)"
+# TABS COUNT. The kolbo-code postcss.config.mjs payload found live on 2026-09-11 padded
+# with 273 TAB characters, not spaces: this check scored 0 on it and only the IOC list
+# below caught the file. Every previous variant dropped its IOC strings eventually, so a
+# space-only padding check is one rename away from missing the whole family.
+for f in $(scan_list grep -lP '[ 	]{100,}\S'); do
+  report "$f" "injection padding (100+ spaces/tabs mid-line followed by code)"
 done
 
 # 2. Known IOCs across every observed variant (A8-1955, A9-1672, EtherHiding). The 2026-08
 #    variant carries NO hardcoded IP — it resolves the C2 from chain state — so
 #    eth_getBlockByNumber and the ESM require-shim are the load-bearing entries here.
 IOC="eth_getBlockByNumber|blockscout\.com/api|166\.88\.[0-9]+\.[0-9]+|136\.0\.9\.8|global\['_V'\]|global\['!'\]"
+# A scanner necessarily contains the strings it hunts for. This exclusion is deliberately
+# NARROW and applies to this check alone — the padding, unicode-density, font-magic and
+# binary-JS checks still run on these files, so naming a payload security-scan.mjs buys
+# an attacker nothing.
+GUARD_FILES='(^|/)(security-scan(\.test)?|source-guard)\.mjs$|(^|/)scan-c2\.sh$|(^|/)malware-scan\.ya?ml$|(^|/)INCIDENT-.*\.md$'
 for f in $(scan_list grep -lE "$IOC"); do
+  printf '%s
+' "$f" | grep -qE "$GUARD_FILES" && continue
   report "$f" "known C2 loader IOC present"
 done
 
