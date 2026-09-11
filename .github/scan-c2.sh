@@ -33,9 +33,14 @@ else
     | grep -vE '(^|/)(node_modules|dist|build)/|\.min\.(js|ts)$|\.map$')
 fi
 
+# NO EARLY EXIT ON AN EMPTY SOURCE LIST.
+# This used to `exit 0` when a repo had no *.js/*.ts, which skipped section 5 — the
+# dropper-kit checks — entirely. kolbo-skills and kolbo-claude-plugin are asset/markdown
+# repos with zero JS, so they reported "clean" on 2026-09-11 while a fake
+# public/fonts/fa-solid-500.woff2 sat in the default branch. An early return keyed on one
+# file class must never decide whether a different file class gets checked.
 if [ -z "$FILES" ]; then
-  echo "scan-c2: no source files to scan"
-  exit 0
+  echo "scan-c2: no *.js/*.ts source; running asset checks only"
 fi
 
 report() {
@@ -57,6 +62,8 @@ scan_list() { printf '%s\n' "$FILES" | tr -d '\r' | xargs -d '\n' -r "$@" 2>/dev
 #    Every variant to date hides the payload behind padding after a real statement
 #    (`module.exports = router;` + 200 spaces + code). 100 is calibrated: catches the
 #    real payload, zero false positives repo-wide.
+if [ -n "$FILES" ]; then
+
 # TABS COUNT. The kolbo-code postcss.config.mjs payload found live on 2026-09-11 padded
 # with 273 TAB characters, not spaces: this check scored 0 on it and only the IOC list
 # below caught the file. Every previous variant dropped its IOC strings eventually, so a
@@ -101,6 +108,8 @@ for f in $(scan_list grep -lF '\u00'); do
     report "$f" "$n unicode escapes — obfuscated payload signature"
   fi
 done
+
+fi   # end of the source-text checks; ASSET checks below ALWAYS run
 
 # 5. The DROPPER KIT — the carrier, not the payload. Checks 1-4 only ever looked at
 #    *.js/*.mjs/*.cjs/*.ts, so the three files that actually gave the loader execution on
