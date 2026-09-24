@@ -137,10 +137,11 @@ jobs:
             echo "⚠️ CSC_LINK not set, skipping certificate import"
             exit 0
           fi
-          KEYCHAIN_NAME="build.keychain"
+          KEYCHAIN_NAME="$RUNNER_TEMP/kolbo-build.keychain-db"
           KEYCHAIN_PASSWORD="actions"
           echo "$CSC_LINK" | base64 --decode > certificate.p12
           security create-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_NAME"
+          echo "CSC_KEYCHAIN=$KEYCHAIN_NAME" >> "$GITHUB_ENV"
           security default-keychain -s "$KEYCHAIN_NAME"
           security unlock-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_NAME"
           security set-keychain-settings -t 3600 -u "$KEYCHAIN_NAME"
@@ -155,8 +156,6 @@ jobs:
           KOLBO_ENV: production
           CI: 'true'
           CSC_NAME: "Zohar Vanunu Productions, LLC (DPVW9Z2L9Y)"
-          CSC_LINK: ${{ secrets.CSC_LINK }}
-          CSC_KEY_PASSWORD: ${{ secrets.CSC_KEY_PASSWORD }}
           APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
           APPLE_ID: ${{ secrets.APPLE_ID }}
           APPLE_ID_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
