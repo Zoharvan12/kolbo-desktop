@@ -73,6 +73,8 @@
     }
   },
   "media": {
+    "selectItem": "Sélectionner",
+    "playPause": "Lire ou mettre en pause",
     "itemsCount": "{{count}} éléments",
     "noItems": "0 élément",
     "allProjects": "Tous les projets",
@@ -251,6 +253,8 @@
     "chooseOutputFolder": "Choisir le dossier de sortie"
   },
   "downloader": {
+    "recovery": "Récupération du téléchargement avec Kolbo…",
+    "recoverySaving": "Enregistrement du téléchargement récupéré…",
     "downloadTo": "Télécharger vers :",
     "change": "Modifier",
     "open": "Ouvrir",

@@ -15,10 +15,7 @@ const DRIFT_SEG_SEC = 300;        // first/last segment length for drift estimat
 const DRIFT_SEARCH_SEC = 2;
 
 function resolveFfmpeg() {
-  if (process.env.KOLBO_FFMPEG) return process.env.KOLBO_FFMPEG;
-  let p = require('@ffmpeg-installer/ffmpeg').path;
-  if (p.includes('app.asar')) p = p.replace('app.asar', 'app.asar.unpacked');
-  return p;
+  return require('./ffmpeg-path').getFfmpegPath() || 'ffmpeg';
 }
 
 // ---------- decode → envelope ----------

@@ -73,6 +73,8 @@
     }
   },
   "media": {
+    "selectItem": "选择项目",
+    "playPause": "播放或暂停",
     "itemsCount": "{{count}} 个项目",
     "noItems": "0 个项目",
     "allProjects": "所有项目",
@@ -251,6 +253,8 @@
     "chooseOutputFolder": "选择输出文件夹"
   },
   "downloader": {
+    "recovery": "正在通过 Kolbo 恢复下载…",
+    "recoverySaving": "正在保存恢复的下载…",
     "downloadTo": "下载到:",
     "change": "更改",
     "open": "打开",

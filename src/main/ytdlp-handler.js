@@ -5,7 +5,10 @@ const path = require('path');
 const fs = require('fs');
 const https = require('https');
 const http = require('http');
+const os = require('os');
+const { spawn } = require('child_process');
 const { app } = require('electron');
+const { getFfmpegPath: resolveFfmpegPath, verifyFfmpeg } = require('./ffmpeg-path');
 
 // Platform detection mappings
 const PLATFORM_PATTERNS = {
@@ -66,7 +69,8 @@ const COMMON_EXTRACTOR_ARGS = [
 const SOCIAL_PLATFORMS = ['youtube', 'instagram', 'facebook', 'twitter', 'tiktok'];
 
 class YtdlpHandler {
-  constructor(mainWindow) {
+  constructor(mainWindow, { serverFallback } = {}) {
+    this.serverFallback = serverFallback;
     this.mainWindow = mainWindow;
     this.activeDownloads = new Map(); // id -> { process, aborted }
     this.YTDlpWrap = null;
@@ -310,6 +314,14 @@ class YtdlpHandler {
     try {
       const YTDlpWrap = require('yt-dlp-wrap').default;
       this.YTDlpWrap = YTDlpWrap;
+
+      // Merging separate video/audio streams (YouTube 1080p+, LinkedIn/Instagram DASH) and
+      // every HLS remux depend on ffmpeg. Prove it runs now rather than discovering it at
+      // the end of a 200 MB download.
+      verifyFfmpeg().then((r) => {
+        this.ffmpegReady = r.ok;
+        if (!r.ok) console.error('[yt-dlp Handler] ffmpeg unusable — merging will fail:', r.error);
+      });
 
       // Get binary path - prefer bundled, fallback to download
       const binaryPath = this.getBinaryPath();
@@ -1146,9 +1158,9 @@ class YtdlpHandler {
   }
 
   /** Notify the renderer that we're escalating to another download strategy. */
-  _sendRetry(jobId, reason) {
+  _sendRetry(jobId, reason, reasonKey) {
     if (this.mainWindow && !this.mainWindow.isDestroyed()) {
-      this.mainWindow.webContents.send('dl:retry', { jobId, reason });
+      this.mainWindow.webContents.send('dl:retry', { jobId, reason, reasonKey });
     }
   }
 
@@ -1172,6 +1184,7 @@ class YtdlpHandler {
       try {
         return await this.downloadDirectUrl(job);
       } catch (directError) {
+        if (directError?.aborted) throw directError;
         console.warn('[yt-dlp Handler] Direct download failed, falling back to yt-dlp:', directError.message);
       }
     }
@@ -1179,8 +1192,7 @@ class YtdlpHandler {
     if (!this.initialized || !this.ytdlp) {
       await this.initialize();
       if (!this.initialized || !this.ytdlp) {
-        if (this.isDirectMediaUrl(url)) return this.downloadDirectUrl(job);
-        throw new Error('yt-dlp is not initialized');
+        return this._runServerFallback(job, new Error('yt-dlp is not initialized'));
       }
     }
 
@@ -1226,7 +1238,7 @@ class YtdlpHandler {
           try {
             const outputPath = await this.downloadDirectUrl(job);
             return outputPath; // downloadDirectUrl sends its own dl:complete
-          } catch (_) {}
+          } catch (error) { if (error?.aborted) throw error; }
         }
 
         // Genuinely removed → no tier will help, fail fast
@@ -1243,13 +1255,37 @@ class YtdlpHandler {
       }
     }
 
+    return this._runServerFallback(job, primaryError);
+  }
+
+  async _runServerFallback(job, primaryError) {
+    const { id, url } = job;
+    if (this.serverFallback && !this.isPermanentlyUnavailable(primaryError?.message || '')) {
+      const controller = new AbortController();
+      const state = { aborted: false };
+      this.activeDownloads.set(id, { controller, state });
+      this._sendRetry(id, 'Recovering download with Kolbo…', 'downloader.recovery');
+      try {
+        const outputPath = await this.serverFallback(job, { signal: controller.signal,
+          onProgress: ({ phase }) => this._sendRetry(id, phase === 'saving' ? 'Saving recovered download…' : 'Recovering download with Kolbo…', phase === 'saving' ? 'downloader.recoverySaving' : 'downloader.recovery'),
+        });
+        if (state.aborted) throw { aborted: true };
+        if (this.mainWindow && !this.mainWindow.isDestroyed()) {
+          this.mainWindow.webContents.send('dl:complete', { jobId: id, outputPath });
+        }
+        return outputPath;
+      } catch (error) {
+        if (state.aborted || controller.signal.aborted) throw { aborted: true };
+        primaryError = error;
+      } finally { this.activeDownloads.delete(id); }
+    }
+
     // Ladder exhausted — report an honest, actionable error
     const finalMsg = (primaryError && (primaryError.originalError || primaryError.message)) || 'Download failed';
     const errorType = this.classifyError(finalMsg);
     const userMsg = this.getDetailedErrorMessage(finalMsg, url);
 
-    const sanitizedTitle = title ? title.replace(/[<>:"/\\|?*]/g, '_').substring(0, 100) : '';
-    if (sanitizedTitle) this.cleanupTempFiles(outputFolder, sanitizedTitle);
+    // Each attempt owns a private staging folder; never clean the user's output folder.
 
     if (this.mainWindow && !this.mainWindow.isDestroyed()) {
       this.mainWindow.webContents.send('dl:error', { jobId: id, error: userMsg, errorType });
@@ -1264,12 +1300,15 @@ class YtdlpHandler {
    * the ladder in downloadMedia owns final success/failure reporting.
    */
   _runDownloadAttempt(job, extraArgs = []) {
-    const { id, url, outputFormat, quality, outputFolder, title } = job;
+    const { id, url, outputFormat, quality, outputFolder: destinationFolder, title } = job;
+    // Isolate concurrent downloads and repeated titles before scanning or cleanup.
+    const outputFolder = fs.mkdtempSync(path.join(destinationFolder, '.kolbo-download-'));
 
     const sanitizedTitle = title ? title.replace(/[<>:"/\\|?*]/g, '_').substring(0, 100) : '%(title)s';
     const outputTemplate = path.join(outputFolder, `${sanitizedTitle}.%(ext)s`);
 
-    const options = this.buildDownloadOptions(outputFormat, quality, outputTemplate);
+    const manifestFile = path.join(os.tmpdir(), `kolbo-dl-${id}-${Date.now()}.path`);
+    const options = this.buildDownloadOptions(outputFormat, quality, outputTemplate, manifestFile);
     if (extraArgs && extraArgs.length) options.push(...extraArgs);
 
     return new Promise((resolve, reject) => {
@@ -1306,12 +1345,26 @@ class YtdlpHandler {
         const finalizeOutput = async () => {
           sendProgress(82, { status: 'Finalizing...' });
 
-          let outputPath = this.findOutputFile(outputFolder, sanitizedTitle, outputFormat);
+          // Trust yt-dlp's own report first; fall back to scanning only if it never
+          // printed one (killed mid-run, or an old binary without --print-to-file).
+          let outputPath = this.readFinalPathManifest(manifestFile);
+          if (!this.validateOutputFile(outputPath)) {
+            outputPath = this.findOutputFile(outputFolder, sanitizedTitle, outputFormat);
+          }
+
+          // Still nothing, but per-format streams are sitting on disk: yt-dlp fetched both
+          // halves and could not merge them (unusable ffmpeg, or a rename racing an AV
+          // scanner). Finish the job ourselves rather than handing back a silent
+          // video-only file — which is exactly how this bug stayed invisible.
+          if (!this.validateOutputFile(outputPath)) {
+            const merged = await this.mergeLeftoverStreams(outputFolder, sanitizedTitle, outputFormat, id);
+            if (merged) outputPath = merged;
+          }
 
           if (outputFormat === 'mp3') {
             // yt-dlp normally handles m4a→mp3 internally; if it left a non-mp3, convert it.
             if (outputPath && !outputPath.endsWith('.mp3') && fs.existsSync(outputPath)) {
-              const mp3Target = path.join(outputFolder, `${sanitizedTitle}.mp3`);
+              const mp3Target = path.join(outputFolder, `${path.parse(outputPath).name}.mp3`);
               try {
                 outputPath = await this.convertToMp3WithFfmpeg(outputPath, mp3Target, id, quality);
               } catch (convErr) {
@@ -1321,7 +1374,7 @@ class YtdlpHandler {
           } else {
             // If yt-dlp left a .webm/.mkv (merge failed internally), remux to mp4.
             if (outputPath && !outputPath.endsWith('.mp4') && fs.existsSync(outputPath)) {
-              const remuxTarget = path.join(outputFolder, `${sanitizedTitle}.mp4`);
+              const remuxTarget = path.join(outputFolder, `${path.parse(outputPath).name}.mp4`);
               try {
                 outputPath = await this.remuxWithFfmpeg(outputPath, remuxTarget, id);
               } catch (remuxErr) {
@@ -1329,6 +1382,34 @@ class YtdlpHandler {
               }
             }
           }
+
+          // Drop the .fNNN stream halves and .meta/.part crumbs a successful run leaves
+          // behind, so the download folder never shows three files for one video.
+          if (this.validateOutputFile(outputPath)) {
+            const streams = await this.probeStreams(outputPath);
+            if (outputFormat !== 'mp3' && !streams.video) return null;
+            // A stranded companion audio stream means a video-only result is incomplete.
+            if (outputFormat !== 'mp3' && !streams.audio && this.findStreamGroup(outputFolder, sanitizedTitle)) {
+              outputPath = await this.mergeLeftoverStreams(outputFolder, sanitizedTitle, outputFormat, id);
+              if (!this.validateOutputFile(outputPath)) return null;
+            }
+            const parsed = path.parse(outputPath);
+            let target = path.join(destinationFolder, parsed.base);
+            let suffix = 1;
+            // COPYFILE_EXCL makes collision handling safe even for simultaneous jobs.
+            for (;;) {
+              try { await fs.promises.copyFile(outputPath, target, fs.constants.COPYFILE_EXCL); break; }
+              catch (error) {
+                if (error.code !== 'EEXIST') throw error;
+                target = path.join(destinationFolder, `${parsed.name} (${suffix++})${parsed.ext}`);
+              }
+            }
+            fs.unlinkSync(outputPath);
+            this.cleanupTempFiles(outputFolder, sanitizedTitle);
+            try { fs.rmdirSync(outputFolder); } catch (_) {}
+            outputPath = target;
+          }
+          try { fs.unlinkSync(manifestFile); } catch (_) {}
 
           return outputPath;
         };
@@ -1370,8 +1451,8 @@ class YtdlpHandler {
             }
 
             console.error('[yt-dlp Handler] Download attempt error:', error);
-            this.cleanupTempFiles(outputFolder, sanitizedTitle);
-
+            // Keep downloaded streams for recovery when finalization fails.
+            try { fs.unlinkSync(manifestFile); } catch (_) {}
             const errorMessage = error.message || error.toString();
             reject({ message: errorMessage, originalError: errorMessage });
           })
@@ -1382,11 +1463,26 @@ class YtdlpHandler {
             console.log('[yt-dlp Handler] yt-dlp process closed:', id);
             this.activeDownloads.delete(id);
 
-            const outputPath = await finalizeOutput();
+            const outputPath = await finalizeOutput().catch((error) => {
+              console.error('[yt-dlp Handler] Finalization failed:', error.message);
+              return null;
+            });
 
             // Validate the produced file; a missing/tiny file is a failed attempt.
             if (!this.validateOutputFile(outputPath)) {
               console.error('[yt-dlp Handler] Output file missing or invalid:', outputPath);
+
+              // Both halves on disk with no merged result means ffmpeg is the problem, not
+              // the site. Keep the streams (they are the whole download) and say so.
+              const stranded = this.findStreamGroup(outputFolder, sanitizedTitle);
+              if (stranded) {
+                const msg = 'Downloaded the video and audio streams but could not merge them — '
+                  + 'the bundled FFmpeg is missing or not runnable. The separate stream files were kept.';
+                console.error('[yt-dlp Handler]', msg, stranded.files);
+                reject({ message: msg, originalError: 'ffmpeg unavailable for merge' });
+                return;
+              }
+
               this.cleanupTempFiles(outputFolder, sanitizedTitle);
               reject({ message: 'Output file missing after download', originalError: 'output file missing or corrupt' });
               return;
@@ -1407,7 +1503,7 @@ class YtdlpHandler {
   /**
    * Build download options based on format and quality
    */
-  buildDownloadOptions(outputFormat, quality, outputTemplate) {
+  buildDownloadOptions(outputFormat, quality, outputTemplate, manifestFile = null) {
     const options = [
       '-o', outputTemplate,
       '--no-playlist',
@@ -1422,6 +1518,14 @@ class YtdlpHandler {
       '--concurrent-fragments', '4',
       '--newline', // flush one progress line per update — required for real-time reporting
     ];
+
+    // Have yt-dlp report the path of the finished file instead of us guessing it by
+    // scanning the folder. Authoritative for every extractor (YouTube, LinkedIn HLS,
+    // Instagram, ...) and immune to title-sanitization drift between our template and
+    // whatever yt-dlp actually wrote. `after_move` fires once post-processing is done.
+    if (manifestFile) {
+      options.push('--print-to-file', 'after_move:filepath', manifestFile);
+    }
 
     // Always provide the bundled ffmpeg so merging always works
     const ffmpegPath = this.getFfmpegPath();
@@ -1563,15 +1667,17 @@ class YtdlpHandler {
     // Exclude .part files — those are incomplete downloads.
     const videoExts = ['mp4', 'webm', 'mkv', 'mov', 'avi', 'm4v'];
     const audioExts = ['mp3', 'm4a', 'ogg', 'opus', 'aac', 'flac', 'wav'];
-    const allowedExts = format === 'mp3' ? audioExts : [...videoExts, ...audioExts];
+    const allowedExts = format === 'mp3' ? audioExts : videoExts;
 
     try {
-      const prefix = baseName.substring(0, 50);
+      const prefix = this.streamPrefix(baseName) || '';
       const files = fs.readdirSync(folder);
 
       // First pass: prefer mp4/mp3 exact match anywhere in the listing
       for (const f of files) {
-        if (f.startsWith(prefix) && f.endsWith(`.${preferredExt}`) && !f.includes('.part')) {
+        // /\.f(?:\d[\w-]*|dash-[\w-]+)\./ = a yt-dlp per-format stream (title.f299.mp4) — video-only or
+        // audio-only, never the merged result. Accepting one reports a silent video as success.
+        if (f.startsWith(prefix) && f.endsWith(`.${preferredExt}`) && !f.includes('.part') && !/\.f(?:\d[\w-]*|dash-[\w-]+)\./.test(f)) {
           return path.join(folder, f);
         }
       }
@@ -1581,7 +1687,7 @@ class YtdlpHandler {
       const candidates = files
         .filter(f => {
           if (!f.startsWith(prefix)) return false;
-          if (f.includes('.part') || /\.f\d+\./.test(f)) return false;
+          if (f.includes('.part') || /\.f(?:\d[\w-]*|dash-[\w-]+)\./.test(f)) return false;
           const ext = f.split('.').pop().toLowerCase();
           return allowedExts.includes(ext);
         })
@@ -1619,6 +1725,7 @@ class YtdlpHandler {
     if (download) {
       console.log('[yt-dlp Handler] Cancelling download:', id);
       download.state.aborted = true;
+      download.controller?.abort();
 
       try {
         // Handle yt-dlp process
@@ -1672,55 +1779,186 @@ class YtdlpHandler {
   }
 
   /**
-   * Returns the path to the ffmpeg binary.
-   * Priority: bundled @ffmpeg-installer → common system locations → null (let yt-dlp find it)
+   * Path to the ffmpeg binary yt-dlp should use for merging/remuxing, or null to let
+   * yt-dlp search PATH. Resolution (asar unpacking, system fallbacks) is owned by
+   * ./ffmpeg-path — do not re-derive it here.
    */
   getFfmpegPath() {
-    try {
-      const installer = require('@ffmpeg-installer/ffmpeg');
-      if (installer.path && fs.existsSync(installer.path)) {
-        return installer.path;
-      }
-    } catch (_) {}
-
-    if (process.platform === 'win32') {
-      const candidates = [
-        'C:\\ffmpeg\\bin\\ffmpeg.exe',
-        path.join(process.env.LOCALAPPDATA || '', 'Programs', 'ffmpeg', 'bin', 'ffmpeg.exe'),
-        path.join(process.env.ProgramFiles || '', 'ffmpeg', 'bin', 'ffmpeg.exe'),
-      ];
-      for (const p of candidates) {
-        try { if (fs.existsSync(p)) return p; } catch (_) {}
-      }
-    } else {
-      const candidates = ['/usr/local/bin/ffmpeg', '/usr/bin/ffmpeg', '/opt/homebrew/bin/ffmpeg'];
-      for (const p of candidates) {
-        try { if (fs.existsSync(p)) return p; } catch (_) {}
-      }
-    }
-
-    return null; // yt-dlp will look on PATH
+    return resolveFfmpegPath();
   }
 
   /**
-   * Clean up leftover temp files after a failed download.
-   * Removes .part files, .ytdl temps, and per-format stream files (e.g. title.f313.webm).
+   * Remove the crumbs a download leaves behind: .part/.ytdl/.temp files, the .meta chapter
+   * file written by --embed-metadata, and per-format stream halves (title.f299.mp4).
+   * Runs after failures AND after successes — `keepPath` guards the finished file.
    */
-  cleanupTempFiles(folder, baseName) {
+  cleanupTempFiles(folder, baseName, keepPath = null) {
     try {
       const files = fs.readdirSync(folder);
-      const prefix = baseName.substring(0, 50);
+      const prefix = this.streamPrefix(baseName);
+      const keep = keepPath ? path.resolve(keepPath) : null;
+
       for (const file of files) {
-        if (!file.startsWith(prefix)) continue;
-        if (/\.(part|ytdl|temp)$|\.f\d+\.(webm|mp4|m4a|ogg|opus|aac|mkv)$/i.test(file)) {
-          try {
-            fs.unlinkSync(path.join(folder, file));
-            console.log('[yt-dlp Handler] Cleaned up temp file:', file);
-          } catch (_) {}
-        }
+        if (prefix && !file.startsWith(prefix)) continue;
+        if (!/\.(part|ytdl|temp|meta)$|\.f(?:\d[\w-]*|dash-[\w-]+)\.[a-z0-9]+$/i.test(file)) continue;
+
+        const full = path.join(folder, file);
+        if (keep && path.resolve(full) === keep) continue;
+        try {
+          fs.unlinkSync(full);
+          console.log('[yt-dlp Handler] Cleaned up temp file:', file);
+        } catch (_) {}
       }
     } catch (err) {
       console.warn('[yt-dlp Handler] cleanupTempFiles error:', err.message);
+    }
+  }
+
+  /**
+   * Prefix to match a download's own files by. Returns null when the caller had no real
+   * title (sanitizedTitle is then the literal '%(title)s' template), so callers fall back
+   * to matching on shape rather than on a name that never existed on disk.
+   */
+  streamPrefix(baseName) {
+    if (!baseName || baseName.includes('%(')) return null;
+    return baseName;
+  }
+
+  /**
+   * The final path yt-dlp printed via --print-to-file, or null.
+   * Last existing line wins — some extractors print more than one.
+   */
+  readFinalPathManifest(manifestFile) {
+    try {
+      if (!manifestFile || !fs.existsSync(manifestFile)) return null;
+      const lines = fs.readFileSync(manifestFile, 'utf8')
+        .split(/\r?\n/).map(l => l.trim()).filter(Boolean);
+      for (let i = lines.length - 1; i >= 0; i--) {
+        if (fs.existsSync(lines[i]) && !/\.f(?:\d[\w-]*|dash-[\w-]+)\.[a-z0-9]+$/i.test(lines[i])) return lines[i];
+      }
+    } catch (err) {
+      console.warn('[yt-dlp Handler] readFinalPathManifest error:', err.message);
+    }
+    return null;
+  }
+
+  /**
+   * Group leftover per-format stream files (title.f299.mp4 / title.f140.m4a) by base name.
+   * Returns the newest group as { base, files: [...] }, or null when there are none.
+   */
+  findStreamGroup(folder, baseName) {
+    try {
+      const prefix = this.streamPrefix(baseName);
+      const groups = new Map();
+
+      for (const file of fs.readdirSync(folder)) {
+        const m = /^(.*)\.f(?:\d[\w-]*|dash-[\w-]+)\.[a-z0-9]+$/i.exec(file);
+        if (!m) continue;
+        if (prefix && !file.startsWith(prefix)) continue;
+
+        const full = path.join(folder, file);
+        let mtime;
+        try { mtime = fs.statSync(full).mtimeMs; } catch (_) { continue; }
+
+        const g = groups.get(m[1]) || { base: m[1], files: [], mtime: 0 };
+        g.files.push(full);
+        g.mtime = Math.max(g.mtime, mtime);
+        groups.set(m[1], g);
+      }
+
+      if (!groups.size) return null;
+      return [...groups.values()].sort((a, b) => b.mtime - a.mtime)[0];
+    } catch (err) {
+      console.warn('[yt-dlp Handler] findStreamGroup error:', err.message);
+      return null;
+    }
+  }
+
+  /**
+   * Which stream types a file carries. Uses `ffmpeg -i` stderr because @ffmpeg-installer
+   * bundles no ffprobe (same trick as audio-sync-handler). Never rejects.
+   */
+  probeStreams(file) {
+    const ffmpegPath = this.getFfmpegPath();
+    if (!ffmpegPath) return Promise.resolve({ video: false, audio: false });
+
+    return new Promise((resolve) => {
+      const proc = spawn(ffmpegPath, ['-hide_banner', '-i', file]);
+      let out = '';
+      proc.stderr.on('data', (d) => { out += d; });
+      proc.on('error', () => resolve({ video: false, audio: false }));
+      proc.on('close', () => resolve({
+        // Ignore cover-art/thumbnail streams, which also report as Video.
+        video: /Stream #\d+:\d+.*: Video:/.test(out) && !/Video:.*\(attached pic\)/.test(out),
+        audio: /Stream #\d+:\d+.*: Audio:/.test(out),
+      }));
+    });
+  }
+
+  /**
+   * Recover a download whose streams were fetched but never merged, on any platform.
+   * Picks the video-only and audio-only halves by probing them, then stream-copies them
+   * into one container (no re-encode). Returns the merged path, or null.
+   */
+  async mergeLeftoverStreams(folder, baseName, outputFormat, jobId = null) {
+    const group = this.findStreamGroup(folder, baseName);
+    if (!group) return null;
+
+    const ffmpegPath = this.getFfmpegPath();
+    if (!ffmpegPath) {
+      console.error('[yt-dlp Handler] Streams left unmerged and no usable ffmpeg — cannot recover');
+      return null;
+    }
+
+    console.warn('[yt-dlp Handler] yt-dlp left streams unmerged, merging them:',
+      group.files.map(f => path.basename(f)));
+
+    const probed = await Promise.all(
+      group.files.map(async (f) => Object.assign({ file: f }, await this.probeStreams(f)))
+    );
+    const bySizeDesc = (a, b) => {
+      try { return fs.statSync(b.file).size - fs.statSync(a.file).size; } catch (_) { return 0; }
+    };
+    const video = probed.filter(x => x.video && !x.audio).sort(bySizeDesc)[0];
+    const audio = probed.filter(x => x.audio && !x.video).sort(bySizeDesc)[0];
+
+    // Audio-only requests just need the audio half; the mp3 branch converts it after this.
+    if (outputFormat === 'mp3') return audio ? audio.file : null;
+    if (!video || !audio) return null;
+
+    if (jobId && this.mainWindow && !this.mainWindow.isDestroyed()) {
+      this.mainWindow.webContents.send('dl:progress', {
+        jobId, progress: 90, status: 'Merging audio and video...'
+      });
+    }
+
+    const merge = (target) => new Promise((resolve, reject) => {
+      const proc = spawn(ffmpegPath, [
+        '-y', '-hide_banner', '-loglevel', 'error',
+        '-i', video.file, '-i', audio.file,
+        '-map', '0:v:0', '-map', '1:a:0',
+        '-c', 'copy', '-movflags', '+faststart',
+        target,
+      ]);
+      let err = '';
+      proc.stderr.on('data', (d) => { err += d; });
+      proc.on('error', reject);
+      proc.on('close', (code) => (code === 0 ? resolve(target) : reject(new Error(err.slice(-300)))));
+    });
+
+    const mp4Target = path.join(folder, group.base + '.mp4');
+    try {
+      return await merge(mp4Target);
+    } catch (mp4Err) {
+      // VP9/AV1/Opus normally stream-copy into MP4 fine; MKV takes anything if they don't.
+      console.warn('[yt-dlp Handler] MP4 merge failed, retrying as MKV:', mp4Err.message);
+      try { fs.unlinkSync(mp4Target); } catch (_) {}
+      try {
+        return await merge(path.join(folder, group.base + '.mkv'));
+      } catch (mkvErr) {
+        console.error('[yt-dlp Handler] Stream merge failed:', mkvErr.message);
+        return null;
+      }
     }
   }
 

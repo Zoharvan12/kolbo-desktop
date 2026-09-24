@@ -266,10 +266,7 @@
 }
 
 /* Media grid items */
-[dir=rtl] .media-item-actions {
-  left: 8px;
-  right: auto;
-}
+/* Media card controls use logical inline positioning in styles.css. */
 
 [dir=rtl] .media-item-badge {
   right: 8px;

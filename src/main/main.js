@@ -1473,7 +1473,11 @@ function setupDownloaderHandlers() {
   const { ipcMain } = require('electron');
 
   // Initialize yt-dlp handler
-  ytdlpHandler = new YtdlpHandler(mainWindow);
+  ytdlpHandler = new YtdlpHandler(mainWindow, {
+    serverFallback: require('./server-download').createServerDownloader({
+      apiUrl: config.apiUrl, getToken: () => AuthManager.getToken(),
+    }),
+  });
   console.log('[Downloader] Handler initialized');
 
   // Get media info from URL
@@ -2021,8 +2025,7 @@ function setupScreenshotHandlers() {
   // for the canvas waveform. Renderer never touches Web Audio.
   ipcMain.handle('synci:waveform-peaks', async (event, { url, numPeaks }) => {
     const { spawn } = require('child_process');
-    let ffmpegPath = require('@ffmpeg-installer/ffmpeg').path;
-    if (ffmpegPath.includes('app.asar')) ffmpegPath = ffmpegPath.replace('app.asar', 'app.asar.unpacked');
+    const ffmpegPath = require('./ffmpeg-path').getFfmpegPath() || 'ffmpeg';
 
     const N = Math.max(32, Math.min(800, numPeaks || 400));
     const SR = 8000; // mono @ 8 kHz is plenty of detail for a thin waveform

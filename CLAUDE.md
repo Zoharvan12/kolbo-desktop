@@ -268,6 +268,52 @@ The **Stock Library** tab is a multi-source stock browser (Pexels / Unsplash / P
 - **Footer** (kolbo-map `StockFooter` parity): a distinct "Stock Library Terms" chip (→ app.kolbo.ai/legal/stock-library-terms) + divider, then EITHER "Powered by [source]" when a specific source is selected in Browse (Kolbo-owned sources get the mark without a link) OR the full descriptive credits row ("Photos & videos provided by Pexels" + Terms links) on All sources / Favorites / Downloaded. Credits table: `StockLibraryManager.CREDITS`; re-rendered on source/section change.
 - **Audio waveforms**: rows/dock pass the backend's precomputed peaks (`asset.meta.waveform`, ~64 gain-normalized floats — same data kolbo-map draws) via the new `peaks` option on `KolboWaveform.create` (`waveform.js`, added in BOTH repos), so tracks render their real shapes instantly with no decode. FFmpeg-IPC decode stays as fallback for sources without shipped peaks; only then can the shared index-based skeleton appear.
 
+## FFmpeg binary resolution (Sept 2026)
+
+**`src/main/ffmpeg-path.js` is the only place that resolves the FFmpeg binary.** Every
+main-process caller goes through `getFfmpegPath()` — `ffmpeg-handler.js`,
+`ytdlp-handler.js`, `audio-sync-handler.js`, and the Synci waveform handler in `main.js`.
+Do not call `require('@ffmpeg-installer/ffmpeg').path` anywhere else.
+
+Why it exists: in a packaged build that path resolves **inside app.asar**, and nothing can
+execute a file inside an archive. Electron patches `fs`, so `existsSync()` returns **true**
+for the in-asar path — an existence check does not catch this. electron-builder unpacks
+`@ffmpeg-installer` (`asarUnpack` in package.json), so the real binary is the same path with
+`app.asar` → `app.asar.unpacked`. Four modules each carried a private copy of that rewrite;
+the downloader's copy was missing, so yt-dlp got an unexecutable path, reported
+*"ffmpeg is not installed"*, and **skipped the merge** — every multi-stream download
+(YouTube 1080p+/4K, LinkedIn & Instagram DASH) landed as separate `.f299.mp4` +
+`.f140.m4a` files. Dev builds have no asar, so it only ever reproduced in production.
+
+- `getFfmpegPath()` — `KOLBO_FFMPEG` override → bundled (asar-aware) → system installs → null.
+- `verifyFfmpeg()` — runs `-version` once and caches the verdict. Existence ≠ runnable
+  (blocked exe, missing VC++ runtime). Called on startup from `ffmpeg-handler` and
+  `ytdlp-handler.initialize()` so a broken binary is a logged fact, not a silent loss of
+  merging discovered at the end of a 200 MB download.
+
+### Downloader output resolution
+`_runDownloadAttempt` passes `--print-to-file after_move:filepath <tmp>` and reads the path
+yt-dlp actually wrote (`readFinalPathManifest`). This is authoritative for every extractor
+and immune to title-sanitization drift — `sanitizedTitle` is the literal `%(title)s`
+template when the caller had no title, which made the old folder-scan guess meaningless.
+Order: manifest → `findOutputFile` scan → `mergeLeftoverStreams`.
+
+- `findOutputFile` must **never** return a `.fNNN.` per-format stream. It used to, so a
+  video-only file was reported as a successful download — that is what hid the bug: no
+  error, just a silent video, and the ffmpeg-remux fallback and temp cleanup both skipped.
+- `mergeLeftoverStreams` recovers a stranded pair on any platform: probes each leftover via
+  `ffmpeg -i` stderr (no ffprobe is bundled), stream-copies video+audio into mp4, falls back
+  to mkv if the codecs won't sit in mp4. Covers merges lost to an AV-scanner rename race,
+  not just a bad ffmpeg path.
+- If both halves are on disk and no ffmpeg can merge them, the download fails with an
+  actionable message and **keeps** the streams instead of deleting the user's bytes.
+- `cleanupTempFiles(folder, base, keepPath)` now also runs on success (removing `.fNNN.*`,
+  `.meta`, `.part`) — `keepPath` guards the finished file.
+
+Regression check: `node scripts/test-ytdlp-output.js` (6 checks, real ffmpeg merge).
+Verified end-to-end against YouTube 1080p, YouTube 4K (VP9+m4a) and a raw HLS `m3u8`
+(the shape LinkedIn/Twitter serve): single file, both streams, zero leftovers.
+
 ## Social / Video Downloader (yt-dlp)
 
 `src/main/ytdlp-handler.js` powers the Downloader tab (`src/renderer/js/downloader-manager.js`, IPC `dl:*` in `main.js`). It wraps a self-updating yt-dlp binary (stored in `userData/binaries/`, refreshed to the latest GitHub release on launch + on extractor breakage) with bundled ffmpeg for merge/remux/mp3.
@@ -324,3 +370,18 @@ Every drop zone / empty state shows a Kobi illustration (`src/renderer/assets/em
 
 ## Last Updated
 Version history lives in git tags (`git tag -l` / GitHub Releases). The durable rules from recent releases are embedded in their sections above (CSS zoom not transform, getPathForFile bridge, electron-store 8.x pin, do-not-pin youtube player_client, Deno JS runtime, UI Scale).
+
+
+## Downloader and My Media follow-up (September 24, 2026)
+
+- Downloader attempts now run in individual `.kolbo-download-*` staging folders under the chosen destination. Finalization publishes one verified media file using exclusive creation, adding a numeric suffix for an existing name. Never scan or clean the shared destination as an attempt workspace. Failed merges retain stream files in their staging folder.
+- Per-format streams include named identifiers such as `.fdash-123v.mp4`, not only YouTube's `.f137.mp4`. Neither the final-path manifest nor output discovery may return an individual stream as a completed video. Video requests must not fall back to audio-only files.
+- `scripts/test-ytdlp-output.js` covers real FFmpeg merging, named DASH formats, simultaneous identical titles, untitled output, unrelated-file preservation, and failed-merge preservation. Live local verification downloaded the Tetris trailer at 1080p into one MP4 containing video and audio. This does not establish a shipped release.
+- My Media reserves a 44px control row independently of thumbnail shape. Selection is a keyboard-operable button with checkbox semantics and synchronized `aria-checked`; card actions remain visible. Keep the grid's minimum usable width, zero intrinsic track minimum, and bounded preview frame together. Filters wrap at compact widths; audio controls and batch actions must remain reachable. Media-card control positions use logical inline properties for RTL.
+- Hidden Electron fixture checks passed at 640px and 1100px in LTR and RTL: 24 selection/action targets remained reachable in each state, Space toggled selection, selection remained usable during real 9:16 video playback, and clearing selection reset its accessible state. The desktop shell currently provides a dark theme; no separate light-theme runtime was available.
+
+## Server download recovery (September 2026)
+
+`src/main/server-download.js` submits one authenticated `/api/utility/download` job after the local download ladder fails, polls that job, and saves the verified cloud result to the selected folder. `main.js` injects the configured API URL and current account token. Cancellation aborts transfer and cancels the server job. The client has a 12-minute deadline and a 500 MB limit; credentials never go to the media CDN, redirects are rejected, and existing files are never overwritten. Recovery requires sign-in and server availability. This covers the download stage; metadata lookup remains local. Genuine unavailable/private content is not retried on the server.
+
+Checks: `node scripts/test-server-download.js`, `node scripts/test-ytdlp-output.js`. Deploy the API hardening before releasing the desktop fallback or publishing the MCP tools.

@@ -73,6 +73,8 @@
     }
   },
   "media": {
+    "selectItem": "בחירת פריט",
+    "playPause": "ניגון או השהיה",
     "itemsCount": "{{count}} פריטים",
     "noItems": "0 פריטים",
     "allProjects": "כל הפרוייקטים",
@@ -251,6 +253,8 @@
     "chooseOutputFolder": "בחר תיקיית פלט"
   },
   "downloader": {
+    "recovery": "משחזר את ההורדה באמצעות כלבו…",
+    "recoverySaving": "שומר את ההורדה ששוחזרה…",
     "downloadTo": "הורד אל:",
     "change": "שנה",
     "open": "פתח",
