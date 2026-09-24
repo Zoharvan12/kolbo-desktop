@@ -135,6 +135,8 @@ window.KolboI18n = (function () {
       }
     },
     media: {
+      selectItem: "Select item",
+      playPause: "Play or pause",
       itemsCount: "{{count}} items",
       noItems: "0 items",
       allProjects: "All Projects",
@@ -282,6 +284,8 @@ window.KolboI18n = (function () {
       chooseOutputFolder: "Choose Output Folder"
     },
     downloader: {
+      recovery: "Recovering download with Kolbo…",
+      recoverySaving: "Saving recovered download…",
       downloadTo: "Download to:",
       change: "Change",
       open: "Open",

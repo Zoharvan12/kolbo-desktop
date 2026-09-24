@@ -73,6 +73,8 @@
     }
   },
   "media": {
+    "selectItem": "आइटम चुनें",
+    "playPause": "चलाएँ या रोकें",
     "itemsCount": "{{count}} आइटम",
     "noItems": "0 आइटम",
     "allProjects": "सभी प्रोजेक्ट",
@@ -251,6 +253,8 @@
     "chooseOutputFolder": "आउटपुट फ़ोल्डर चुनें"
   },
   "downloader": {
+    "recovery": "Kolbo से डाउनलोड पुनर्प्राप्त हो रहा है…",
+    "recoverySaving": "पुनर्प्राप्त डाउनलोड सहेजा जा रहा है…",
     "downloadTo": "यहाँ डाउनलोड करें:",
     "change": "बदलें",
     "open": "खोलें",

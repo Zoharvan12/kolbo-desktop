@@ -189,7 +189,7 @@ class DownloaderManager {
     if (item) {
       const progressText = item.querySelector('.dl-item-progress-text');
       if (progressText) {
-        progressText.textContent = data.reason || 'Retrying…';
+        progressText.textContent = data.reasonKey ? window.t(data.reasonKey) : (data.reason || 'Retrying…');
       }
       const progressFill = item.querySelector('.dl-item-progress-fill');
       if (progressFill) progressFill.style.width = '0%';

@@ -73,6 +73,8 @@
     }
   },
   "media": {
+    "selectItem": "項目を選択",
+    "playPause": "再生または一時停止",
     "itemsCount": "{{count}} 個のアイテム",
     "noItems": "0 個のアイテム",
     "allProjects": "すべてのプロジェクト",
@@ -251,6 +253,8 @@
     "chooseOutputFolder": "出力フォルダを選択"
   },
   "downloader": {
+    "recovery": "Kolbo でダウンロードを復旧中…",
+    "recoverySaving": "復旧したダウンロードを保存中…",
     "downloadTo": "ダウンロード先:",
     "change": "変更",
     "open": "開く",

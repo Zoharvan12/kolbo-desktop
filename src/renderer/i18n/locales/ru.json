@@ -73,6 +73,8 @@
     }
   },
   "media": {
+    "selectItem": "Выбрать элемент",
+    "playPause": "Воспроизвести или приостановить",
     "itemsCount": "{{count}} элементов",
     "noItems": "0 элементов",
     "allProjects": "Все проекты",
@@ -251,6 +253,8 @@
     "chooseOutputFolder": "Выберите папку вывода"
   },
   "downloader": {
+    "recovery": "Восстановление загрузки через Kolbo…",
+    "recoverySaving": "Сохранение восстановленной загрузки…",
     "downloadTo": "Загрузить в:",
     "change": "Изменить",
     "open": "Открыть",

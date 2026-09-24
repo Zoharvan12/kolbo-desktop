@@ -3,21 +3,14 @@
 
 const { app } = require('electron');
 const ffmpeg = require('fluent-ffmpeg');
-let ffmpegPath = require('@ffmpeg-installer/ffmpeg').path;
+const { getFfmpegPath, verifyFfmpeg } = require('./ffmpeg-path');
 const path = require('path');
 const fs = require('fs');
 const GPUDetector = require('./gpu-detector');
 
-// Fix FFmpeg path when running from asar archive
-// Electron's asar archives can't execute binaries, so we need to use the unpacked path
-if (ffmpegPath.includes('app.asar')) {
-  ffmpegPath = ffmpegPath.replace('app.asar', 'app.asar.unpacked');
-  console.log('[FFmpeg Handler] Detected asar path, using unpacked path');
-}
-
-// Set FFmpeg path
-ffmpeg.setFfmpegPath(ffmpegPath);
-console.log('[FFmpeg Handler] FFmpeg path:', ffmpegPath);
+const ffmpegPath = getFfmpegPath();
+if (ffmpegPath) ffmpeg.setFfmpegPath(ffmpegPath);
+verifyFfmpeg();
 
 // NOTE: Using @ffmpeg-installer/ffmpeg v1.1.0 which bundles FFmpeg 6.0 (2023)
 // All formats and codecs verified as available and tested

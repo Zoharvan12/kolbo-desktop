@@ -2711,7 +2711,7 @@ ${Icons.get('columns-2', 16)}
     const isSelected = this.selectedItems.has(item.id);
     return `
       <div class="media-item media-item-image ${isSelected ? 'selected' : ''}" data-id="${item.id}" draggable="true" data-filename="${fileName}" data-url="${item.url}" data-type="${item.type}">
-        <div class="selection-checkbox ${isSelected ? 'checked' : ''}" data-id="${item.id}"></div>
+        <button type="button" role="checkbox" aria-checked="${isSelected}" aria-label="${tr('media.selectItem', 'Select item')}" class="selection-checkbox ${isSelected ? 'checked' : ''}" data-id="${item.id}"></button>
         <div class="cache-status" data-id="${item.id}" style="display: none;">
           <div class="cache-spinner"></div>
 ${Icons.get('check', 16)}
@@ -2737,7 +2737,7 @@ ${Icons.get('check', 16)}
 
     return `
       <div class="media-item media-item-video ${isSelected ? 'selected' : ''} ${isPlaying ? 'playing' : ''}" data-id="${item.id}" draggable="true" data-filename="${fileName}" data-url="${item.url}" data-type="${item.type}">
-        <div class="selection-checkbox ${isSelected ? 'checked' : ''}" data-id="${item.id}"></div>
+        <button type="button" role="checkbox" aria-checked="${isSelected}" aria-label="${tr('media.selectItem', 'Select item')}" class="selection-checkbox ${isSelected ? 'checked' : ''}" data-id="${item.id}"></button>
         <div class="cache-status" data-id="${item.id}" style="display: none;">
           <div class="cache-spinner"></div>
 ${Icons.get('check', 16)}
@@ -2745,7 +2745,7 @@ ${Icons.get('check', 16)}
         ${this.renderItemActions(item)}
         <div class="media-preview">
           ${thumbnailUrl ? `<img data-src="${thumbnailUrl}" alt="${title}" decoding="async" class="media-img-lazy video-thumb-img">` : '<div class="video-thumb-img" style="width:100%;height:100%"></div>'}
-          <button class="video-play-btn ${isPlaying ? 'playing' : ''}" data-id="${item.id}">
+          <button aria-label="${tr('media.playPause', 'Play or pause')}" class="video-play-btn ${isPlaying ? 'playing' : ''}" data-id="${item.id}">
             ${isPlaying ? Icons.get('pause', 22, 2) : Icons.get('play', 22, 2)}
           </button>
           <div class="video-playbar" data-id="${item.id}">
@@ -2788,7 +2788,7 @@ ${Icons.get('check', 16)}
 
     return `
       <div class="media-item media-item-audio ${isSelected ? 'selected' : ''}" data-id="${item.id}" draggable="true" data-filename="${fileName}" data-url="${item.url}" data-type="${item.type}">
-        <div class="selection-checkbox ${isSelected ? 'checked' : ''}" data-id="${item.id}"></div>
+        <button type="button" role="checkbox" aria-checked="${isSelected}" aria-label="${tr('media.selectItem', 'Select item')}" class="selection-checkbox ${isSelected ? 'checked' : ''}" data-id="${item.id}"></button>
         <div class="cache-status" data-id="${item.id}" style="display: none;">
           <div class="cache-spinner"></div>
 ${Icons.get('check', 16)}
@@ -2806,7 +2806,7 @@ ${Icons.get('check', 16)}
             </div>
           </div>
           <div class="audio-controls">
-            <button class="audio-play-btn" data-id="${item.id}" data-url="${audioUrl}">
+            <button aria-label="${tr('media.playPause', 'Play or pause')}" class="audio-play-btn" data-id="${item.id}" data-url="${audioUrl}">
 <span class="play-icon">${Icons.get('play', 16)}</span>
               <span class="pause-icon" style="display: none;">${Icons.get('pause', 16)}</span>
             </button>
@@ -3040,7 +3040,7 @@ ${Icons.get('check', 16)}
     // Dragstart handler - MUST be synchronous
     const dragstartHandler = (e) => {
       // Don't initiate file drag when interacting with the inline playbar / play button
-      if (e.target.closest('.video-playbar, .video-play-btn, .audio-play-btn')) {
+      if (e.target.closest('.video-playbar, .video-play-btn, .audio-play-btn, .selection-checkbox, .item-action-btn')) {
         e.preventDefault();
         return;
       }
@@ -3732,9 +3732,10 @@ ${Icons.get('check', 16)}
     // Update UI
     const item = document.querySelector(`[data-id="${itemId}"]`);
     if (item) {
-      item.classList.toggle('selected');
+      item.classList.toggle('selected', this.selectedItems.has(itemId));
       const checkbox = item.querySelector('.selection-checkbox');
-      checkbox.classList.toggle('checked');
+      checkbox.classList.toggle('checked', this.selectedItems.has(itemId));
+      checkbox.setAttribute('aria-checked', String(this.selectedItems.has(itemId)));
     }
 
     this.updateBatchMenu();
@@ -3774,6 +3775,7 @@ ${Icons.get('check', 16)}
       const checkbox = item.querySelector('.selection-checkbox');
       if (checkbox) {
         checkbox.classList.add('checked');
+        checkbox.setAttribute('aria-checked', 'true');
       }
 
       // Pre-cache the item (same logic as toggleSelection)
@@ -4307,6 +4309,7 @@ ${Icons.get('file-text', 16)}
       item.classList.remove('selected');
       const checkbox = item.querySelector('.selection-checkbox');
       checkbox.classList.remove('checked');
+      checkbox.setAttribute('aria-checked', 'false');
     });
     this.updateBatchMenu();
   }
