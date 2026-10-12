@@ -391,7 +391,9 @@
     "favorite": "즐겨찾기",
     "delete": "삭제",
     "restore": "복원",
-    "deleteForever": "영구 삭제"
+    "deleteForever": "영구 삭제",
+    "addToFolder": "폴더에 추가",
+    "removeFromFolder": "폴더에서 제거"
   },
   "errors": {
     "premiereNotDetected": "Kolbo Adobe 플러그인 감지되지 않음",
@@ -409,7 +411,8 @@
     "success": "성공",
     "or": "또는",
     "and": "및",
-    "ok": "확인"
+    "ok": "확인",
+    "save": "저장"
   },
   "language": {
     "selectLanguage": "언어 선택",
@@ -545,5 +548,24 @@
       "freesound": "사운드 제공: Freesound",
       "sketchfab": "3D 모델 제공: Sketchfab"
     }
+  },
+  "folders": {
+    "allMedia": "모든 미디어",
+    "new": "새 폴더",
+    "rename": "이름 바꾸기",
+    "renameTitle": "폴더 이름 바꾸기",
+    "delete": "폴더 삭제",
+    "deleteTitle": "폴더를 삭제할까요?",
+    "deleteMessage": "폴더가 삭제됩니다. 폴더 안의 미디어는 라이브러리에 그대로 남습니다.",
+    "added": "{{count}}개를 \"{{name}}\"에 추가했습니다",
+    "createFailed": "폴더를 만들 수 없습니다",
+    "renameFailed": "폴더 이름을 바꿀 수 없습니다",
+    "deleteFailed": "폴더를 삭제할 수 없습니다",
+    "addFailed": "폴더에 추가할 수 없습니다",
+    "removeFailed": "폴더에서 제거할 수 없습니다",
+    "search": "폴더 검색",
+    "noMatch": "폴더를 찾을 수 없습니다",
+    "count": "폴더 {{count}}개",
+    "newTitle": "새 폴더"
   }
 }

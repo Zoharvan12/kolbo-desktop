@@ -391,7 +391,9 @@
     "favorite": "Favorito",
     "delete": "Excluir",
     "restore": "Restaurar",
-    "deleteForever": "Excluir permanentemente"
+    "deleteForever": "Excluir permanentemente",
+    "addToFolder": "Adicionar à pasta",
+    "removeFromFolder": "Remover da pasta"
   },
   "errors": {
     "premiereNotDetected": "Plugin Kolbo Adobe Não Detectado",
@@ -409,7 +411,8 @@
     "success": "Sucesso",
     "or": "ou",
     "and": "e",
-    "ok": "OK"
+    "ok": "OK",
+    "save": "Salvar"
   },
   "language": {
     "selectLanguage": "Selecione o Idioma",
@@ -545,5 +548,24 @@
       "freesound": "Sons fornecidos por Freesound",
       "sketchfab": "Modelos 3D do Sketchfab"
     }
+  },
+  "folders": {
+    "allMedia": "Todas as mídias",
+    "new": "Nova pasta",
+    "rename": "Renomear",
+    "renameTitle": "Renomear pasta",
+    "delete": "Excluir pasta",
+    "deleteTitle": "Excluir pasta?",
+    "deleteMessage": "A pasta será excluída. As mídias dentro dela continuam na sua biblioteca.",
+    "added": "{{count}} adicionado(s) a \"{{name}}\"",
+    "createFailed": "Não foi possível criar a pasta",
+    "renameFailed": "Não foi possível renomear a pasta",
+    "deleteFailed": "Não foi possível excluir a pasta",
+    "addFailed": "Não foi possível adicionar à pasta",
+    "removeFailed": "Não foi possível remover da pasta",
+    "search": "Pesquisar pastas",
+    "noMatch": "Nenhuma pasta encontrada",
+    "count": "{{count}} pastas",
+    "newTitle": "Nova pasta"
   }
 }

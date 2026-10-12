@@ -391,7 +391,9 @@
     "favorite": "पसंदीदा",
     "delete": "हटाएं",
     "restore": "पुनर्स्थापित करें",
-    "deleteForever": "हमेशा के लिए हटाएं"
+    "deleteForever": "हमेशा के लिए हटाएं",
+    "addToFolder": "फ़ोल्डर में जोड़ें",
+    "removeFromFolder": "फ़ोल्डर से हटाएँ"
   },
   "errors": {
     "premiereNotDetected": "Kolbo Adobe प्लगइन का पता नहीं चला",
@@ -409,7 +411,8 @@
     "success": "सफलता",
     "or": "या",
     "and": "और",
-    "ok": "ठीक है"
+    "ok": "ठीक है",
+    "save": "सहेजें"
   },
   "language": {
     "selectLanguage": "भाषा चुनें",
@@ -545,5 +548,24 @@
       "freesound": "ध्वनियाँ Freesound द्वारा",
       "sketchfab": "3D मॉडल Sketchfab से"
     }
+  },
+  "folders": {
+    "allMedia": "सभी मीडिया",
+    "new": "नया फ़ोल्डर",
+    "rename": "नाम बदलें",
+    "renameTitle": "फ़ोल्डर का नाम बदलें",
+    "delete": "फ़ोल्डर हटाएँ",
+    "deleteTitle": "फ़ोल्डर हटाएँ?",
+    "deleteMessage": "फ़ोल्डर हटा दिया जाएगा। इसके अंदर का मीडिया आपकी लाइब्रेरी में बना रहेगा।",
+    "added": "\"{{name}}\" में {{count}} जोड़े गए",
+    "createFailed": "फ़ोल्डर नहीं बनाया जा सका",
+    "renameFailed": "फ़ोल्डर का नाम नहीं बदला जा सका",
+    "deleteFailed": "फ़ोल्डर नहीं हटाया जा सका",
+    "addFailed": "फ़ोल्डर में नहीं जोड़ा जा सका",
+    "removeFailed": "फ़ोल्डर से नहीं हटाया जा सका",
+    "search": "फ़ोल्डर खोजें",
+    "noMatch": "कोई फ़ोल्डर नहीं मिला",
+    "count": "{{count}} फ़ोल्डर",
+    "newTitle": "नया फ़ोल्डर"
   }
 }

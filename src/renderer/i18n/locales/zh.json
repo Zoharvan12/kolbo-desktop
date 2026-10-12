@@ -391,7 +391,9 @@
     "favorite": "收藏",
     "delete": "删除",
     "restore": "恢复",
-    "deleteForever": "永久删除"
+    "deleteForever": "永久删除",
+    "addToFolder": "添加到文件夹",
+    "removeFromFolder": "从文件夹移除"
   },
   "errors": {
     "premiereNotDetected": "未检测到 Kolbo Adobe 插件",
@@ -409,7 +411,8 @@
     "success": "成功",
     "or": "或",
     "and": "和",
-    "ok": "确定"
+    "ok": "确定",
+    "save": "保存"
   },
   "language": {
     "selectLanguage": "选择语言",
@@ -545,5 +548,24 @@
       "freesound": "音效由 Freesound 提供",
       "sketchfab": "3D 模型来自 Sketchfab"
     }
+  },
+  "folders": {
+    "allMedia": "全部媒体",
+    "new": "新建文件夹",
+    "rename": "重命名",
+    "renameTitle": "重命名文件夹",
+    "delete": "删除文件夹",
+    "deleteTitle": "删除文件夹？",
+    "deleteMessage": "文件夹将被删除。其中的媒体仍保留在你的媒体库中。",
+    "added": "已将 {{count}} 项添加到“{{name}}”",
+    "createFailed": "无法创建文件夹",
+    "renameFailed": "无法重命名文件夹",
+    "deleteFailed": "无法删除文件夹",
+    "addFailed": "无法添加到文件夹",
+    "removeFailed": "无法从文件夹移除",
+    "search": "搜索文件夹",
+    "noMatch": "未找到文件夹",
+    "count": "{{count}} 个文件夹",
+    "newTitle": "新建文件夹"
   }
 }

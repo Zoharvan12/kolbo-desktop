@@ -130,7 +130,9 @@ const userDataPath = path.join(
     ? (process.env.KOLBO_UI_AUDIT_ISOLATED === '1'
       ? 'kolbo-desktop-ui-audit-signed-out'
       : 'kolbo-desktop-ui-audit')
-    : 'kolbo-desktop'
+    // Unpacked (npm run dev) gets its own store so it never shares — and clobbers —
+    // the installed app's login token.
+    : (app.isPackaged ? 'kolbo-desktop' : 'kolbo-desktop-dev')
 );
 app.setPath('userData', userDataPath);
 console.log('[Main] User data path:', userDataPath);

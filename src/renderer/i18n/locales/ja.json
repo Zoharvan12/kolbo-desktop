@@ -391,7 +391,9 @@
     "favorite": "お気に入り",
     "delete": "削除",
     "restore": "復元",
-    "deleteForever": "完全に削除"
+    "deleteForever": "完全に削除",
+    "addToFolder": "フォルダに追加",
+    "removeFromFolder": "フォルダから削除"
   },
   "errors": {
     "premiereNotDetected": "Kolbo Adobeプラグインが検出されませんでした",
@@ -409,7 +411,8 @@
     "success": "成功",
     "or": "または",
     "and": "と",
-    "ok": "OK"
+    "ok": "OK",
+    "save": "保存"
   },
   "language": {
     "selectLanguage": "言語を選択",
@@ -545,5 +548,24 @@
       "freesound": "サウンド提供：Freesound",
       "sketchfab": "3Dモデル提供：Sketchfab"
     }
+  },
+  "folders": {
+    "allMedia": "すべてのメディア",
+    "new": "新しいフォルダ",
+    "rename": "名前を変更",
+    "renameTitle": "フォルダ名を変更",
+    "delete": "フォルダを削除",
+    "deleteTitle": "フォルダを削除しますか？",
+    "deleteMessage": "フォルダが削除されます。中のメディアはライブラリに残ります。",
+    "added": "{{count}} 件を「{{name}}」に追加しました",
+    "createFailed": "フォルダを作成できませんでした",
+    "renameFailed": "フォルダ名を変更できませんでした",
+    "deleteFailed": "フォルダを削除できませんでした",
+    "addFailed": "フォルダに追加できませんでした",
+    "removeFailed": "フォルダから削除できませんでした",
+    "search": "フォルダを検索",
+    "noMatch": "フォルダが見つかりません",
+    "count": "{{count}} 個のフォルダ",
+    "newTitle": "新しいフォルダ"
   }
 }

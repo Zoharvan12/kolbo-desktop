@@ -391,7 +391,9 @@
     "favorite": "Favorit",
     "delete": "Löschen",
     "restore": "Wiederherstellen",
-    "deleteForever": "Endgültig löschen"
+    "deleteForever": "Endgültig löschen",
+    "addToFolder": "Zu Ordner hinzufügen",
+    "removeFromFolder": "Aus Ordner entfernen"
   },
   "errors": {
     "premiereNotDetected": "Kolbo Adobe Plugin nicht erkannt",
@@ -409,7 +411,8 @@
     "success": "Erfolgreich",
     "or": "oder",
     "and": "und",
-    "ok": "OK"
+    "ok": "OK",
+    "save": "Speichern"
   },
   "language": {
     "selectLanguage": "Sprache auswählen",
@@ -545,5 +548,24 @@
       "freesound": "Sounds bereitgestellt von Freesound",
       "sketchfab": "3D-Modelle von Sketchfab"
     }
+  },
+  "folders": {
+    "allMedia": "Alle Medien",
+    "new": "Neuer Ordner",
+    "rename": "Umbenennen",
+    "renameTitle": "Ordner umbenennen",
+    "delete": "Ordner löschen",
+    "deleteTitle": "Ordner löschen?",
+    "deleteMessage": "Der Ordner wird gelöscht. Die enthaltenen Medien bleiben in deiner Bibliothek.",
+    "added": "{{count}} zu „{{name}}“ hinzugefügt",
+    "createFailed": "Ordner konnte nicht erstellt werden",
+    "renameFailed": "Ordner konnte nicht umbenannt werden",
+    "deleteFailed": "Ordner konnte nicht gelöscht werden",
+    "addFailed": "Hinzufügen zum Ordner fehlgeschlagen",
+    "removeFailed": "Entfernen aus dem Ordner fehlgeschlagen",
+    "search": "Ordner suchen",
+    "noMatch": "Keine Ordner gefunden",
+    "count": "{{count}} Ordner",
+    "newTitle": "Neuer Ordner"
   }
 }

@@ -391,7 +391,9 @@
     "favorite": "מועדף",
     "delete": "מחק",
     "restore": "שחזר",
-    "deleteForever": "מחק לנצח"
+    "deleteForever": "מחק לנצח",
+    "addToFolder": "הוספה לתיקייה",
+    "removeFromFolder": "הסרה מהתיקייה"
   },
   "errors": {
     "premiereNotDetected": "התוסף של Kolbo Adobe לא זוהה",
@@ -409,7 +411,8 @@
     "success": "הצלחה",
     "or": "או",
     "and": "ו-",
-    "ok": "אישור"
+    "ok": "אישור",
+    "save": "שמירה"
   },
   "language": {
     "selectLanguage": "בחר שפה",
@@ -545,5 +548,24 @@
       "freesound": "צלילים באדיבות Freesound",
       "sketchfab": "מודלים תלת-ממדיים מ-Sketchfab"
     }
+  },
+  "folders": {
+    "allMedia": "כל המדיה",
+    "new": "תיקייה חדשה",
+    "rename": "שינוי שם",
+    "renameTitle": "שינוי שם התיקייה",
+    "delete": "מחיקת תיקייה",
+    "deleteTitle": "למחוק את התיקייה?",
+    "deleteMessage": "התיקייה תימחק. המדיה שבתוכה תישאר בספרייה שלך.",
+    "added": "נוספו {{count}} אל \"{{name}}\"",
+    "createFailed": "לא ניתן ליצור תיקייה",
+    "renameFailed": "לא ניתן לשנות את שם התיקייה",
+    "deleteFailed": "לא ניתן למחוק את התיקייה",
+    "addFailed": "לא ניתן להוסיף לתיקייה",
+    "removeFailed": "לא ניתן להסיר מהתיקייה",
+    "search": "חיפוש תיקיות",
+    "noMatch": "לא נמצאו תיקיות",
+    "count": "{{count}} תיקיות",
+    "newTitle": "תיקייה חדשה"
   }
 }

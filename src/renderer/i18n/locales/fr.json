@@ -391,7 +391,9 @@
     "favorite": "Favori",
     "delete": "Supprimer",
     "restore": "Restaurer",
-    "deleteForever": "Supprimer définitivement"
+    "deleteForever": "Supprimer définitivement",
+    "addToFolder": "Ajouter au dossier",
+    "removeFromFolder": "Retirer du dossier"
   },
   "errors": {
     "premiereNotDetected": "Plug-in Kolbo Adobe non détecté",
@@ -409,7 +411,8 @@
     "success": "Succès",
     "or": "ou",
     "and": "et",
-    "ok": "OK"
+    "ok": "OK",
+    "save": "Enregistrer"
   },
   "language": {
     "selectLanguage": "Sélectionner la langue",
@@ -545,5 +548,24 @@
       "freesound": "Sons fournis par Freesound",
       "sketchfab": "Modèles 3D de Sketchfab"
     }
+  },
+  "folders": {
+    "allMedia": "Tous les médias",
+    "new": "Nouveau dossier",
+    "rename": "Renommer",
+    "renameTitle": "Renommer le dossier",
+    "delete": "Supprimer le dossier",
+    "deleteTitle": "Supprimer le dossier ?",
+    "deleteMessage": "Le dossier sera supprimé. Les médias qu’il contient restent dans votre bibliothèque.",
+    "added": "{{count}} ajouté(s) à « {{name}} »",
+    "createFailed": "Impossible de créer le dossier",
+    "renameFailed": "Impossible de renommer le dossier",
+    "deleteFailed": "Impossible de supprimer le dossier",
+    "addFailed": "Impossible d’ajouter au dossier",
+    "removeFailed": "Impossible de retirer du dossier",
+    "search": "Rechercher des dossiers",
+    "noMatch": "Aucun dossier trouvé",
+    "count": "{{count}} dossiers",
+    "newTitle": "Nouveau dossier"
   }
 }

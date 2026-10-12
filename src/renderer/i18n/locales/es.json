@@ -391,7 +391,9 @@
     "favorite": "Favorito",
     "delete": "Borrar",
     "restore": "Restaurar",
-    "deleteForever": "Borrar para siempre"
+    "deleteForever": "Borrar para siempre",
+    "addToFolder": "Añadir a carpeta",
+    "removeFromFolder": "Quitar de la carpeta"
   },
   "errors": {
     "premiereNotDetected": "Plugin de Kolbo Adobe no detectado",
@@ -409,7 +411,8 @@
     "success": "Éxito",
     "or": "o",
     "and": "y",
-    "ok": "Aceptar"
+    "ok": "Aceptar",
+    "save": "Guardar"
   },
   "language": {
     "selectLanguage": "Seleccionar idioma",
@@ -545,5 +548,24 @@
       "freesound": "Sonidos proporcionados por Freesound",
       "sketchfab": "Modelos 3D de Sketchfab"
     }
+  },
+  "folders": {
+    "allMedia": "Todo el contenido",
+    "new": "Nueva carpeta",
+    "rename": "Renombrar",
+    "renameTitle": "Renombrar carpeta",
+    "delete": "Eliminar carpeta",
+    "deleteTitle": "¿Eliminar carpeta?",
+    "deleteMessage": "Se eliminará la carpeta. El contenido seguirá en tu biblioteca.",
+    "added": "Se añadieron {{count}} a \"{{name}}\"",
+    "createFailed": "No se pudo crear la carpeta",
+    "renameFailed": "No se pudo renombrar la carpeta",
+    "deleteFailed": "No se pudo eliminar la carpeta",
+    "addFailed": "No se pudo añadir a la carpeta",
+    "removeFailed": "No se pudo quitar de la carpeta",
+    "search": "Buscar carpetas",
+    "noMatch": "No se encontraron carpetas",
+    "count": "{{count}} carpetas",
+    "newTitle": "Nueva carpeta"
   }
 }

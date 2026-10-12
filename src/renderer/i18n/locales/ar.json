@@ -391,7 +391,9 @@
     "favorite": "مفضل",
     "delete": "حذف",
     "restore": "استعادة",
-    "deleteForever": "حذف نهائي"
+    "deleteForever": "حذف نهائي",
+    "addToFolder": "إضافة إلى مجلد",
+    "removeFromFolder": "إزالة من المجلد"
   },
   "errors": {
     "premiereNotDetected": "لم يتم الكشف عن المكوّن الإضافي لـ Kolbo Adobe",
@@ -409,7 +411,8 @@
     "success": "نجاح",
     "or": "أو",
     "and": "و",
-    "ok": "موافق"
+    "ok": "موافق",
+    "save": "حفظ"
   },
   "language": {
     "selectLanguage": "اختر اللغة",
@@ -545,5 +548,24 @@
       "freesound": "الأصوات مقدمة من Freesound",
       "sketchfab": "نماذج ثلاثية الأبعاد من Sketchfab"
     }
+  },
+  "folders": {
+    "allMedia": "كل الوسائط",
+    "new": "مجلد جديد",
+    "rename": "إعادة تسمية",
+    "renameTitle": "إعادة تسمية المجلد",
+    "delete": "حذف المجلد",
+    "deleteTitle": "حذف المجلد؟",
+    "deleteMessage": "سيتم حذف المجلد. تبقى الوسائط الموجودة فيه في مكتبتك.",
+    "added": "تمت إضافة {{count}} إلى \"{{name}}\"",
+    "createFailed": "تعذّر إنشاء المجلد",
+    "renameFailed": "تعذّرت إعادة تسمية المجلد",
+    "deleteFailed": "تعذّر حذف المجلد",
+    "addFailed": "تعذّرت الإضافة إلى المجلد",
+    "removeFailed": "تعذّرت الإزالة من المجلد",
+    "search": "البحث في المجلدات",
+    "noMatch": "لم يتم العثور على مجلدات",
+    "count": "{{count}} مجلدات",
+    "newTitle": "مجلد جديد"
   }
 }

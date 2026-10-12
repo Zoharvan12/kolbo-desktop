@@ -391,7 +391,9 @@
     "favorite": "Избранное",
     "delete": "Удалить",
     "restore": "Восстановить",
-    "deleteForever": "Удалить навсегда"
+    "deleteForever": "Удалить навсегда",
+    "addToFolder": "Добавить в папку",
+    "removeFromFolder": "Убрать из папки"
   },
   "errors": {
     "premiereNotDetected": "Плагин Kolbo Adobe не обнаружен",
@@ -409,7 +411,8 @@
     "success": "Успех",
     "or": "или",
     "and": "и",
-    "ok": "OK"
+    "ok": "OK",
+    "save": "Сохранить"
   },
   "language": {
     "selectLanguage": "Выберите язык",
@@ -545,5 +548,24 @@
       "freesound": "Звуки предоставлены Freesound",
       "sketchfab": "3D-модели со Sketchfab"
     }
+  },
+  "folders": {
+    "allMedia": "Все медиа",
+    "new": "Новая папка",
+    "rename": "Переименовать",
+    "renameTitle": "Переименовать папку",
+    "delete": "Удалить папку",
+    "deleteTitle": "Удалить папку?",
+    "deleteMessage": "Папка будет удалена. Медиафайлы из неё останутся в вашей библиотеке.",
+    "added": "Добавлено {{count}} в «{{name}}»",
+    "createFailed": "Не удалось создать папку",
+    "renameFailed": "Не удалось переименовать папку",
+    "deleteFailed": "Не удалось удалить папку",
+    "addFailed": "Не удалось добавить в папку",
+    "removeFailed": "Не удалось убрать из папки",
+    "search": "Поиск папок",
+    "noMatch": "Папки не найдены",
+    "count": "Папок: {{count}}",
+    "newTitle": "Новая папка"
   }
 }
