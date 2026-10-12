@@ -340,6 +340,20 @@ class KolboAPI {
     }
   }
 
+  // Folders — same { success, data, error } envelope as the media mutations.
+  async _folderCall(fn, ...args) {
+    const response = await window.kolboDesktop[fn](...args);
+    if (!response.success) throw new Error(response.error || `${fn} failed`);
+    return response.data;
+  }
+  listFolders() { return this._folderCall('listFolders'); }
+  getFolderContents(params) { return this._folderCall('getFolderContents', params); }
+  createFolder(name, projectId) { return this._folderCall('createFolder', name, projectId); }
+  renameFolder(id, name) { return this._folderCall('renameFolder', id, name); }
+  deleteFolder(id) { return this._folderCall('deleteFolder', id); }
+  addToFolder(folderId, mediaIds) { return this._folderCall('addToFolder', folderId, mediaIds); }
+  removeFromFolder(folderId, mediaIds) { return this._folderCall('removeFromFolder', folderId, mediaIds); }
+
   async favoriteMedia(id) {
     const response = await window.kolboDesktop.favoriteMedia(id);
     if (!response.success) throw new Error(response.error || 'Favorite failed');

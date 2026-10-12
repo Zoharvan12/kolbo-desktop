@@ -2088,25 +2088,6 @@ body.is-mac .window-controls {
   border: none;
 }
 
-/* Glow effect container for slider */
-.slider-container::before {
-  content: '';
-  position: absolute;
-  top: 50%;
-  left: 0;
-  transform: translateY(-50%);
-  height: 6px;
-  width: var(--slider-progress, 50%);
-  border-radius: 3px;
-  background: transparent;
-  box-shadow: 0 0 10px rgba(59, 130, 246, 0.7),
-              0 0 20px rgba(59, 130, 246, 0.4),
-              0 0 30px rgba(59, 130, 246, 0.2);
-  pointer-events: none;
-  z-index: 0;
-  transition: width 0.1s ease;
-}
-
 .slider-container {
   --slider-progress: 50%;
 }
@@ -2172,7 +2153,7 @@ body.is-mac .window-controls {
 /* Media Grid */
 .media-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(min(100%, max(180px, calc(100% / var(--grid-columns, 4) - 12px))), 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, max(180px, calc(100% / var(--grid-columns, 4) - 12px))), 1fr));
   gap: 12px;
   /* Performance optimizations */
   contain: layout style paint; /* CSS containment for better rendering performance */
@@ -2186,23 +2167,22 @@ body.is-mac .window-controls {
   aspect-ratio: 16/9;
   border-radius: 6px;
   overflow: hidden;
-  background: rgba(255, 255, 255, 0.02) !important; /* Ultra-subtle white tint - prevents black background showing through */
+  background: #161618 !important; /* One flat surface for the whole card, letterbox included */
   cursor: pointer;
   transition: var(--transition-base);
-  border: 2px solid rgb(var(--border));
+  border: 1px solid rgba(255, 255, 255, 0.07);
   /* Performance optimizations */
   contain: layout style paint; /* Isolate rendering for each item */
   will-change: transform; /* Hint for GPU acceleration on hover */
 }
 
 .media-item:hover {
-  box-shadow: var(--shadow-md);
-  border-color: rgb(var(--border) / 0.8);
+  border-color: rgba(255, 255, 255, 0.16);
 }
 
 .media-item.selected {
-  border-color: rgb(var(--primary));
-  box-shadow: 0 0 0 2px rgb(var(--primary) / 0.3);
+  border-color: rgb(59 130 246);
+  box-shadow: 0 0 0 1px rgb(59 130 246 / 0.6);
 }
 
 
@@ -2215,12 +2195,21 @@ body.is-mac .window-controls {
   width: 28px;
   height: 28px;
   padding: 0;
-  background: rgba(0, 0, 0, 0.7);
-  border: 2px solid #fff;
-  border-radius: 4px;
+  background: rgba(0, 0, 0, 0.45);
+  border: 1.5px solid rgba(255, 255, 255, 0.35);
+  border-radius: 6px;
   cursor: pointer;
   transition: all 0.2s;
+  opacity: 0;
+}
+
+.media-grid:has(.media-item.selected) .selection-checkbox,
+.media-item:has(:focus-visible) .selection-checkbox {
   opacity: 1;
+}
+
+.selection-checkbox:hover {
+  border-color: rgba(255, 255, 255, 0.7);
 }
 
 .media-item:hover .selection-checkbox,
@@ -2229,8 +2218,8 @@ body.is-mac .window-controls {
 }
 
 .selection-checkbox.checked {
-  background: rgb(var(--primary));
-  border-color: rgb(var(--primary));
+  background: rgb(59 130 246);
+  border-color: rgb(59 130 246);
   opacity: 1;
 }
 
@@ -2257,8 +2246,14 @@ body.is-mac .window-controls {
   display: flex;
   align-items: center;
   justify-content: center;
-  /* Add subtle white glow for visibility */
-  filter: drop-shadow(0 0 2px rgba(255, 255, 255, 0.8));
+  filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.8));
+  opacity: 0;
+  transition: opacity 0.18s ease;
+}
+
+.media-item:hover .cache-status,
+.cache-status.loading {
+  opacity: 1;
 }
 
 .cache-status svg {
@@ -2349,9 +2344,16 @@ body.is-mac .window-controls {
   display: flex;
   flex-direction: row;
   gap: 6px;
+  opacity: 0;
+  transition: opacity 0.18s ease;
+  pointer-events: none;
+}
+
+/* Reveal on hover/focus; a favorited card keeps its star visible. */
+.media-item:hover .media-item-actions,
+.media-item:has(:focus-visible) .media-item-actions,
+.media-item:has(.item-action-btn.is-favorited) .media-item-actions {
   opacity: 1;
-  transform: none;
-  transition: opacity 0.18s ease, transform 0.18s ease;
   pointer-events: auto;
 }
 
@@ -2459,17 +2461,22 @@ body.is-mac .window-controls {
   color: #fff;
 }
 
-.batch-action-btn.batch-btn-favorite {
-  --g-from: 245 158 11; --g-to: 217 119 6;
-  --g-from-hover: 250 174 38; --g-to-hover: 234 138 22;
-  --g-glow: 245 158 11; --g-text: #fffbeb;
-}
+.batch-action-btn.batch-btn-favorite,
 .batch-action-btn.batch-btn-delete {
-  --g-from: 127 29 29; --g-to: 69 10 10;
-  --g-from-hover: var(--destructive); --g-to-hover: 153 27 27;
-  --g-glow: var(--destructive); --g-text: #fecaca;
-  --g-border: rgba(248, 113, 113, 0.25);
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  box-shadow: none;
 }
+.batch-action-btn.batch-btn-favorite { color: #fcd34d; }
+.batch-action-btn.batch-btn-delete { color: #fca5a5; }
+.batch-action-btn.batch-btn-favorite:hover,
+.batch-action-btn.batch-btn-delete:hover {
+  background: rgba(255, 255, 255, 0.1);
+  box-shadow: none;
+  transform: none;
+}
+.batch-action-btn.batch-btn-favorite:hover { color: #fde68a; }
+.batch-action-btn.batch-btn-delete:hover { background: rgb(var(--destructive) / 0.18); color: #fecaca; }
 .batch-action-btn.batch-btn-restore {
   --g-from: 16 185 129; --g-to: 5 150 105;
   --g-from-hover: 34 197 94; --g-to-hover: 22 163 74;
@@ -2501,7 +2508,7 @@ body.is-mac .window-controls {
 }
 .batch-action-btn.batch-btn-delete-forever:hover::before { opacity: 0.85; }
 
-.media-item:focus-within .overlay,
+.media-item:has(:focus-visible) .overlay,
 .media-item:hover .overlay {
   opacity: 1;
 }
@@ -2768,11 +2775,11 @@ body.is-mac .window-controls {
 /* Image Cards */
 .media-item-image .media-preview {
   position: absolute;
-  inset: 44px 0 0;
+  inset: 0;
   display: flex;
   align-items: center;
   justify-content: center;
-  background: rgba(255, 255, 255, 0.01) !important; /* Ultra-subtle - barely visible, prevents black bleed */
+  background: transparent !important;
 }
 
 .media-item-image img {
@@ -2784,8 +2791,8 @@ body.is-mac .window-controls {
 /* Video Cards */
 .media-item-video .media-preview {
   position: absolute;
-  inset: 44px 0 0;
-  background: rgba(255, 255, 255, 0.01) !important; /* Ultra-subtle - prevents black bleed */
+  inset: 0;
+  background: transparent !important;
 }
 
 .media-item-video .video-preview {
@@ -2821,12 +2828,12 @@ body.is-mac .window-controls {
 }
 
 .media-preview img {
-  background: #1a1a1a; /* Dark placeholder while loading */
+  background: transparent;
   min-height: 0; /* The preview frame owns sizing, including portrait thumbnails. */
 }
 
 .media-preview video {
-  background: #1a1a1a; /* Dark placeholder while loading */
+  background: transparent;
 }
 
 .video-play-btn {
@@ -2866,7 +2873,7 @@ body.is-mac .window-controls {
 }
 
 /* Show pause button when hovering over video */
-.media-item-video:focus-within .video-play-btn.playing,
+.media-item-video:has(:focus-visible) .video-play-btn.playing,
 .media-item-video:hover .video-play-btn.playing {
   opacity: 1;
   pointer-events: auto;
@@ -2895,7 +2902,7 @@ body.is-mac .window-controls {
   pointer-events: none;
 }
 
-.media-item-video:focus-within .video-playbar,
+.media-item-video:has(:focus-visible) .video-playbar,
 .media-item-video:hover .video-playbar,
 .media-item-video.playing .video-playbar {
   opacity: 1;
@@ -2981,7 +2988,7 @@ body.is-mac .window-controls {
 }
 
 .media-item-audio .audio-card {
-  padding: 44px 12px 12px;
+  padding: 12px;
   display: flex;
   flex-direction: column;
   gap: 8px;
@@ -3748,22 +3755,12 @@ body.dragging-active * {
   left: 0;
   right: 0;
   bottom: 0;
-  background: rgba(34, 197, 94, 0.25);
-  border: 3px solid rgb(34, 197, 94);
-  border-radius: 8px;
+  background: rgb(59 130 246 / 0.08);
+  border-radius: inherit;
   pointer-events: none;
   z-index: 10;
-  animation: pulseSelection 2s ease-in-out infinite;
 }
 
-@keyframes pulseSelection {
-  0%, 100% {
-    opacity: 1;
-  }
-  50% {
-    opacity: 0.6;
-  }
-}
 
 
 
@@ -4540,6 +4537,101 @@ body[data-filter="all"] .media-item {
   outline: 2px solid rgb(var(--primary));
   outline-offset: 2px;
 }
-@media (prefers-reduced-motion: reduce) {
-  .media-item.selected::before { animation: none; }
+
+/* Media folders ------------------------------------------------------------ */
+/* Sits beside the project dropdown: project › folder read as one scope. */
+.project-selector { display: flex; gap: 8px; }
+.project-selector .project-dropdown-wrapper { flex: 1; min-width: 0; }
+.folder-bar { display: flex; gap: 4px; flex-shrink: 0; }
+
+.folder-chip-count { color: #71717a; font-size: 11px; }
+
+.folder-popover {
+  position: fixed;
+  z-index: 10000;
+  min-width: 180px;
+  padding: 4px;
+  border-radius: 10px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: #18181b;
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.5);
 }
+.folder-popover-item {
+  display: block;
+  width: 100%;
+  padding: 8px 10px;
+  border: none;
+  border-radius: 6px;
+  background: none;
+  color: #e4e4e7;
+  font-size: 13px;
+  text-align: start;
+  cursor: pointer;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.folder-popover-item:hover { background: rgba(255, 255, 255, 0.07); }
+.folder-popover-item.danger { color: #fca5a5; }
+
+.kolbo-dialog-input {
+  width: 100%;
+  margin-bottom: 20px;
+  padding: 0 12px;
+  box-sizing: border-box;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  color: #f4f4f5;
+  font-size: 14px;
+  outline: none;
+}
+.kolbo-dialog-input:focus { border-color: rgb(59 130 246); }
+
+.batch-action-btn.batch-btn-folder {
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  color: #e4e4e7;
+}
+.batch-action-btn.batch-btn-folder:hover { background: rgba(255, 255, 255, 0.1); }
+
+.folder-trigger,
+.folder-clear {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  height: 40px;
+  padding: 0 12px;
+  border-radius: 10px;
+  border: 1px solid rgb(var(--border) / 0.4);
+  background: rgb(var(--card));
+  color: rgb(var(--foreground));
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: border-color 0.15s ease, background 0.15s ease;
+}
+.folder-trigger { width: 260px; }
+.folder-trigger > svg:last-child { margin-inline-start: auto; color: rgb(var(--muted-foreground)); }
+.folder-trigger:hover,
+.folder-clear:hover { border-color: rgb(var(--border) / 0.8); }
+.folder-trigger.active { border-color: rgb(59 130 246 / 0.5); }
+.folder-clear { padding: 0 11px; color: rgb(var(--muted-foreground)); }
+.folder-clear:hover { color: rgb(var(--foreground)); }
+.folder-trigger-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+.folder-popover { width: 280px; display: flex; flex-direction: column; overflow: hidden; }
+.folder-popover-search {
+  margin: 4px 4px 6px;
+  height: 32px;
+  padding: 0 10px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  color: #f4f4f5;
+  font-size: 13px;
+  outline: none;
+}
+.folder-popover-search:focus { border-color: rgb(59 130 246); }
+.folder-popover-list { overflow-y: auto; max-height: 300px; }
+.folder-popover-pinned { border-top: 1px solid rgba(255, 255, 255, 0.07); margin-top: 4px; padding-top: 4px; }
+.folder-popover-item { display: flex; align-items: center; gap: 8px; }
+.folder-popover-item.active { background: rgb(59 130 246 / 0.14); }
+.folder-popover-label { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.folder-popover-empty { padding: 10px; color: #71717a; font-size: 12.5px; }

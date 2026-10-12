@@ -35,6 +35,13 @@ class FileManager {
     ipcMain.handle('media:permanent-delete', this.permanentDeleteMedia.bind(this));
     ipcMain.handle('media:bulk-permanent-delete', this.bulkPermanentDeleteMedia.bind(this));
     ipcMain.handle('media:get-projects', this.getProjects.bind(this));
+    ipcMain.handle('folders:list', this.listFolders.bind(this));
+    ipcMain.handle('folders:contents', this.getFolderContents.bind(this));
+    ipcMain.handle('folders:create', this.createFolder.bind(this));
+    ipcMain.handle('folders:rename', this.renameFolder.bind(this));
+    ipcMain.handle('folders:delete', this.deleteFolder.bind(this));
+    ipcMain.handle('folders:add-items', this.addToFolder.bind(this));
+    ipcMain.handle('folders:remove-items', this.removeFromFolder.bind(this));
 
     // Ensure cache directory exists
     this.ensureCacheDir();
@@ -609,6 +616,56 @@ class FileManager {
       pageSize: params.pageSize || items.length,
     };
     return { success: true, data: { status: true, data: { items, pagination } } };
+  }
+
+  // ---- Media folders (/media/folders) — flat, optionally scoped to a project ----
+  static listFolders() {
+    return this._authedFetch('listFolders', '/media/folders');
+  }
+
+  // Folder contents come back leaner than /media/db/all; lift the fields the grid reads.
+  static async getFolderContents(event, { id, page = 1, pageSize = 50 }) {
+    const result = await this._authedFetch('getFolderContents',
+      `/media/folders/${encodeURIComponent(id)}?page=${page}&pageSize=${pageSize}`);
+    if (!result.success) return result;
+    const inner = result.data.data || {};
+    const items = (inner.items || []).map(it => ({
+      ...it,
+      thumbnailUrl: it.thumbnailUrl || it.metadata?.thumbnailUrl || null,
+      duration: it.duration || it.metadata?.duration,
+      created_at: it.created_at || it.created,
+    }));
+    return { success: true, data: { status: true, data: { items, pagination: inner.pagination || {} } } };
+  }
+
+  static createFolder(event, { name, projectId }) {
+    return this._authedFetch('createFolder', '/media/folders', { method: 'POST', body: { name } })
+      .then(async (res) => {
+        // POST ignores project_id; attach it with a follow-up PUT so the folder lives in the project.
+        const folder = res.data?.folder;
+        if (!res.success || !folder || !projectId || projectId === 'all') return res;
+        const put = await this._authedFetch('createFolder:project', `/media/folders/${folder._id}`,
+          { method: 'PUT', body: { project_id: projectId } });
+        return put.success ? { success: true, data: { folder: put.data.folder || { ...folder, project_id: projectId } } } : res;
+      });
+  }
+
+  static renameFolder(event, { id, name }) {
+    return this._authedFetch('renameFolder', `/media/folders/${encodeURIComponent(id)}`, { method: 'PUT', body: { name } });
+  }
+
+  static deleteFolder(event, { id }) {
+    return this._authedFetch('deleteFolder', `/media/folders/${encodeURIComponent(id)}`, { method: 'DELETE' });
+  }
+
+  static addToFolder(event, { folderId, mediaIds }) {
+    return this._authedFetch('addToFolder', '/media/folders/items/add',
+      { method: 'POST', body: { folderIds: [folderId], mediaLibraryItemIds: mediaIds } });
+  }
+
+  static removeFromFolder(event, { folderId, mediaIds }) {
+    return this._authedFetch('removeFromFolder', `/media/folders/${encodeURIComponent(folderId)}/items/remove`,
+      { method: 'POST', body: { mediaLibraryItemIds: mediaIds } });
   }
 
   static favoriteMedia(event, { id }) {

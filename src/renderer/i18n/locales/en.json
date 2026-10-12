@@ -405,7 +405,9 @@
     "favorite": "Favorite",
     "delete": "Delete",
     "restore": "Restore",
-    "deleteForever": "Delete forever"
+    "deleteForever": "Delete forever",
+    "addToFolder": "Add to folder",
+    "removeFromFolder": "Remove from folder"
   },
   "errors": {
     "premiereNotDetected": "Kolbo Adobe Plugin Not Detected",
@@ -423,7 +425,8 @@
     "success": "Success",
     "or": "or",
     "and": "and",
-    "ok": "OK"
+    "ok": "OK",
+    "save": "Save"
   },
   "language": {
     "selectLanguage": "Select Language",
@@ -630,5 +633,24 @@
       "freesound": "Sounds provided by Freesound",
       "sketchfab": "3D models from Sketchfab"
     }
+  },
+  "folders": {
+    "allMedia": "All media",
+    "new": "New folder",
+    "newTitle": "New folder",
+    "rename": "Rename",
+    "renameTitle": "Rename folder",
+    "delete": "Delete folder",
+    "deleteTitle": "Delete folder?",
+    "deleteMessage": "The folder is removed. Media inside it stays in your library.",
+    "added": "Added {{count}} to \"{{name}}\"",
+    "createFailed": "Could not create folder",
+    "renameFailed": "Could not rename folder",
+    "deleteFailed": "Could not delete folder",
+    "addFailed": "Could not add to folder",
+    "removeFailed": "Could not remove from folder",
+    "search": "Search folders",
+    "noMatch": "No folders found",
+    "count": "{{count}} folders"
   }
 }

@@ -268,7 +268,7 @@ textarea:focus-visible,
   box-shadow: 0 8px 20px rgba(61, 90, 199, 0.22);
 }
 
-input:not([type='checkbox']):not([type='radio']),
+input:not([type='checkbox']):not([type='radio']):not([type='range']),
 select,
 textarea,
 .settings-select,

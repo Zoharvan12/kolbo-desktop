@@ -139,6 +139,27 @@ contextBridge.exposeInMainWorld('kolboDesktop', {
   getTrash: (params) =>
     ipcRenderer.invoke('media:get-trash', params),
 
+  listFolders: () =>
+    ipcRenderer.invoke('folders:list'),
+
+  getFolderContents: (params) =>
+    ipcRenderer.invoke('folders:contents', params),
+
+  createFolder: (name, projectId) =>
+    ipcRenderer.invoke('folders:create', { name, projectId }),
+
+  renameFolder: (id, name) =>
+    ipcRenderer.invoke('folders:rename', { id, name }),
+
+  deleteFolder: (id) =>
+    ipcRenderer.invoke('folders:delete', { id }),
+
+  addToFolder: (folderId, mediaIds) =>
+    ipcRenderer.invoke('folders:add-items', { folderId, mediaIds }),
+
+  removeFromFolder: (folderId, mediaIds) =>
+    ipcRenderer.invoke('folders:remove-items', { folderId, mediaIds }),
+
   favoriteMedia: (id) =>
     ipcRenderer.invoke('media:favorite', { id }),
 

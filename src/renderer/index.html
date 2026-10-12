@@ -10,7 +10,7 @@
   <link rel="preload" href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&family=Heebo:wght@400;500;600;700&display=swap" as="style" onload="this.onload=null;this.rel='stylesheet'">
   <!-- Critical CSS (render-blocking — needed for first paint) -->
   <link rel="stylesheet" href="css/variables.css?v=7">
-  <link rel="stylesheet" href="css/styles.css?v=8">
+  <link rel="stylesheet" href="css/styles.css?v=11">
   <!-- Deferred CSS (loaded async — not visible on first paint) -->
   <link rel="stylesheet" href="css/context-menu.css?v=6" media="print" onload="this.media='all'">
   <link rel="stylesheet" href="css/format-factory.css?v=1" media="print" onload="this.media='all'">
@@ -263,6 +263,8 @@
             </div>
           </div>
         </div>
+        <!-- Folder picker (filled by renderFolderBar) -->
+        <div id="folder-bar" class="folder-bar"></div>
       </div>
 
       <!-- Filters -->
@@ -1285,6 +1287,14 @@
           <i data-lucide="download"></i>
           <span data-i18n="batch.download">Download</span>
         </button>
+        <button class="batch-action-btn batch-btn-folder" id="floating-batch-add-folder-btn" data-i18n-title="batch.addToFolder" title="Add to folder">
+          <i data-lucide="folder-plus"></i>
+          <span data-i18n="batch.addToFolder">Add to folder</span>
+        </button>
+        <button class="batch-action-btn batch-btn-folder hidden" id="floating-batch-remove-folder-btn" data-i18n-title="batch.removeFromFolder" title="Remove from folder">
+          <i data-lucide="folder-minus"></i>
+          <span data-i18n="batch.removeFromFolder">Remove from folder</span>
+        </button>
         <button class="batch-action-btn batch-btn-favorite" id="floating-batch-favorite-btn" data-i18n-title="batch.favorite" title="Toggle Favorite">
           <i data-lucide="star"></i>
           <span data-i18n="batch.favorite">Favorite</span>
@@ -1373,10 +1383,10 @@
   <script src="build-env.js?v=5"></script>
   <script src="../config.js?v=5"></script>
   <script src="js/electron-bridge.js?v=5"></script>
-  <script src="js/api.js?v=5"></script>
+  <script src="js/api.js?v=6"></script>
   <script src="vendor/lucide/lucide.min.js"></script>
   <script src="js/icons.js?v=1"></script>
-  <script src="i18n/i18n.js?v=1"></script>
+  <script src="i18n/i18n.js?v=3"></script>
   <script src="js/language-selector-init.js?v=1"></script>
   <script src="js/custom-context-menu.js?v=5"></script>
   <script src="js/context-menu-manager.js?v=5"></script>
@@ -1387,7 +1397,7 @@
   <script src="js/synci-manager.js?v=1"></script>
   <script type="module" src="vendor/model-viewer/model-viewer.min.js"></script>
   <script src="js/stock-library-manager.js?v=3"></script>
-  <script src="js/main.js?v=8"></script>
+  <script src="js/main.js?v=11"></script>
 
   <!-- ── Deferred scripts (loaded after first paint via idle callback) ── -->
   <script>
@@ -1399,10 +1409,10 @@
       'js/format-factory-manager.js?v=1',
       'js/downloader-manager.js?v=2',
       'js/quick-tools/trimmer-tool.js?v=1',
-      'js/quick-tools/extractor-tool.js?v=1',
+      'js/quick-tools/extractor-tool.js?v=2',
       'js/quick-tools/frame-grabber-tool.js?v=1',
       'js/quick-tools/video-merger-tool.js?v=1',
-      'js/quick-tools/video-cropper-tool.js?v=1',
+      'js/quick-tools/video-cropper-tool.js?v=2',
       'js/quick-tools/audio-sync-tool.js?v=1',
       'js/quick-tools-manager.js?v=1',
       'js/file-explorer-manager.js?v=36',

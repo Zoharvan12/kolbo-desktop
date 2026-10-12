@@ -147,6 +147,8 @@ class KolboApp {
     this.currentFilter = 'all';
     this.currentSubcategory = 'all';
     this.selectedProjectId = localStorage.getItem('kolbo_selected_project') || 'all';
+    this.folders = [];
+    this.currentFolderId = null; // null = whole library, else a /media/folders id
     this.gridSize = parseInt(localStorage.getItem('kolbo_grid_size')) || 3;
 
     // Project Selector State (custom dropdown)
@@ -602,6 +604,8 @@ class KolboApp {
     if (floatingBatchDownloadBtn) {
       floatingBatchDownloadBtn.addEventListener('click', () => this.handleBatchDownload());
     }
+
+    this.setupFolderUI();
 
     const floatingBatchClearBtn = document.getElementById('floating-batch-clear-btn');
     if (floatingBatchClearBtn) {
@@ -1874,6 +1878,8 @@ ${Icons.get('columns-2', 16)}
 
   selectProject(projectId) {
     this.selectedProjectId = projectId;
+    this.currentFolderId = null;
+    this.renderFolderBar();
     localStorage.setItem('kolbo_selected_project', projectId);
 
     // Update display name
@@ -1915,6 +1921,7 @@ ${Icons.get('columns-2', 16)}
       }
 
       const response = await kolboAPI.getProjects();
+      this.loadFolders();
 
       // Handle different response structures
       if (Array.isArray(response)) {
@@ -2001,6 +2008,288 @@ ${Icons.get('columns-2', 16)}
     this.showLoginScreen();
   }
 
+  // ============================================================================
+  // FOLDERS - flat media folders from /media/folders, scoped to the selected project
+  // ============================================================================
+
+  setupFolderUI() {
+    const bar = document.getElementById('folder-bar');
+    if (!bar) return;
+    bar.addEventListener('click', (e) => {
+      if (e.target.closest('.folder-clear')) return this.selectFolder(null);
+      const trigger = e.target.closest('.folder-trigger');
+      if (trigger) this.showFolderBrowser(trigger);
+    });
+    document.getElementById('floating-batch-add-folder-btn')
+      ?.addEventListener('click', (e) => this.showAddToFolderPicker(e.currentTarget));
+    document.getElementById('floating-batch-remove-folder-btn')
+      ?.addEventListener('click', () => this.removeSelectedFromFolder());
+  }
+
+  async loadFolders() {
+    try {
+      const data = await kolboAPI.listFolders();
+      this.folders = data.folders || [];
+    } catch (err) {
+      console.warn('[Folders] load failed:', err.message);
+      this.folders = [];
+    }
+    if (this.currentFolderId && !this.folders.some(f => f._id === this.currentFolderId)) {
+      this.currentFolderId = null;
+    }
+    this.renderFolderBar();
+  }
+
+  // "All Projects" shows every folder; a project shows its own plus unassigned ones.
+  // Most recently updated first, so the active folders stay on top of long lists.
+  visibleFolders() {
+    const list = this.selectedProjectId === 'all' ? this.folders : this.folders.filter(f => {
+      const pid = f.project_id && (f.project_id._id || f.project_id);
+      return !pid || String(pid) === this.selectedProjectId;
+    });
+    const t = (f) => new Date(f.lastUpdated || f.created_at || 0).getTime();
+    return [...list].sort((a, b) => t(b) - t(a));
+  }
+
+  renderFolderBar() {
+    const bar = document.getElementById('folder-bar');
+    if (!bar) return;
+    bar.classList.toggle('hidden', this.currentFilter === 'trash');
+    const current = this.folders.find(f => f._id === this.currentFolderId);
+    const count = this.visibleFolders().length;
+    bar.innerHTML = `
+      <button type="button" class="folder-trigger ${current ? 'active' : ''}">
+        ${Icons.get(current ? 'folder-open' : 'folders', 16)}
+        <span class="folder-trigger-name">${this.escapeHtml(current ? current.name : tr('folders.allMedia', 'All media'))}</span>
+        ${!current && count ? `<span class="folder-chip-count">${tr('folders.count', `${count} folders`, { count })}</span>` : ''}
+        ${Icons.get('chevron-down', 14)}
+      </button>
+      ${current ? `<button type="button" class="folder-clear" title="${tr('folders.allMedia', 'All media')}">${Icons.get('x', 14)}</button>` : ''}`;
+  }
+
+  selectFolder(id) {
+    if (this.currentFolderId === id) return;
+    this.currentFolderId = id;
+    if (this.currentFilter === 'favorites' || this.currentFilter === 'trash') {
+      this.currentFilter = 'all';
+      document.querySelectorAll('.filter-btn').forEach(b => b.classList.toggle('active', b.dataset.type === 'all'));
+    }
+    this.handleBatchClear();
+    this.renderFolderBar();
+    const container = document.getElementById('media-container');
+    if (container) container.scrollTop = 0;
+    this.loadMedia(true);
+  }
+
+  // Minimal text-input dialog reusing the kolbo-dialog look.
+  promptName(title, initial = '') {
+    return new Promise((resolve) => {
+      const overlay = document.createElement('div');
+      overlay.className = 'kolbo-dialog-overlay';
+      overlay.innerHTML = `
+        <form class="kolbo-dialog">
+          <div class="kolbo-dialog-title">${this.escapeHtml(title)}</div>
+          <input class="kolbo-dialog-input" maxlength="80" value="${this.escapeHtml(initial)}" />
+          <div class="kolbo-dialog-actions">
+            <button type="button" class="kolbo-dialog-btn cancel">${tr('common.cancel', 'Cancel')}</button>
+            <button type="submit" class="kolbo-dialog-btn confirm">${tr('common.save', 'Save')}</button>
+          </div>
+        </form>`;
+      document.body.appendChild(overlay);
+      requestAnimationFrame(() => overlay.classList.add('visible'));
+      const input = overlay.querySelector('input');
+      input.focus();
+      input.select();
+      const close = (val) => {
+        overlay.classList.remove('visible');
+        setTimeout(() => overlay.remove(), 150);
+        resolve(val);
+      };
+      overlay.querySelector('form').addEventListener('submit', (e) => {
+        e.preventDefault();
+        const v = input.value.trim();
+        if (v) close(v);
+      });
+      overlay.querySelector('.cancel').addEventListener('click', () => close(null));
+      overlay.addEventListener('click', (e) => { if (e.target === overlay) close(null); });
+      input.addEventListener('keydown', (e) => { if (e.key === 'Escape') close(null); });
+    });
+  }
+
+  // Searchable list popover. entries: [{ label, meta?, active?, danger?, run, onContext? }]
+  // pinned entries (e.g. "New folder") stay at the bottom and ignore the search.
+  showFolderPopover(anchor, entries, { searchable = false, pinned = [] } = {}) {
+    document.querySelector('.folder-popover')?.remove();
+    const pop = document.createElement('div');
+    pop.className = 'folder-popover';
+    pop.innerHTML = `
+      ${searchable ? `<input class="folder-popover-search" placeholder="${tr('folders.search', 'Search folders')}" />` : ''}
+      <div class="folder-popover-list"></div>
+      ${pinned.length ? `<div class="folder-popover-pinned"></div>` : ''}`;
+    const row = (en, key) => `
+      <button type="button" class="folder-popover-item ${en.active ? 'active' : ''} ${en.danger ? 'danger' : ''}" data-k="${key}">
+        <span class="folder-popover-label">${this.escapeHtml(en.label)}</span>
+        ${en.meta != null ? `<span class="folder-chip-count">${en.meta}</span>` : ''}
+      </button>`;
+    const list = pop.querySelector('.folder-popover-list');
+    const draw = (q = '') => {
+      const needle = q.trim().toLowerCase();
+      const hits = entries.map((en, i) => [en, i]).filter(([en]) => !needle || en.label.toLowerCase().includes(needle));
+      list.innerHTML = hits.length
+        ? hits.map(([en, i]) => row(en, i)).join('')
+        : `<div class="folder-popover-empty">${tr('folders.noMatch', 'No folders found')}</div>`;
+    };
+    draw();
+    if (pinned.length) pop.querySelector('.folder-popover-pinned').innerHTML = pinned.map((en, i) => row(en, `p${i}`)).join('');
+    document.body.appendChild(pop);
+
+    const r = anchor.getBoundingClientRect();
+    const h = pop.offsetHeight;
+    pop.style.left = `${Math.max(8, Math.min(r.left, window.innerWidth - pop.offsetWidth - 8))}px`;
+    pop.style.top = `${r.bottom + 6 + h > window.innerHeight ? Math.max(8, r.top - h - 6) : r.bottom + 6}px`;
+
+    const pick = (k) => (String(k).startsWith('p') ? pinned[k.slice(1)] : entries[k]);
+    const dismiss = (e) => {
+      if (e && pop.contains(e.target)) return;
+      pop.remove();
+      document.removeEventListener('mousedown', dismiss, true);
+      document.removeEventListener('keydown', onKey, true);
+    };
+    const onKey = (e) => { if (e.key === 'Escape') dismiss(); };
+    setTimeout(() => document.addEventListener('mousedown', dismiss, true));
+    document.addEventListener('keydown', onKey, true);
+    pop.addEventListener('click', (e) => {
+      const btn = e.target.closest('[data-k]');
+      if (!btn) return;
+      dismiss();
+      pick(btn.dataset.k).run();
+    });
+    pop.addEventListener('contextmenu', (e) => {
+      const btn = e.target.closest('[data-k]');
+      const en = btn && pick(btn.dataset.k);
+      if (!en || !en.onContext) return;
+      e.preventDefault();
+      dismiss();
+      en.onContext(anchor);
+    });
+    const search = pop.querySelector('.folder-popover-search');
+    if (search) {
+      search.addEventListener('input', () => draw(search.value));
+      search.addEventListener('keydown', (e) => {
+        if (e.key !== 'Enter') return;
+        const first = list.querySelector('[data-k]');
+        if (first) first.click();
+      });
+      search.focus();
+    }
+  }
+
+  // Folder picker behind the trigger button. Right-click a folder to rename/delete it.
+  showFolderBrowser(anchor) {
+    const manage = (f) => (a) => this.showFolderPopover(a, [
+      { label: tr('folders.rename', 'Rename'), run: () => this.renameFolderFlow(f._id) },
+      { label: tr('folders.delete', 'Delete folder'), danger: true, run: () => this.deleteFolderFlow(f._id) },
+    ]);
+    this.showFolderPopover(anchor, [
+      { label: tr('folders.allMedia', 'All media'), active: !this.currentFolderId, run: () => this.selectFolder(null) },
+      ...this.visibleFolders().map(f => ({
+        label: f.name, meta: f.itemCount ?? 0, active: f._id === this.currentFolderId,
+        run: () => this.selectFolder(f._id), onContext: manage(f),
+      })),
+    ], {
+      searchable: true,
+      pinned: [{ label: `+ ${tr('folders.new', 'New folder')}`, run: () => this.createFolderFlow() }],
+    });
+  }
+
+  async createFolderFlow() {
+    const name = await this.promptName(tr('folders.newTitle', 'New folder'));
+    if (!name) return null;
+    try {
+      const data = await kolboAPI.createFolder(name, this.selectedProjectId);
+      await this.loadFolders();
+      return (data.folder && data.folder._id) || null;
+    } catch (err) {
+      this.showToast(tr('folders.createFailed', 'Could not create folder'), 'error');
+      return null;
+    }
+  }
+
+  async renameFolderFlow(id) {
+    const folder = this.folders.find(f => f._id === id);
+    const name = await this.promptName(tr('folders.renameTitle', 'Rename folder'), folder ? folder.name : '');
+    if (!name || (folder && name === folder.name)) return;
+    try {
+      await kolboAPI.renameFolder(id, name);
+      await this.loadFolders();
+    } catch (err) {
+      this.showToast(tr('folders.renameFailed', 'Could not rename folder'), 'error');
+    }
+  }
+
+  async deleteFolderFlow(id) {
+    const ok = await showDialog({
+      title: tr('folders.deleteTitle', 'Delete folder?'),
+      message: tr('folders.deleteMessage', 'The folder is removed. Media inside it stays in your library.'),
+      icon: 'warning',
+      confirmLabel: tr('folders.delete', 'Delete folder'),
+      cancelLabel: tr('common.cancel', 'Cancel'),
+      confirmStyle: 'danger',
+    });
+    if (!ok) return;
+    try {
+      await kolboAPI.deleteFolder(id);
+      if (this.currentFolderId === id) this.selectFolder(null);
+      await this.loadFolders();
+    } catch (err) {
+      this.showToast(tr('folders.deleteFailed', 'Could not delete folder'), 'error');
+    }
+  }
+
+  showAddToFolderPicker(anchor) {
+    const targets = this.visibleFolders().filter(f => f._id !== this.currentFolderId);
+    this.showFolderPopover(anchor,
+      targets.map(f => ({ label: f.name, meta: f.itemCount ?? 0, run: () => this.addSelectedToFolder(f._id) })),
+      {
+        searchable: true,
+        pinned: [{ label: `+ ${tr('folders.new', 'New folder')}`, run: async () => {
+          const id = await this.createFolderFlow();
+          if (id) this.addSelectedToFolder(id);
+        } }],
+      });
+  }
+
+  async addSelectedToFolder(folderId) {
+    const ids = Array.from(this.selectedItems);
+    if (!ids.length) return;
+    const folder = this.folders.find(f => f._id === folderId);
+    const name = folder ? folder.name : '';
+    try {
+      await kolboAPI.addToFolder(folderId, ids);
+      this.showToast(tr('folders.added', `Added ${ids.length} to "${name}"`, { count: ids.length, name }), 'success');
+      this.handleBatchClear();
+      this.loadFolders();
+    } catch (err) {
+      this.showToast(tr('folders.addFailed', 'Could not add to folder'), 'error');
+    }
+  }
+
+  async removeSelectedFromFolder() {
+    const folderId = this.currentFolderId;
+    const ids = Array.from(this.selectedItems);
+    if (!folderId || !ids.length) return;
+    try {
+      await kolboAPI.removeFromFolder(folderId, ids);
+      this.media = this.media.filter(m => !ids.includes(m.id));
+      this.handleBatchClear();
+      this.renderMedia(true);
+      if (!this.media.length) this.getElement('empty-state').classList.remove('hidden');
+      this.loadFolders();
+    } catch (err) {
+      this.showToast(tr('folders.removeFailed', 'Could not remove from folder'), 'error');
+    }
+  }
+
   handleFilter(e) {
     // Use closest() to ensure we get the button element, even if user clicks on SVG/text inside
     const button = e.target.closest('.filter-btn');
@@ -2018,6 +2307,11 @@ ${Icons.get('columns-2', 16)}
     const previousFilter = this.currentFilter;
     this.currentFilter = filterType;
     this.currentSubcategory = 'all';
+
+    // Favorites/Trash are library-wide views; leave the open folder.
+    const leftFolder = (filterType === 'favorites' || filterType === 'trash') && !!this.currentFolderId;
+    if (leftFolder) this.currentFolderId = null;
+    this.renderFolderBar();
 
     if (this.DEBUG_MODE) {
       console.log('[Filter] Previous filter:', previousFilter, '-> New filter:', this.currentFilter);
@@ -2044,7 +2338,7 @@ ${Icons.get('columns-2', 16)}
 
     // Favorites & Trash require API reload (different endpoints). All other
     // type filters can stay client-side.
-    const needsApiReload =
+    const needsApiReload = leftFolder ||
       filterType === 'favorites' || previousFilter === 'favorites' ||
       filterType === 'trash' || previousFilter === 'trash';
     if (needsApiReload) {
@@ -2252,7 +2546,9 @@ ${Icons.get('columns-2', 16)}
 
       const response = isTrash
         ? await kolboAPI.getTrash({ page: this.currentPage, pageSize: optimalPageSize })
-        : await kolboAPI.getMedia(params);
+        : this.currentFolderId
+          ? await kolboAPI.getFolderContents({ id: this.currentFolderId, page: this.currentPage, pageSize: optimalPageSize })
+          : await kolboAPI.getMedia(params);
 
       if (this.DEBUG_MODE) {
         console.log('[Media] API Response:', {
@@ -3861,6 +4157,8 @@ ${Icons.get('check', 16)}
     if (favoriteBtn) favoriteBtn.classList.toggle('hidden', inTrash);
     if (restoreBtn) restoreBtn.classList.toggle('hidden', !inTrash);
     if (deleteForeverBtn) deleteForeverBtn.classList.toggle('hidden', !inTrash);
+    document.getElementById('floating-batch-add-folder-btn')?.classList.toggle('hidden', inTrash);
+    document.getElementById('floating-batch-remove-folder-btn')?.classList.toggle('hidden', inTrash || !this.currentFolderId);
 
     if (this.selectedItems.size > 0) {
       menu?.classList.remove('hidden');

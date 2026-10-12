@@ -401,7 +401,28 @@ window.KolboI18n = (function () {
         change: "Change"
       }
     },
+    folders: {
+      allMedia: "All media",
+      new: "New folder",
+      search: "Search folders",
+      noMatch: "No folders found",
+      count: "{{count}} folders",
+      newTitle: "New folder",
+      rename: "Rename",
+      renameTitle: "Rename folder",
+      delete: "Delete folder",
+      deleteTitle: "Delete folder?",
+      deleteMessage: "The folder is removed. Media inside it stays in your library.",
+      added: "Added {{count}} to \"{{name}}\"",
+      createFailed: "Could not create folder",
+      renameFailed: "Could not rename folder",
+      deleteFailed: "Could not delete folder",
+      addFailed: "Could not add to folder",
+      removeFailed: "Could not remove from folder"
+    },
     batch: {
+      addToFolder: "Add to folder",
+      removeFromFolder: "Remove from folder",
       importToPremiere: "Import to Premiere",
       importing: "Importing...",
       download: "Download",
@@ -429,6 +450,7 @@ window.KolboI18n = (function () {
       dragFailed: "❌ Drag Failed: {{message}}"
     },
     common: {
+      save: "Save",
       cancel: "Cancel",
       close: "Close",
       error: "Error",
