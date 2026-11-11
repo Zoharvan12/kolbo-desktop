@@ -1563,6 +1563,8 @@ ${Icons.get('columns-2', 16)}
           // Only refresh tabs that are already loaded (not currently loading)
           // This prevents ERR_ABORTED (-3) errors from interrupting active loads
           this.tabManager.tabs.forEach(tab => {
+            // PT-042: the JWT is only ever appended to Kolbo app origins, never to an arbitrary tab URL
+            if (!KolboUrlSafety.isTrustedWebappOrigin(tab.url, this.tabManager.getWebappUrl())) return;
             if (tab.iframe && tab.url && tab.loaded) {
               try {
                 // Get current iframe URL to check if token needs updating
@@ -1871,9 +1873,8 @@ ${Icons.get('columns-2', 16)}
   }
 
   escapeHtml(text) {
-    const div = document.createElement('div');
-    div.textContent = text;
-    return div.innerHTML;
+    // also escapes quotes: this helper is used inside attribute values (e.g. src="${...}")
+    return KolboUrlSafety.escapeHtml(text);
   }
 
   selectProject(projectId) {
@@ -2964,10 +2965,10 @@ ${Icons.get('columns-2', 16)}
     if (this.currentFilter === 'trash') {
       return `
         <div class="media-item-actions">
-          <button class="item-action-btn btn-restore" data-action="restore" data-id="${item.id}" title="${tr('media.actions.restore', 'Restore')}">
+          <button class="item-action-btn btn-restore" data-action="restore" data-id="${KolboUrlSafety.escapeHtml(item.id)}" title="${tr('media.actions.restore', 'Restore')}">
             ${Icons.get('undo-2', 16)}
           </button>
-          <button class="item-action-btn btn-delete-forever" data-action="permanent-delete" data-id="${item.id}" title="${tr('media.actions.deleteForever', 'Delete forever')}">
+          <button class="item-action-btn btn-delete-forever" data-action="permanent-delete" data-id="${KolboUrlSafety.escapeHtml(item.id)}" title="${tr('media.actions.deleteForever', 'Delete forever')}">
             ${Icons.get('x', 16)}
           </button>
         </div>
@@ -2977,10 +2978,10 @@ ${Icons.get('columns-2', 16)}
     const favTitle = fav ? tr('media.actions.unfavorite', 'Unfavorite') : tr('media.actions.favorite', 'Favorite');
     return `
       <div class="media-item-actions">
-        <button class="item-action-btn btn-favorite ${fav ? 'is-favorited' : ''}" data-action="favorite" data-id="${item.id}" title="${favTitle}">
+        <button class="item-action-btn btn-favorite ${fav ? 'is-favorited' : ''}" data-action="favorite" data-id="${KolboUrlSafety.escapeHtml(item.id)}" title="${favTitle}">
           ${Icons.get('star', 16)}
         </button>
-        <button class="item-action-btn btn-delete" data-action="delete" data-id="${item.id}" title="${tr('media.actions.delete', 'Move to Trash')}">
+        <button class="item-action-btn btn-delete" data-action="delete" data-id="${KolboUrlSafety.escapeHtml(item.id)}" title="${tr('media.actions.delete', 'Move to Trash')}">
           ${Icons.get('trash-2', 16)}
         </button>
       </div>
@@ -2990,41 +2991,44 @@ ${Icons.get('columns-2', 16)}
   renderMediaItem(item) {
     const fileName = this.getFileName(item);
     const title = item.title || fileName;
+    // PT-015: title/filename/url come from the server (uploader-controlled): escape for HTML text AND attributes
+    const esc = KolboUrlSafety.escapeHtml;
     const duration = item.duration ? this.formatDuration(item.duration) : '';
     const category = item.metadata?.category || item.category || 'audio';
 
     // Audio cards have special layout
     if (item.type === 'audio') {
-      return this.renderAudioItem(item, fileName, title, category);
+      return this.renderAudioItem(item, esc(fileName), esc(title), category);
     }
 
     // Video cards
     if (item.type === 'video') {
-      return this.renderVideoItem(item, fileName, title, duration);
+      return this.renderVideoItem(item, esc(fileName), esc(title), duration);
     }
 
     // Image cards (default)
     const isSelected = this.selectedItems.has(item.id);
     return `
-      <div class="media-item media-item-image ${isSelected ? 'selected' : ''}" data-id="${item.id}" draggable="true" data-filename="${fileName}" data-url="${item.url}" data-type="${item.type}">
-        <button type="button" role="checkbox" aria-checked="${isSelected}" aria-label="${tr('media.selectItem', 'Select item')}" class="selection-checkbox ${isSelected ? 'checked' : ''}" data-id="${item.id}"></button>
-        <div class="cache-status" data-id="${item.id}" style="display: none;">
+      <div class="media-item media-item-image ${isSelected ? 'selected' : ''}" data-id="${esc(item.id)}" draggable="true" data-filename="${esc(fileName)}" data-url="${esc(item.url)}" data-type="${esc(item.type)}">
+        <button type="button" role="checkbox" aria-checked="${isSelected}" aria-label="${tr('media.selectItem', 'Select item')}" class="selection-checkbox ${isSelected ? 'checked' : ''}" data-id="${esc(item.id)}"></button>
+        <div class="cache-status" data-id="${esc(item.id)}" style="display: none;">
           <div class="cache-spinner"></div>
 ${Icons.get('check', 16)}
         </div>
         ${this.renderItemActions(item)}
         <div class="media-preview">
-          <img data-src="${item.thumbnail_url || item.url}" alt="${title}" decoding="async" class="media-img-lazy">
+          <img data-src="${esc(item.thumbnail_url || item.url)}" alt="${esc(title)}" decoding="async" class="media-img-lazy">
           <span class="type-badge type-badge-image">Image</span>
         </div>
         <div class="overlay">
-          <div class="media-title" title="${title}">${title}</div>
+          <div class="media-title" title="${esc(title)}">${esc(title)}</div>
         </div>
       </div>
     `;
   }
 
   renderVideoItem(item, fileName, title, duration) {
+    const esc = KolboUrlSafety.escapeHtml; // fileName/title arrive pre-escaped from renderMediaItem
     const isSelected = this.selectedItems.has(item.id);
     const isPlaying = this.playingVideoId === item.id;
     const rawThumb = item.thumbnail_url || item.thumbnailUrl || '';
@@ -3032,23 +3036,23 @@ ${Icons.get('check', 16)}
     const thumbnailUrl = isImageThumb ? rawThumb : '';
 
     return `
-      <div class="media-item media-item-video ${isSelected ? 'selected' : ''} ${isPlaying ? 'playing' : ''}" data-id="${item.id}" draggable="true" data-filename="${fileName}" data-url="${item.url}" data-type="${item.type}">
-        <button type="button" role="checkbox" aria-checked="${isSelected}" aria-label="${tr('media.selectItem', 'Select item')}" class="selection-checkbox ${isSelected ? 'checked' : ''}" data-id="${item.id}"></button>
-        <div class="cache-status" data-id="${item.id}" style="display: none;">
+      <div class="media-item media-item-video ${isSelected ? 'selected' : ''} ${isPlaying ? 'playing' : ''}" data-id="${esc(item.id)}" draggable="true" data-filename="${fileName}" data-url="${esc(item.url)}" data-type="${esc(item.type)}">
+        <button type="button" role="checkbox" aria-checked="${isSelected}" aria-label="${tr('media.selectItem', 'Select item')}" class="selection-checkbox ${isSelected ? 'checked' : ''}" data-id="${esc(item.id)}"></button>
+        <div class="cache-status" data-id="${esc(item.id)}" style="display: none;">
           <div class="cache-spinner"></div>
 ${Icons.get('check', 16)}
         </div>
         ${this.renderItemActions(item)}
         <div class="media-preview">
-          ${thumbnailUrl ? `<img data-src="${thumbnailUrl}" alt="${title}" decoding="async" class="media-img-lazy video-thumb-img">` : '<div class="video-thumb-img" style="width:100%;height:100%"></div>'}
-          <button aria-label="${tr('media.playPause', 'Play or pause')}" class="video-play-btn ${isPlaying ? 'playing' : ''}" data-id="${item.id}">
+          ${thumbnailUrl ? `<img data-src="${esc(thumbnailUrl)}" alt="${title}" decoding="async" class="media-img-lazy video-thumb-img">` : '<div class="video-thumb-img" style="width:100%;height:100%"></div>'}
+          <button aria-label="${tr('media.playPause', 'Play or pause')}" class="video-play-btn ${isPlaying ? 'playing' : ''}" data-id="${esc(item.id)}">
             ${isPlaying ? Icons.get('pause', 22, 2) : Icons.get('play', 22, 2)}
           </button>
-          <div class="video-playbar" data-id="${item.id}">
-            <div class="video-progress-container" data-id="${item.id}">
-              <div class="video-progress-fill" data-id="${item.id}"></div>
+          <div class="video-playbar" data-id="${esc(item.id)}">
+            <div class="video-progress-container" data-id="${esc(item.id)}">
+              <div class="video-progress-fill" data-id="${esc(item.id)}"></div>
             </div>
-            <div class="video-time-display" data-id="${item.id}">0:00 / ${duration || '--:--'}</div>
+            <div class="video-time-display" data-id="${esc(item.id)}">0:00 / ${esc(duration) || '--:--'}</div>
           </div>
           <span class="type-badge type-badge-video">Video</span>
         </div>
@@ -3060,13 +3064,14 @@ ${Icons.get('check', 16)}
   }
 
   renderAudioItem(item, fileName, title, category) {
-    const audioUrl = item.url || item.audio_url || '';
+    const esc = KolboUrlSafety.escapeHtml; // fileName/title arrive pre-escaped from renderMediaItem
+    const audioUrl = esc(item.url || item.audio_url || '');
     const isSelected = this.selectedItems.has(item.id);
 
     // Determine category badge styling
     const categoryLower = (category || 'audio').toLowerCase();
     let categoryClass = 'category-other';
-    let categoryLabel = category || 'Audio';
+    let categoryLabel = esc(category || 'Audio');
 
     if (categoryLower.includes('music') || categoryLower.includes('suno')) {
       categoryClass = 'category-music';
@@ -3083,9 +3088,9 @@ ${Icons.get('check', 16)}
     const waveformBars = this.generateWaveformBars(32);
 
     return `
-      <div class="media-item media-item-audio ${isSelected ? 'selected' : ''}" data-id="${item.id}" draggable="true" data-filename="${fileName}" data-url="${item.url}" data-type="${item.type}">
-        <button type="button" role="checkbox" aria-checked="${isSelected}" aria-label="${tr('media.selectItem', 'Select item')}" class="selection-checkbox ${isSelected ? 'checked' : ''}" data-id="${item.id}"></button>
-        <div class="cache-status" data-id="${item.id}" style="display: none;">
+      <div class="media-item media-item-audio ${isSelected ? 'selected' : ''}" data-id="${esc(item.id)}" draggable="true" data-filename="${fileName}" data-url="${esc(item.url)}" data-type="${esc(item.type)}">
+        <button type="button" role="checkbox" aria-checked="${isSelected}" aria-label="${tr('media.selectItem', 'Select item')}" class="selection-checkbox ${isSelected ? 'checked' : ''}" data-id="${esc(item.id)}"></button>
+        <div class="cache-status" data-id="${esc(item.id)}" style="display: none;">
           <div class="cache-spinner"></div>
 ${Icons.get('check', 16)}
         </div>
@@ -3096,23 +3101,23 @@ ${Icons.get('check', 16)}
           </div>
           <div class="audio-title" title="${title}">${title}</div>
           <div class="audio-waveform-container">
-            <div class="audio-waveform" data-id="${item.id}">
+            <div class="audio-waveform" data-id="${esc(item.id)}">
               ${waveformBars}
-              <div class="waveform-progress" data-id="${item.id}"></div>
+              <div class="waveform-progress" data-id="${esc(item.id)}"></div>
             </div>
           </div>
           <div class="audio-controls">
-            <button aria-label="${tr('media.playPause', 'Play or pause')}" class="audio-play-btn" data-id="${item.id}" data-url="${audioUrl}">
+            <button aria-label="${tr('media.playPause', 'Play or pause')}" class="audio-play-btn" data-id="${esc(item.id)}" data-url="${audioUrl}">
 <span class="play-icon">${Icons.get('play', 16)}</span>
               <span class="pause-icon" style="display: none;">${Icons.get('pause', 16)}</span>
             </button>
             <div class="audio-time">
-              <span class="audio-current-time" data-id="${item.id}">0:00</span>
+              <span class="audio-current-time" data-id="${esc(item.id)}">0:00</span>
               <span class="audio-separator">/</span>
-              <span class="audio-duration" data-id="${item.id}">--:--</span>
+              <span class="audio-duration" data-id="${esc(item.id)}">--:--</span>
             </div>
           </div>
-          <audio class="audio-element" data-id="${item.id}" preload="metadata">
+          <audio class="audio-element" data-id="${esc(item.id)}" preload="metadata">
             <source src="${audioUrl}" type="audio/mpeg">
           </audio>
         </div>
@@ -5648,8 +5653,8 @@ function setupDownloadNotifications() {
 
   // Open file button
   openFileBtn.addEventListener("click", () => {
-    if (currentFilePath && window.kolboDesktop && window.kolboDesktop.openExternal) {
-      window.kolboDesktop.openExternal(currentFilePath);
+    if (currentFilePath && window.kolboDesktop && window.kolboDesktop.openDownloadedFile) {
+      window.kolboDesktop.openDownloadedFile(currentFilePath);
       notification.classList.add("hidden");
     }
   });

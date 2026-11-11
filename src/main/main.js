@@ -5,7 +5,40 @@
 const { app, BrowserWindow, Tray, Menu, nativeImage, screen, dialog, webContents } = require('electron');
 const path = require('path');
 const config = require('../config');
+const { isSafeExternalUrl, externalHref, isHttpUrl } = require('../url-safety');
+const { recordDownload, wasDownloaded, isOpenable, isLocalDirectory, isLocalPath, isDangerousFileName, approveFolder } = require('./downloaded-files');
+
+// PT-043: top-level navigation may only stay inside the app's own renderer folder.
+function isAppLocalUrl(navUrl) {
+  try {
+    const u = new URL(navUrl);
+    if (u.protocol !== 'file:' || u.host) return false;
+    const rendererDir = path.resolve(__dirname, '..', 'renderer').toLowerCase() + path.sep;
+    return (path.resolve(require('url').fileURLToPath(u)).toLowerCase() + path.sep).startsWith(rendererDir);
+  } catch (_) { return false; }
+}
+// PT-043: decide "is this a file download" from the URL PATH extension only, never a substring of host/query
+// (https://evil/payload.exe?x=.pdf must not look like a .pdf).
+const DOWNLOADABLE_EXT = new Set([
+  '.pdf', '.doc', '.docx', '.xls', '.xlsx', '.ppt', '.pptx',
+  '.zip', '.rar', '.7z', '.tar', '.gz',
+  '.mp4', '.mov', '.avi', '.mkv', '.webm',
+  '.mp3', '.wav', '.flac', '.ogg',
+  '.png', '.jpg', '.jpeg', '.gif', '.webp', '.svg',
+  '.txt', '.csv', '.json', '.xml'
+]);
+function isDownloadableUrl(url) {
+  try { return DOWNLOADABLE_EXT.has(path.extname(decodeURIComponent(new URL(url).pathname)).toLowerCase()); } catch (_) { return false; }
+}
 const IS_UI_AUDIT = process.env.KOLBO_UI_AUDIT === '1';
+// Same order as preload.js: KOLBO_ENV, then the executable name, then development.
+function detectKolboEnv() {
+  if (process.env.KOLBO_ENV) return process.env.KOLBO_ENV;
+  const exe = path.basename(process.execPath || '').replace(/\.exe$/, '');
+  if (exe.includes('Dev')) return 'development';
+  if (exe.includes('Staging')) return 'staging';
+  return exe.toLowerCase().includes('kolbo') ? 'production' : 'development';
+}
 
 // ── Deferred imports — loaded lazily after splash is visible ───────────────
 let Store, store, autoUpdater, checkDiskSpace;
@@ -67,7 +100,8 @@ let tray = null;
 // app.disableHardwareAcceleration();
 
 // Additional Windows compatibility flags
-app.commandLine.appendSwitch('no-sandbox');
+// PT-043: the global 'no-sandbox' switch was removed so the Chromium OS sandbox is active.
+// The preload only requires 'electron' and every window runs nodeIntegration:false + contextIsolation.
 app.commandLine.appendSwitch('disable-dev-shm-usage');
 
 // Performance: Increase HTTP disk cache to 500MB (default is ~50MB)
@@ -168,6 +202,7 @@ function createSplashWindow() {
     webPreferences: {
       nodeIntegration: false,
       contextIsolation: true,
+      sandbox: true,
     }
   });
 
@@ -221,6 +256,8 @@ function createWindow() {
       // has context isolation + no Node integration, but runs this trusted local
       // preload outside the renderer sandbox so the read-only capture bridge loads.
       sandbox: !IS_UI_AUDIT,
+      // A sandboxed preload may not see process.execPath; main works the environment out and passes it in.
+      additionalArguments: [`--kolbo-env=${detectKolboEnv()}`],
       preload: (() => {
         const preloadPath = path.join(__dirname, 'preload.js');
         console.log('[Main] Preload script path:', preloadPath);
@@ -303,22 +340,23 @@ function createWindow() {
     });
   }
 
+  // PT-043: the app window must never navigate away from its local UI (top-level only;
+  // tab content lives in iframes). External targets go to the OS browser if they are web links.
+  mainWindow.webContents.on('will-navigate', (event, navUrl) => {
+    if (isAppLocalUrl(navUrl)) return;
+    event.preventDefault();
+    if (isSafeExternalUrl(navUrl)) require('electron').shell.openExternal(externalHref(navUrl));
+  });
+
   // Intercept window.open() calls to download files instead of opening in new tabs
   mainWindow.webContents.setWindowOpenHandler(({ url }) => {
     console.log('[Main] Window open intercepted:', url);
 
-    // Check if URL is a downloadable file (PDF, images, videos, documents, etc.)
-    const downloadableExtensions = [
-      '.pdf', '.doc', '.docx', '.xls', '.xlsx', '.ppt', '.pptx',
-      '.zip', '.rar', '.7z', '.tar', '.gz',
-      '.mp4', '.mov', '.avi', '.mkv', '.webm',
-      '.mp3', '.wav', '.flac', '.ogg',
-      '.png', '.jpg', '.jpeg', '.gif', '.webp', '.svg',
-      '.txt', '.csv', '.json', '.xml'
-    ];
+    // PT-043: never hand non-browser schemes to the OS or the downloader
+    if (!isSafeExternalUrl(url)) return { action: 'deny' };
 
-    const urlLower = url.toLowerCase();
-    const isDownloadable = downloadableExtensions.some(ext => urlLower.includes(ext));
+    // Check if URL is a downloadable file (PDF, images, videos, documents, etc.)
+    const isDownloadable = isDownloadableUrl(url);
 
     if (isDownloadable) {
       console.log('[Main] Downloadable file detected - triggering download instead of new window');
@@ -334,7 +372,7 @@ function createWindow() {
     // For non-downloadable URLs, allow them to open in default browser
     console.log('[Main] Non-downloadable URL - opening in external browser');
     const { shell } = require('electron');
-    shell.openExternal(url);
+    shell.openExternal(externalHref(url));
 
     // Deny the window.open() in Electron (already opened externally)
     return { action: 'deny' };
@@ -618,10 +656,31 @@ function setupWindowHandlers() {
     }
   });
 
+  // Open a downloaded file with its default app (the "Open file" button after a download).
+  // Replaces openExternal(localPath): openExternal now accepts web links only (PT-043).
+  ipcMain.handle('file:open-downloaded', async (event, filePath) => {
+    try {
+      const fs = require('fs');
+      // Only files this app saved; never an arbitrary (e.g. UNC) path from the renderer.
+      if (!wasDownloaded(filePath)) return { success: false, error: 'Invalid path' };
+      if (!fs.existsSync(filePath) || !fs.statSync(filePath).isFile()) return { success: false, error: 'File not found' };
+      if (!isOpenable(filePath)) {
+        // Allow-list of harmless types; everything else is revealed, never launched.
+        shell.showItemInFolder(filePath);
+        return { success: true, revealed: true };
+      }
+      const err = await shell.openPath(filePath);
+      return err ? { success: false, error: err } : { success: true };
+    } catch (error) {
+      return { success: false, error: error.message };
+    }
+  });
+
   // Open any folder in file explorer
   ipcMain.handle('file:open-folder', async (event, folderPath) => {
     try {
       console.log('[Main] Opening folder:', folderPath);
+      if (!isLocalDirectory(folderPath)) return { success: false, error: 'Not a local folder' };
       const result = await shell.openPath(folderPath);
 
       if (result) {
@@ -644,6 +703,7 @@ function setupWindowHandlers() {
       console.log('[Main] Revealing file in folder:', filePath);
 
       const fs = require('fs');
+      if (!isLocalPath(filePath)) return { success: false, error: 'Not a local path' };
       if (!fs.existsSync(filePath)) {
         console.error('[Main] File does not exist:', filePath);
         return { success: false, error: 'File does not exist' };
@@ -672,6 +732,7 @@ function setupWindowHandlers() {
         return { success: false, canceled: true };
       }
 
+      approveFolder(result.filePaths[0]);
       return { success: true, folderPath: result.filePaths[0] };
     } catch (error) {
       console.error('[Main] Error picking folder:', error);
@@ -710,28 +771,30 @@ function setupWindowHandlers() {
       webPreferences: {
         nodeIntegration: false,
         contextIsolation: true,
+        sandbox: true,
         preload: path.join(__dirname, 'preload.js'),
         webSecurity: process.env.NODE_ENV === 'development' ? false : true,
-        additionalArguments: url ? [`--tab-url=${url}`] : []
+        additionalArguments: [`--kolbo-env=${detectKolboEnv()}`, ...(url ? [`--tab-url=${url}`] : [])]
       }
+    });
+
+    // PT-043: the app window must never navigate away from its local UI (top-level only;
+    // tab content lives in iframes). External targets go to the OS browser if they are web links.
+    newWindow.webContents.on('will-navigate', (event, navUrl) => {
+      if (isAppLocalUrl(navUrl)) return;
+      event.preventDefault();
+      if (isSafeExternalUrl(navUrl)) shell.openExternal(externalHref(navUrl));
     });
 
     // Intercept window.open() calls to download files instead of opening in new tabs
     newWindow.webContents.setWindowOpenHandler(({ url }) => {
       console.log('[Main] Window open intercepted (new window):', url);
 
-      // Check if URL is a downloadable file (PDF, images, videos, documents, etc.)
-      const downloadableExtensions = [
-        '.pdf', '.doc', '.docx', '.xls', '.xlsx', '.ppt', '.pptx',
-        '.zip', '.rar', '.7z', '.tar', '.gz',
-        '.mp4', '.mov', '.avi', '.mkv', '.webm',
-        '.mp3', '.wav', '.flac', '.ogg',
-        '.png', '.jpg', '.jpeg', '.gif', '.webp', '.svg',
-        '.txt', '.csv', '.json', '.xml'
-      ];
+      // PT-043: never hand non-browser schemes to the OS or the downloader
+      if (!isSafeExternalUrl(url)) return { action: 'deny' };
 
-      const urlLower = url.toLowerCase();
-      const isDownloadable = downloadableExtensions.some(ext => urlLower.includes(ext));
+      // Check if URL is a downloadable file (PDF, images, videos, documents, etc.)
+      const isDownloadable = isDownloadableUrl(url);
 
       if (isDownloadable) {
         console.log('[Main] Downloadable file detected - triggering download instead of new window');
@@ -746,7 +809,7 @@ function setupWindowHandlers() {
 
       // For non-downloadable URLs, allow them to open in default browser
       console.log('[Main] Non-downloadable URL - opening in external browser');
-      shell.openExternal(url);
+      shell.openExternal(externalHref(url));
 
       // Deny the window.open() in Electron (already opened externally)
       return { action: 'deny' };
@@ -1601,6 +1664,7 @@ function setupDownloaderHandlers() {
   ipcMain.handle('dl:open-folder', async (event, folderPath) => {
     try {
       const { shell } = require('electron');
+      if (!isLocalDirectory(folderPath)) return { success: false, error: 'Not a local folder' };
       await shell.openPath(folderPath);
       return { success: true };
     } catch (error) {
@@ -1613,6 +1677,7 @@ function setupDownloaderHandlers() {
   ipcMain.handle('dl:show-in-folder', async (event, filePath) => {
     try {
       const { shell } = require('electron');
+      if (!isLocalPath(filePath)) return { success: false, error: 'Not a local path' };
       shell.showItemInFolder(filePath);
       return { success: true };
     } catch (error) {
@@ -1765,6 +1830,11 @@ function setupScreenshotHandlers() {
       // Helper function to download image (handles redirects)
       const downloadImage = (url) => {
         return new Promise((resolve, reject) => {
+          // PT-016: http(s) only, also for redirect targets
+          if (!isHttpUrl(url)) {
+            reject(new Error('Blocked URL scheme'));
+            return;
+          }
           const protocol = url.startsWith('https') ? https : http;
 
           protocol.get(url, (response) => {
@@ -1882,6 +1952,7 @@ function setupScreenshotHandlers() {
       // Send download notification to renderer for banner display
       const targetWindow = BrowserWindow.getFocusedWindow() || mainWindow;
       if (targetWindow && !targetWindow.isDestroyed()) {
+        recordDownload(filePath);
         targetWindow.webContents.send('download-complete', {
           fileName: fileName,
           filePath: filePath,
@@ -1942,6 +2013,7 @@ function setupScreenshotHandlers() {
       // Reuse the existing download banner in the renderer.
       const targetWindow = BrowserWindow.getFocusedWindow() || mainWindow;
       if (targetWindow && !targetWindow.isDestroyed()) {
+        recordDownload(savePath);
         targetWindow.webContents.send('download-complete', {
           fileName: safeName,
           filePath: savePath,
@@ -2011,6 +2083,7 @@ function setupScreenshotHandlers() {
 
       const win = BrowserWindow.getFocusedWindow() || mainWindow;
       if (win && !win.isDestroyed()) {
+        recordDownload(dest);
         win.webContents.send('download-complete', { fileName: path.basename(dest), filePath: dest, folderPath: folder });
       }
       return { success: true, savedPath: dest };
@@ -2124,6 +2197,7 @@ function setupDownloadHandler() {
 
   // IPC handler to open folder in explorer
   ipcMain.handle('show-in-folder', async (event, filePath) => {
+    if (!isLocalPath(filePath)) return;
     shell.showItemInFolder(filePath);
   });
 
@@ -2193,7 +2267,7 @@ function setupDownloadHandler() {
     }
 
     // Generate unique filename if file already exists
-    let savePath = path.join(downloadFolder, fileName);
+    let savePath = path.join(downloadFolder, path.basename(fileName));
     let counter = 1;
     const ext = path.extname(fileName);
     const base = path.basename(fileName, ext);
@@ -2210,6 +2284,27 @@ function setupDownloadHandler() {
 
     // Set save path
     item.setSavePath(savePath);
+
+    // PT-043: a server-chosen filename (Content-Disposition) can turn an innocent URL into an executable.
+    // The save path is already set (so Electron never opens its own Save As dialog) and the transfer is
+    // paused while the warning is up; Cancel aborts it.
+    if (isDangerousFileName(fileName)) {
+      item.pause();
+      const { response } = await dialog.showMessageBox(BrowserWindow.getFocusedWindow() || mainWindow, {
+        type: 'warning',
+        buttons: ['Cancel', 'Save anyway'],
+        defaultId: 0,
+        cancelId: 0,
+        message: 'This file can run programs on your computer.',
+        detail: `${fileName}\n${fileUrl}`
+      });
+      if (response !== 1) {
+        activeDialogs.delete(fileUrl);
+        item.cancel();
+        return;
+      }
+      item.resume();
+    }
 
     // Track download progress
     item.on('updated', (event, state) => {
@@ -2233,6 +2328,7 @@ function setupDownloadHandler() {
         // Send download notification to renderer for banner display
         const targetWindow = BrowserWindow.getFocusedWindow() || mainWindow;
         if (targetWindow && !targetWindow.isDestroyed()) {
+          recordDownload(savePath);
           targetWindow.webContents.send('download-complete', {
             fileName: fileName,
             filePath: savePath,
@@ -2322,6 +2418,13 @@ function setupPermissionHandlers() {
 
     if (!allowedPermissions.includes(permission)) {
       console.log(`[Permissions] ❌ Denied: ${permission}`);
+      callback(false);
+      return;
+    }
+
+    // PT-043: a page may only hand the OS a web/mail link, never a custom protocol (ms-excel:, search-ms:, smb:...).
+    if (permission === 'openExternal' && !(details && isSafeExternalUrl(details.externalURL))) {
+      console.log('[Permissions] ❌ Denied openExternal (unsafe or missing URL)');
       callback(false);
       return;
     }
@@ -2472,7 +2575,6 @@ function setupPermissionHandlers() {
       'midiSysex',
       'pointerLock',
       'fullscreen',
-      'openExternal',
       'clipboard-read',
       'clipboard-write',
       'camera',

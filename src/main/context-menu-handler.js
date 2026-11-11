@@ -6,6 +6,8 @@ const path = require('path');
 const fs = require('fs');
 const https = require('https');
 const http = require('http');
+const { isSafeExternalUrl, externalHref, isHttpUrl } = require('../url-safety');
+const { recordDownload, isDangerousFileName } = require('./downloaded-files');
 
 class ContextMenuHandler {
   constructor(mainWindow, store) {
@@ -113,7 +115,7 @@ class ContextMenuHandler {
         {
           label: 'Open in Browser',
           click: () => {
-            shell.openExternal(mediaItem.url);
+            if (isSafeExternalUrl(mediaItem.url)) shell.openExternal(externalHref(mediaItem.url));
           }
         }
       );
@@ -358,6 +360,11 @@ class ContextMenuHandler {
     try {
       console.log('[Context Menu] Downloading file:', url);
 
+      // PT-016: http(s) only (no file:, ftp:, smb: ...)
+      if (!isHttpUrl(url)) {
+        return { success: false, error: 'Blocked URL scheme' };
+      }
+
       // Get download folder
       let downloadFolder = this.store.get('defaultDownloadFolder');
 
@@ -390,6 +397,11 @@ class ContextMenuHandler {
         fileName += extensions[type] || '';
       }
 
+      // PT-043: never silently save a file that runs code (the name comes from the URL path)
+      if (isDangerousFileName(fileName)) {
+        return { success: false, error: 'Blocked file type' };
+      }
+
       // Make filename unique if exists
       let savePath = path.join(downloadFolder, fileName);
       let counter = 1;
@@ -407,6 +419,7 @@ class ContextMenuHandler {
       await this.downloadFileToPath(url, savePath);
 
       // Show notification
+      recordDownload(savePath);
       this.mainWindow.webContents.send('download-complete', {
         fileName: path.basename(savePath),
         filePath: savePath,

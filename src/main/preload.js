@@ -6,6 +6,10 @@ console.log('[Preload] Electron loaded');
 
 // Detect environment from app executable name
 function detectEnvironment() {
+  // PRIORITY 0: environment passed by the main process (works in a sandboxed preload)
+  const arg = (process.argv || []).find((a) => typeof a === 'string' && a.startsWith('--kolbo-env='));
+  if (arg) return arg.slice('--kolbo-env='.length);
+
   // PRIORITY 1: Check process.env.KOLBO_ENV (works with npm start using cross-env)
   if (process.env.KOLBO_ENV) {
     console.log('[Preload] Environment from KOLBO_ENV:', process.env.KOLBO_ENV);
@@ -206,6 +210,9 @@ contextBridge.exposeInMainWorld('kolboDesktop', {
 
   revealFileInFolder: (filePath) =>
     ipcRenderer.invoke('file:reveal-in-folder', filePath),
+
+  openDownloadedFile: (filePath) =>
+    ipcRenderer.invoke('file:open-downloaded', filePath),
 
   pickFolder: () =>
     ipcRenderer.invoke('file:pick-folder'),

@@ -769,9 +769,7 @@ class DownloaderManager {
   }
 
   escapeHtml(text) {
-    const div = document.createElement('div');
-    div.textContent = text;
-    return div.innerHTML;
+    return KolboUrlSafety.escapeHtml(text); // also escapes quotes: safe inside attribute values
   }
 }
 
