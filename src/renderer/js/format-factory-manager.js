@@ -1750,7 +1750,7 @@ ${Icons.get('plus', 16)}
       if (thumbnailUrl) {
         previewCell.innerHTML = `
           <div class="ff-preview">
-            <img src="${thumbnailUrl}" class="ff-preview-thumbnail" alt="${job.fileName}">
+            <img src="${KolboUrlSafety.escapeHtml(thumbnailUrl)}" class="ff-preview-thumbnail" alt="${KolboUrlSafety.escapeHtml(job.fileName)}">
           </div>
         `;
       } else {
@@ -1766,7 +1766,7 @@ ${Icons.get('plus', 16)}
       const sourceCell = document.createElement('td');
       sourceCell.innerHTML = `
         <div class="ff-source-info">
-          <div class="ff-source-name">${this.truncateFileName(job.fileName, 40)}</div>
+          <div class="ff-source-name">${KolboUrlSafety.escapeHtml(this.truncateFileName(job.fileName, 40))}</div>
           <div class="ff-source-path">${this.formatFileSize(job.fileSize)}</div>
         </div>
       `;
@@ -1796,7 +1796,7 @@ ${Icons.get('plus', 16)}
       if (job.status === 'completed') {
         actionsCell.innerHTML = `
           <div style="display: flex; gap: 8px; justify-content: flex-end;">
-            <button class="ff-btn ff-btn-success" data-action="open-folder" data-job-id="${job.id}" data-output-path="${job.outputPath || ''}" title="Open Output Folder">
+            <button class="ff-btn ff-btn-success" data-action="open-folder" data-job-id="${KolboUrlSafety.escapeHtml(job.id)}" data-output-path="${KolboUrlSafety.escapeHtml(job.outputPath || '')}" title="Open Output Folder">
               ${Icons.get('folder', 14)}
             </button>
             <button class="ff-btn" data-action="remove" data-job-id="${job.id}" title="Remove">
@@ -2239,7 +2239,7 @@ ${Icons.get('plus', 16)}
     header.innerHTML = `
       <div>
         <h3 style="margin: 0 0 4px 0; color: #ffffff; font-size: 18px; font-weight: 600;">Change Output Format</h3>
-        <p style="margin: 0 0 4px 0; color: rgba(255, 255, 255, 0.8); font-size: 13px;">${this.truncateFileName(job.fileName, 50)}</p>
+        <p style="margin: 0 0 4px 0; color: rgba(255, 255, 255, 0.8); font-size: 13px;">${KolboUrlSafety.escapeHtml(this.truncateFileName(job.fileName, 50))}</p>
         <p style="margin: 0; color: rgba(255, 255, 255, 0.5); font-size: 12px;">${hintText}</p>
       </div>
       <button id="ff-modal-close" style="background: transparent; border: none; color: rgba(255, 255, 255, 0.6); font-size: 24px; cursor: pointer; padding: 0; width: 32px; height: 32px; display: flex; align-items: center; justify-content: center; border-radius: 4px;">×</button>

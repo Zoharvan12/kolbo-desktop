@@ -10,9 +10,14 @@ const path = require('path');
 const https = require('https');
 const http = require('http');
 const checkDiskSpace = require('check-disk-space').default;
+const { isApprovedFolder } = require('./downloaded-files');
 
 const store = new Store(); // Shared store instance
 const CACHE_DIR = path.join(app.getPath('userData'), 'MediaCache');
+
+// File names come from server/collaborator-controlled media records: keep only the last path segment
+// so a name like "..\..\Startup\x.bat" can never leave the cache/target folder.
+const safeName = (n) => path.basename(String(n == null ? '' : n).replace(/\\/g, '/')) || 'file';
 // Cache limit removed - users manage cache manually via Settings page
 // This prevents NLE project corruption from automatic file deletion
 
@@ -51,7 +56,7 @@ class FileManager {
   }
 
   static isFileCached(event, { fileName }) {
-    const filePath = path.join(CACHE_DIR, fileName);
+    const filePath = path.join(CACHE_DIR, safeName(fileName));
     const exists = fs.existsSync(filePath);
     return { cached: exists, filePath };
   }
@@ -68,7 +73,7 @@ class FileManager {
     const batch = fileNames.length > MAX_BATCH ? fileNames.slice(0, MAX_BATCH) : fileNames;
 
     return batch.map(fileName => {
-      const filePath = path.join(CACHE_DIR, fileName);
+      const filePath = path.join(CACHE_DIR, safeName(fileName));
       const exists = fs.existsSync(filePath);
       return { fileName, cached: exists, filePath };
     });
@@ -165,6 +170,7 @@ class FileManager {
     }
 
     // Generate unique filename if file already exists
+    fileName = safeName(fileName);
     let filePath = path.join(CACHE_DIR, fileName);
     let counter = 1;
     const ext = path.extname(fileName);
@@ -259,6 +265,10 @@ class FileManager {
   }
 
   static async batchDownload(event, { items, targetFolder }) {
+    // PT-043: only a folder the user picked in the native dialog (file:pick-folder) may receive files.
+    if (!Array.isArray(items) || !isApprovedFolder(targetFolder)) {
+      return { success: false, error: 'Target folder was not chosen by the user', results: [], successCount: 0, totalCount: Array.isArray(items) ? items.length : 0 };
+    }
     console.log(`[FileManager] Batch downloading ${items.length} files to:`, targetFolder);
 
     // Check disk space before starting batch download
@@ -294,10 +304,11 @@ class FileManager {
     for (const item of items) {
       try {
         // Generate unique filename if file already exists
-        let filePath = path.join(targetFolder, item.fileName);
+        const itemName = safeName(item.fileName);
+        let filePath = path.join(targetFolder, itemName);
         let counter = 1;
-        const ext = path.extname(item.fileName);
-        const base = path.basename(item.fileName, ext);
+        const ext = path.extname(itemName);
+        const base = path.basename(itemName, ext);
 
         while (fs.existsSync(filePath)) {
           filePath = path.join(targetFolder, `${base} (${counter})${ext}`);

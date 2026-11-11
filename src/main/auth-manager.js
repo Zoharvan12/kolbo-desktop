@@ -5,6 +5,7 @@ const { ipcMain, shell, app } = require('electron');
 const Store = require('electron-store');
 const crypto = require('crypto');
 const config = require('../config');
+const { isSafeExternalUrl, externalHref } = require('../url-safety');
 
 const store = new Store();
 
@@ -21,7 +22,11 @@ class AuthManager {
     ipcMain.handle('auth:get-token', this.getToken);
     ipcMain.handle('auth:update-token', this.handleUpdateToken);
     ipcMain.handle('app:get-version', () => app.getVersion());
-    ipcMain.handle('app:open-external', (event, url) => shell.openExternal(url));
+    ipcMain.handle('app:open-external', (event, url) => {
+      // PT-043: browser schemes only (no file:, smb:, ms-msdt:, custom handlers)
+      if (!isSafeExternalUrl(url)) return { success: false, error: 'Blocked URL scheme' };
+      return shell.openExternal(externalHref(url));
+    });
 
     console.log('[AuthManager] IPC handlers registered');
   }

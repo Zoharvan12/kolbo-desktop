@@ -759,8 +759,32 @@ class TabManager {
     });
   }
 
+  isTrustedTabMessage(event) {
+    const isSource = (f) => {
+      try {
+        return !!f && f.contentWindow === event.source;
+      } catch (e) {
+        return false;
+      }
+    };
+    // Split view moves the two panes' iframes out of this.tabs into this.mergedTabs.
+    let fromTabFrame = this.tabs.some(t => isSource(t.iframe));
+    if (!fromTabFrame) {
+      for (const m of this.mergedTabs.values()) {
+        if (isSource(m.leftIframe) || isSource(m.rightIframe)) { fromTabFrame = true; break; }
+      }
+    }
+    return fromTabFrame &&
+      window.KolboUrlSafety.isTrustedWebappOrigin(event.origin, this.getWebappUrl());
+  }
+
   setupGlobalMessageListener() {
     window.addEventListener('message', (event) => {
+      // PT-016: only the top frame of one of OUR tab iframes, on a Kolbo origin, may drive
+      // privileged actions (openExternal, downloads, copy-image, token sync, context menu).
+      // Nested frames (sandboxed artifacts, AI-rendered HTML) have a different event.source.
+      if (!this.isTrustedTabMessage(event)) return;
+
       // Log all messages for debugging
       if (event.data && event.data.type) {
         if (this.DEBUG_MODE) {
@@ -1493,7 +1517,16 @@ class TabManager {
       }
     }
 
-    const token = window.kolboAPI?.getToken();
+    // PT-016/PT-042: tabs load web pages only; the JWT goes ONLY to Kolbo origins
+    // (never to a link target supplied by page content).
+    const safety = window.KolboUrlSafety;
+    if (!safety.isHttpUrl(tabUrl)) {
+      console.error('[TabManager] Refusing to open non-http(s) tab URL');
+      return null;
+    }
+    const sendToken = safety.isTrustedWebappOrigin(tabUrl, this.getWebappUrl());
+
+    const token = sendToken ? window.kolboAPI?.getToken() : null;
     if (token) {
       const separator = tabUrl.includes('?') ? '&' : '?';
       // Add source=desktop to identify the embedding context (like Adobe plugin does with source=adobe)
@@ -2631,9 +2664,7 @@ class TabManager {
   }
 
   escapeHtml(text) {
-    const div = document.createElement('div');
-    div.textContent = text;
-    return div.innerHTML;
+    return KolboUrlSafety.escapeHtml(text); // also escapes quotes: safe inside attribute values
   }
 
   showToast(message) {
